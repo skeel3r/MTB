@@ -64,6 +64,7 @@ export function initGame(playerNames: string[]): GameState {
     activeObstacles: [],
     trailHazards: createTrailHazards(),
     currentHazards: [],
+    lastHazardRolls: [],
     log: ['Game initialized. Ready to start!'],
   };
 }
@@ -339,9 +340,11 @@ function executeAlignment(state: GameState): GameState {
 // ── VII. Reckoning ──
 function executeReckoning(state: GameState): GameState {
   const s = state;
+  s.lastHazardRolls = [];
 
   for (const player of s.players) {
     if (player.hazardDice <= 0) {
+      s.lastHazardRolls.push({ playerName: player.name, rolls: [], penaltyDrawn: null });
       s.log.push(`${player.name}: No hazard dice to roll.`);
       continue;
     }
@@ -358,14 +361,17 @@ function executeReckoning(state: GameState): GameState {
 
     s.log.push(`${player.name} rolls ${diceCount} hazard dice: [${rolls.join(', ')}]`);
 
+    let penaltyDrawn: string | null = null;
     if (penalty) {
       if (s.penaltyDeck.length > 0) {
         const penaltyCard = s.penaltyDeck.shift()!;
         player.penalties.push(penaltyCard);
+        penaltyDrawn = penaltyCard.name;
         s.log.push(`${player.name}: Rolled a 6! Penalty: ${penaltyCard.name} - ${penaltyCard.description}`);
       }
     }
 
+    s.lastHazardRolls.push({ playerName: player.name, rolls, penaltyDrawn });
     player.hazardDice = 0;
   }
 

@@ -116,6 +116,8 @@ export interface GameState {
   activeObstacles: ProgressObstacle[];
   trailHazards: TrailHazard[];
   currentHazards: TrailHazard[];
+  /** Last hazard roll results per player (set during reckoning) */
+  lastHazardRolls: { playerName: string; rolls: number[]; penaltyDrawn: string | null }[];
   log: string[];
 }
 

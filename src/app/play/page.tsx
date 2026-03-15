@@ -512,7 +512,44 @@ export default function PlayPage() {
                 {game.phase === 'environment' && `${game.currentHazards.length} hazard(s) applied.`}
                 {game.phase === 'preparation' && 'Cards drawn based on momentum.'}
                 {game.phase === 'alignment' && 'Grid checked against trail card targets.'}
-                {game.phase === 'reckoning' && 'Hazard dice rolled.'}
+                {game.phase === 'reckoning' && (
+                  <div className="space-y-2">
+                    <div>Hazard dice rolled:</div>
+                    {game.lastHazardRolls.map((hr, i) => (
+                      <div key={i} className="p-2 rounded bg-black/20 border border-gray-700">
+                        <div className="font-bold text-xs text-gray-300 mb-1">{hr.playerName}</div>
+                        {hr.rolls.length === 0 ? (
+                          <div className="text-gray-600 text-xs">No hazard dice</div>
+                        ) : (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex gap-1">
+                              {hr.rolls.map((roll, j) => (
+                                <span
+                                  key={j}
+                                  className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-sm ${
+                                    roll === 6
+                                      ? 'bg-red-700 text-white ring-2 ring-red-400 animate-pulse'
+                                      : 'bg-gray-700 text-gray-200'
+                                  }`}
+                                >
+                                  {roll}
+                                </span>
+                              ))}
+                            </div>
+                            {hr.penaltyDrawn && (
+                              <span className="text-red-400 text-xs font-bold">
+                                Penalty: {hr.penaltyDrawn}
+                              </span>
+                            )}
+                            {!hr.penaltyDrawn && hr.rolls.length > 0 && (
+                              <span className="text-green-400 text-xs">Safe!</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -568,18 +605,34 @@ export default function PlayPage() {
             />
           </div>
 
-          {/* Penalties */}
-          {currentPlayer.penalties.length > 0 && (
-            <div className="min-w-[150px]">
-              <h3 className="text-xs font-bold mb-2 text-orange-400 uppercase tracking-wider">Penalties</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {currentPlayer.penalties.map((p, i) => (
-                  <div key={i} className="penalty-card px-2 py-1.5 text-xs">
-                    <div className="font-bold">{p.name}</div>
-                    <div className="text-yellow-700/80 text-[10px]">{p.description}</div>
+          {/* Penalties - shown for all players who have any */}
+          {game.players.some(p => p.penalties.length > 0) && (
+            <div className="min-w-[180px]">
+              <h3 className="text-xs font-bold mb-2 text-orange-400 uppercase tracking-wider">Penalty Cards</h3>
+              {game.players.map(player => {
+                if (player.penalties.length === 0) return null;
+                return (
+                  <div key={player.id} className="mb-2">
+                    <div className="text-[10px] text-gray-400 font-bold mb-1">{player.name} ({player.penalties.length})</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {player.penalties.map((pen, i) => (
+                        <div
+                          key={i}
+                          className="rounded-lg px-2.5 py-2 text-xs"
+                          style={{
+                            background: 'linear-gradient(135deg, #4a1a0a 0%, #2a0a00 100%)',
+                            border: '2px solid #8b4513',
+                            boxShadow: '0 2px 6px rgba(139,69,19,0.4), inset 0 1px 0 rgba(255,200,100,0.1)',
+                          }}
+                        >
+                          <div className="font-bold text-orange-300">{pen.name}</div>
+                          <div className="text-orange-200/60 text-[10px] mt-0.5">{pen.description}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           )}
 
