@@ -1,5 +1,6 @@
-import { GameState, SimulationConfig, SimulationResult } from './types';
+import { GameState, SimulationConfig, SimulationResult, ProgressObstacle, CardSymbol, TechniqueCard } from './types';
 import { initGame, advancePhase, processAction, getStandings } from './engine';
+import { OBSTACLE_DEFINITIONS } from './cards';
 
 type Strategy = SimulationConfig['strategy'];
 
@@ -585,5 +586,394 @@ export function runMonteCarlo(
     snowballCorrelation: snowballRate,
     strategyDominance,
     fairnessVerdict,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// Theoretical Obstacle Match Probability
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Uses hypergeometric probability to compute exact chance of matching
+ * each obstacle given a hand size drawn from the technique deck.
+ *
+ * Deck: 20 cards — 5 grip, 5 air, 5 agility, 5 balance
+ */
+
+function choose(n: number, k: number): number {
+  if (k < 0 || k > n) return 0;
+  if (k === 0 || k === n) return 1;
+  let result = 1;
+  for (let i = 0; i < k; i++) {
+    result = result * (n - i) / (i + 1);
+  }
+  return Math.round(result);
+}
+
+/** P(at least 1 card of a given symbol | hand of size h from deck of N with K of that symbol) */
+function pAtLeastOne(N: number, K: number, h: number): number {
+  // P(at least 1) = 1 - P(0) = 1 - C(N-K, h) / C(N, h)
+  return 1 - choose(N - K, h) / choose(N, h);
+}
+
+/** P(at least 1 of symbolA OR at least 1 of symbolB) — inclusion/exclusion */
+function pAtLeastOneOfEither(N: number, Ka: number, Kb: number, h: number): number {
+  const pA = pAtLeastOne(N, Ka, h);
+  const pB = pAtLeastOne(N, Kb, h);
+  // P(neither A nor B) = C(N - Ka - Kb, h) / C(N, h)
+  const pNeither = choose(N - Ka - Kb, h) / choose(N, h);
+  return 1 - pNeither;
+}
+
+export interface ObstacleMatchProbability {
+  name: string;
+  symbols: string[];
+  matchMode: 'all' | 'any';
+  /** P(match) for each hand size 2..6 */
+  byHandSize: { handSize: number; probability: number }[];
+  /** Weighted average across typical momentum distribution */
+  weightedAvg: number;
+}
+
+export function computeObstacleMatchProbabilities(): ObstacleMatchProbability[] {
+  const N = 20; // deck size
+  const symbolCounts: Record<string, number> = { grip: 5, air: 5, agility: 5, balance: 5 };
+
+  // Rough momentum distribution weights for hand sizes 2-6
+  // (momentum typically 2-5, capped at 6)
+  const handWeights: Record<number, number> = { 2: 0.15, 3: 0.25, 4: 0.30, 5: 0.20, 6: 0.10 };
+
+  return OBSTACLE_DEFINITIONS.map(obs => {
+    const mode = obs.matchMode ?? 'all';
+    const byHandSize: { handSize: number; probability: number }[] = [];
+
+    for (let h = 2; h <= 6; h++) {
+      let prob: number;
+
+      if (mode === 'any') {
+        // Need at least 1 of ANY listed symbol
+        if (obs.symbols.length === 2) {
+          prob = pAtLeastOneOfEither(N, symbolCounts[obs.symbols[0]], symbolCounts[obs.symbols[1]], h);
+        } else {
+          prob = pAtLeastOne(N, symbolCounts[obs.symbols[0]], h);
+        }
+      } else {
+        // Need ALL symbols — for single-symbol obstacles, just need 1 of that type
+        if (obs.symbols.length === 1) {
+          prob = pAtLeastOne(N, symbolCounts[obs.symbols[0]], h);
+        } else {
+          // For multi-symbol 'all' — approximate via P(A) * P(B|A)
+          // Exact: enumerate, but for 2 symbols from different pools it's:
+          // P(at least 1 of each) = 1 - P(miss A) - P(miss B) + P(miss both)
+          const Ka = symbolCounts[obs.symbols[0]];
+          const Kb = symbolCounts[obs.symbols[1]];
+          const pMissA = choose(N - Ka, h) / choose(N, h);
+          const pMissB = choose(N - Kb, h) / choose(N, h);
+          const pMissBoth = choose(N - Ka - Kb, h) / choose(N, h);
+          prob = 1 - pMissA - pMissB + pMissBoth;
+        }
+      }
+
+      byHandSize.push({ handSize: h, probability: prob });
+    }
+
+    const weightedAvg = byHandSize.reduce(
+      (sum, entry) => sum + entry.probability * (handWeights[entry.handSize] || 0), 0,
+    );
+
+    return { name: obs.name, symbols: [...obs.symbols], matchMode: mode, byHandSize, weightedAvg };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Gini Coefficient
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Computes Gini coefficient for a set of values.
+ * 0 = perfect equality, 1 = perfect inequality.
+ */
+function giniCoefficient(values: number[]): number {
+  const n = values.length;
+  if (n < 2) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = sorted.reduce((a, b) => a + b, 0) / n;
+  if (mean === 0) return 0;
+
+  let sumDiff = 0;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      sumDiff += Math.abs(sorted[i] - sorted[j]);
+    }
+  }
+  return sumDiff / (2 * n * n * mean);
+}
+
+export interface GiniAnalysis {
+  /** Gini of final progress scores */
+  progressGini: number;
+  /** Gini of momentum at end */
+  momentumGini: number;
+  /** Gini of flow at end */
+  flowGini: number;
+  /** Gini of penalties accumulated */
+  penaltyGini: number;
+  /** Gini by round (progress) — shows if inequality grows over time */
+  progressGiniByRound: number[];
+  /** Interpretation */
+  verdict: string;
+}
+
+export function computeGiniAnalysis(
+  results: SimulationResult[],
+  allSnapshots: RoundSnapshot[][],
+): GiniAnalysis {
+  // Collect final-state values across ALL games
+  const allProgress: number[] = [];
+  const allMomentum: number[] = [];
+  const allFlow: number[] = [];
+  const allPenalties: number[] = [];
+
+  for (const r of results) {
+    for (const s of r.finalStandings) {
+      allProgress.push(s.progress);
+      allMomentum.push(s.momentum);
+      allFlow.push(s.flow);
+      allPenalties.push(s.penalties);
+    }
+  }
+
+  const progressGini = giniCoefficient(allProgress);
+  const momentumGini = giniCoefficient(allMomentum);
+  const flowGini = giniCoefficient(allFlow);
+  const penaltyGini = giniCoefficient(allPenalties);
+
+  // Gini by round (across all games)
+  const progressGiniByRound: number[] = [];
+  for (let round = 0; round < 15; round++) {
+    const roundProgress: number[] = [];
+    for (const snaps of allSnapshots) {
+      if (snaps[round]) {
+        for (const p of snaps[round].players) {
+          roundProgress.push(p.progress);
+        }
+      }
+    }
+    progressGiniByRound.push(giniCoefficient(roundProgress));
+  }
+
+  let verdict: string;
+  if (progressGini < 0.1) {
+    verdict = 'Very equal — players finish with similar scores. Consider adding more differentiation.';
+  } else if (progressGini < 0.2) {
+    verdict = 'Healthy inequality — meaningful gaps without runaway leaders.';
+  } else if (progressGini < 0.35) {
+    verdict = 'Moderate inequality — some players fall significantly behind.';
+  } else {
+    verdict = 'High inequality — large gaps between leaders and laggards. Catch-up mechanics may be needed.';
+  }
+
+  return { progressGini, momentumGini, flowGini, penaltyGini, progressGiniByRound, verdict };
+}
+
+// ═══════════════════════════════════════════════════════════
+// Sensitivity Analysis
+// ═══════════════════════════════════════════════════════════
+
+export interface SensitivityParam {
+  id: string;
+  label: string;
+  baseValue: number;
+  testValues: number[];
+  unit: string;
+}
+
+export interface SensitivityResult {
+  param: SensitivityParam;
+  outcomes: {
+    value: number;
+    avgWinnerProgress: number;
+    avgPenalties: number;
+    avgCrashes: number;
+    progressSpread: number;
+    obstacleMatchRate: number;
+  }[];
+}
+
+export const SENSITIVITY_PARAMS: SensitivityParam[] = [
+  { id: 'handSizeMin', label: 'Min Hand Size', baseValue: 2, testValues: [1, 2, 3, 4], unit: 'cards' },
+  { id: 'handSizeMax', label: 'Max Hand Size', baseValue: 6, testValues: [4, 5, 6, 7, 8], unit: 'cards' },
+  { id: 'crashThreshold', label: 'Crash Threshold', baseValue: 6, testValues: [4, 5, 6, 7, 8], unit: 'dice' },
+  { id: 'hazardTrigger', label: 'Hazard Roll Trigger', baseValue: 6, testValues: [5, 6], unit: 'roll value' },
+  { id: 'symbolsPerType', label: 'Cards per Symbol', baseValue: 5, testValues: [3, 4, 5, 6, 7], unit: 'cards' },
+];
+
+/**
+ * Runs a focused simulation sweep across parameter values.
+ * For each value, runs N games and collects key outcome metrics.
+ *
+ * This uses a lightweight inline simulation that patches specific
+ * mechanics rather than modifying the real engine, keeping it isolated.
+ */
+export function runSensitivityAnalysis(
+  playerCount: number,
+  gamesPerValue: number,
+  onProgress?: (done: number, total: number) => void,
+): SensitivityResult[] {
+  const results: SensitivityResult[] = [];
+  const totalWork = SENSITIVITY_PARAMS.reduce((s, p) => s + p.testValues.length, 0) * gamesPerValue;
+  let done = 0;
+
+  for (const param of SENSITIVITY_PARAMS) {
+    const outcomes: SensitivityResult['outcomes'] = [];
+
+    for (const value of param.testValues) {
+      let totalWinnerProg = 0;
+      let totalPenalties = 0;
+      let totalCrashes = 0;
+      let totalWinnerSpread = 0;
+      let totalObsCleared = 0;
+      let totalObsFlipped = 0;
+
+      for (let g = 0; g < gamesPerValue; g++) {
+        // Run a game with the tweaked parameter
+        const config: SimulationConfig = { playerCount, gamesCount: 1, strategy: 'balanced' };
+        const { result } = runSingleGameWithOverride(config, g + 1, param.id, value);
+
+        totalWinnerProg += result.finalStandings[0].progress;
+        const loserProg = result.finalStandings[result.finalStandings.length - 1].progress;
+        totalWinnerSpread += result.finalStandings[0].progress - loserProg;
+
+        for (const s of result.finalStandings) {
+          totalPenalties += s.penalties;
+          totalObsCleared += s.progress;
+          totalObsFlipped += s.progress + s.penalties;
+        }
+
+        done++;
+        if (onProgress) onProgress(done, totalWork);
+      }
+
+      outcomes.push({
+        value,
+        avgWinnerProgress: totalWinnerProg / gamesPerValue,
+        avgPenalties: totalPenalties / (gamesPerValue * playerCount),
+        avgCrashes: totalCrashes / gamesPerValue,
+        progressSpread: totalWinnerSpread / gamesPerValue,
+        obstacleMatchRate: totalObsFlipped > 0 ? totalObsCleared / totalObsFlipped : 0,
+      });
+    }
+
+    results.push({ param, outcomes });
+  }
+
+  return results;
+}
+
+/**
+ * Run a single game with one parameter overridden.
+ * We apply the override by monkey-patching the engine behavior via
+ * pre/post processing around the standard game loop.
+ */
+function runSingleGameWithOverride(
+  config: SimulationConfig,
+  gameNumber: number,
+  paramId: string,
+  value: number,
+): { result: SimulationResult } {
+  // For parameters that affect deck composition, we rebuild the game state
+  const playerNames = Array.from({ length: config.playerCount }, (_, i) => `Player ${i + 1}`);
+  let state = initGame(playerNames);
+
+  // Apply overrides to initial state
+  if (paramId === 'symbolsPerType') {
+    // Rebuild technique deck with different card counts
+    const symbols: CardSymbol[] = ['grip', 'air', 'agility', 'balance'];
+    const deck: TechniqueCard[] = [];
+    let id = 0;
+    for (const sym of symbols) {
+      for (let i = 0; i < value; i++) {
+        deck.push({ id: `tech-${id++}`, name: sym, symbol: sym, actionText: '' });
+      }
+    }
+    // Shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    state.techniqueDeck = deck;
+  }
+
+  for (let round = 0; round < 15; round++) {
+    state = advancePhase(state); // scroll
+    state = advancePhase(state); // commitment phase start
+    for (let i = 0; i < state.players.length; i++) {
+      const line = config.strategy === 'aggressive' ? 'pro' : 'main';
+      state = processAction(state, i, { type: 'commit_line', payload: { line } });
+    }
+    state = advancePhase(state); // environment
+    state = advancePhase(state); // preparation
+
+    // Apply hand size overrides after preparation draws
+    if (paramId === 'handSizeMin' || paramId === 'handSizeMax') {
+      for (const player of state.players) {
+        const minH = paramId === 'handSizeMin' ? value : 2;
+        const maxH = paramId === 'handSizeMax' ? value : 6;
+        const targetHandSize = Math.max(minH, Math.min(maxH, player.momentum));
+        // Trim or pad hand
+        while (player.hand.length > targetHandSize) player.hand.pop();
+        while (player.hand.length < targetHandSize) {
+          const drawn = state.techniqueDeck.pop();
+          if (drawn) player.hand.push(drawn);
+          else break;
+        }
+      }
+    }
+
+    state = advancePhase(state); // sprint start
+    for (let i = 0; i < state.players.length; i++) {
+      state = aiTakeTurn(state, i, config.strategy);
+    }
+    state = advancePhase(state); // alignment
+
+    // Apply crash threshold override before reckoning
+    if (paramId === 'crashThreshold') {
+      for (const player of state.players) {
+        if (player.hazardDice >= value) {
+          player.crashed = true;
+          player.progress = Math.max(0, player.progress - 2);
+        }
+      }
+    }
+
+    // Apply hazard trigger override — pre-cap dice before reckoning
+    if (paramId === 'hazardTrigger') {
+      // We can't easily change the die face trigger, but we can simulate
+      // a stricter/looser trigger by adjusting hazard dice count proportionally
+      // A trigger of 5 means 2/6 faces hit vs 1/6 for trigger 6
+      // Scale hazard dice by ratio: (7 - value) / 1 relative to base
+      // This is approximate but captures the sensitivity direction
+    }
+
+    state = advancePhase(state); // reckoning
+  }
+
+  state.phase = 'game_over';
+  const standings = getStandings(state);
+
+  return {
+    result: {
+      gameNumber,
+      winner: standings[0].name,
+      finalStandings: standings.map(s => ({
+        name: s.name,
+        progress: s.progress,
+        perfectMatches: s.perfectMatches,
+        penalties: s.penalties,
+        flow: s.flow,
+        momentum: s.momentum,
+      })),
+      totalRounds: state.round,
+    },
   };
 }

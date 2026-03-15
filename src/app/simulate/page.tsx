@@ -2,7 +2,13 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { SimulationConfig, SimulationResult } from '@/lib/types';
-import { runSingleGame, RoundSnapshot, BalanceSummary, computeBalanceSummary, runMonteCarlo, MonteCarloResult } from '@/lib/simulation';
+import {
+  runSingleGame, RoundSnapshot, BalanceSummary, computeBalanceSummary,
+  runMonteCarlo, MonteCarloResult,
+  computeObstacleMatchProbabilities, ObstacleMatchProbability,
+  computeGiniAnalysis, GiniAnalysis,
+  runSensitivityAnalysis, SensitivityResult, SENSITIVITY_PARAMS,
+} from '@/lib/simulation';
 
 export default function SimulatePage() {
   const [config, setConfig] = useState<SimulationConfig>({
@@ -18,6 +24,11 @@ export default function SimulatePage() {
   const [balance, setBalance] = useState<BalanceSummary | null>(null);
   const [mcResult, setMcResult] = useState<MonteCarloResult | null>(null);
   const [mcRunning, setMcRunning] = useState(false);
+  const [gini, setGini] = useState<GiniAnalysis | null>(null);
+  const [obsProbabilities] = useState<ObstacleMatchProbability[]>(() => computeObstacleMatchProbabilities());
+  const [sensitivity, setSensitivity] = useState<SensitivityResult[] | null>(null);
+  const [saRunning, setSaRunning] = useState(false);
+  const [saGames, setSaGames] = useState(30);
   const [mcProgress, setMcProgress] = useState(0);
   const [mcGames, setMcGames] = useState(300);
   const cancelRef = useRef(false);
@@ -28,6 +39,7 @@ export default function SimulatePage() {
     setResults([]);
     setAllSnapshots([]);
     setBalance(null);
+    setGini(null);
     setCurrentGame(0);
     setLiveSnapshot(null);
     cancelRef.current = false;
@@ -41,6 +53,7 @@ export default function SimulatePage() {
         setRunning(false);
         if (newResults.length > 0) {
           setBalance(computeBalanceSummary(newResults, newSnapshots, config));
+          setGini(computeGiniAnalysis(newResults, newSnapshots));
         }
         return;
       }
@@ -106,6 +119,16 @@ export default function SimulatePage() {
       setMcRunning(false);
     }, 50);
   }, [mcGames, config.playerCount]);
+
+  const runSA = useCallback(() => {
+    setSaRunning(true);
+    setSensitivity(null);
+    setTimeout(() => {
+      const result = runSensitivityAnalysis(config.playerCount, saGames);
+      setSensitivity(result);
+      setSaRunning(false);
+    }, 50);
+  }, [config.playerCount, saGames]);
 
   return (
     <div className="min-h-screen game-table text-white p-4 sm:p-8">
@@ -531,6 +554,204 @@ export default function SimulatePage() {
             </div>
           )}
         </div>
+
+        {/* ═══ Theoretical Obstacle Match Probability ═══ */}
+        <div className="mt-10 pt-8 border-t-2 border-gray-700">
+          <h2 className="text-xl sm:text-2xl font-bold mb-1">Theoretical Obstacle Match Probability</h2>
+          <p className="text-emerald-300/60 mb-4 text-sm">
+            Exact hypergeometric probability of matching each obstacle given hand size (deck: 20 cards, 5 per symbol).
+          </p>
+          <div className="trail-card p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs sm:text-sm">
+                <thead>
+                  <tr className="text-gray-400 border-b border-gray-600">
+                    <th className="py-2 text-left">Obstacle</th>
+                    <th className="text-left">Symbols</th>
+                    <th className="text-center">Mode</th>
+                    {[2, 3, 4, 5, 6].map(h => (
+                      <th key={h} className="text-center w-16">Hand {h}</th>
+                    ))}
+                    <th className="text-center w-16">Weighted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {obsProbabilities.map(obs => (
+                    <tr key={obs.name} className="border-b border-gray-700/30">
+                      <td className="py-1.5 font-medium">{obs.name}</td>
+                      <td className="text-gray-400">{obs.symbols.join(', ')}</td>
+                      <td className="text-center text-gray-500">{obs.matchMode}</td>
+                      {obs.byHandSize.map(entry => (
+                        <td key={entry.handSize} className="text-center">
+                          <span className={
+                            entry.probability > 0.8 ? 'text-emerald-400' :
+                            entry.probability > 0.5 ? 'text-yellow-400' :
+                            'text-red-400'
+                          }>
+                            {(entry.probability * 100).toFixed(0)}%
+                          </span>
+                        </td>
+                      ))}
+                      <td className="text-center font-bold">
+                        <span className={
+                          obs.weightedAvg > 0.7 ? 'text-emerald-400' :
+                          obs.weightedAvg > 0.4 ? 'text-yellow-400' :
+                          'text-red-400'
+                        }>
+                          {(obs.weightedAvg * 100).toFixed(0)}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="text-[10px] text-gray-500 mt-3">
+              Weighted average uses estimated momentum distribution: 15% hand-2, 25% hand-3, 30% hand-4, 20% hand-5, 10% hand-6.
+            </div>
+          </div>
+        </div>
+
+        {/* ═══ Gini Coefficient Analysis ═══ */}
+        {gini && !running && (
+          <div className="mt-10 pt-8 border-t-2 border-gray-700">
+            <h2 className="text-xl sm:text-2xl font-bold mb-1">Gini Coefficient Analysis</h2>
+            <p className="text-emerald-300/60 mb-4 text-sm">
+              Measures inequality across players. 0 = perfect equality, 1 = one player has everything.
+            </p>
+
+            <div className={`rounded-lg p-4 border-2 mb-4 ${
+              gini.progressGini < 0.2 ? 'border-emerald-600 bg-emerald-900/20' :
+              gini.progressGini < 0.35 ? 'border-yellow-600 bg-yellow-900/20' :
+              'border-red-600 bg-red-900/20'
+            }`}>
+              <div className="text-sm">{gini.verdict}</div>
+            </div>
+
+            <div className="trail-card p-4 mb-4">
+              <h3 className="font-bold text-sm mb-3">Gini Coefficients by Metric</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <GiniBar label="Progress" value={gini.progressGini} />
+                <GiniBar label="Momentum" value={gini.momentumGini} />
+                <GiniBar label="Flow" value={gini.flowGini} />
+                <GiniBar label="Penalties" value={gini.penaltyGini} />
+              </div>
+            </div>
+
+            <div className="trail-card p-4">
+              <h3 className="font-bold text-sm mb-3">Progress Inequality Over Time</h3>
+              <div className="flex items-end gap-px h-24">
+                {gini.progressGiniByRound.map((g, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center justify-end">
+                    <div
+                      className={`w-full rounded-t-sm min-h-[2px] ${
+                        g < 0.15 ? 'bg-emerald-500' : g < 0.3 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ height: `${Math.min(g * 300, 100)}%` }}
+                    />
+                    <div className="text-[8px] text-gray-500 mt-0.5">{i + 1}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between text-[9px] text-gray-500 mt-1">
+                <span>Round</span>
+                <span>Higher = more unequal</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Sensitivity Analysis ═══ */}
+        <div className="mt-10 pt-8 border-t-2 border-gray-700">
+          <h2 className="text-xl sm:text-2xl font-bold mb-1">Sensitivity Analysis</h2>
+          <p className="text-emerald-300/60 mb-4 text-sm">
+            Sweep key game parameters to see how they affect outcomes.
+          </p>
+
+          <div className="flex gap-3 items-end mb-6">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Games per Value</label>
+              <select
+                value={saGames}
+                onChange={e => setSaGames(+e.target.value)}
+                className="bg-black/30 border border-gray-600 rounded px-3 py-2 text-white"
+              >
+                {[10, 20, 30, 50].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <button
+              onClick={runSA}
+              disabled={saRunning}
+              className="px-6 py-2.5 bg-amber-700 rounded-lg font-bold hover:bg-amber-600 disabled:opacity-50 transition-colors border border-amber-500"
+            >
+              {saRunning ? 'Running...' : 'Run Sensitivity Analysis'}
+            </button>
+          </div>
+
+          {sensitivity && (
+            <div className="space-y-4">
+              {sensitivity.map(sr => (
+                <div key={sr.param.id} className="trail-card p-4">
+                  <h3 className="font-bold text-sm mb-1">{sr.param.label}</h3>
+                  <p className="text-[10px] text-gray-500 mb-3">
+                    Base value: {sr.param.baseValue} {sr.param.unit} — testing {sr.param.testValues.join(', ')}
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-400 border-b border-gray-600">
+                          <th className="py-1 text-left">{sr.param.label}</th>
+                          <th className="text-right">Winner Prog</th>
+                          <th className="text-right">Penalties</th>
+                          <th className="text-right">Spread</th>
+                          <th className="text-right">Match Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sr.outcomes.map(o => {
+                          const isBase = o.value === sr.param.baseValue;
+                          return (
+                            <tr key={o.value} className={`border-b border-gray-700/30 ${isBase ? 'bg-white/5' : ''}`}>
+                              <td className="py-1">
+                                {o.value} {sr.param.unit}
+                                {isBase && <span className="text-emerald-400 text-[10px] ml-1">(base)</span>}
+                              </td>
+                              <td className="text-right text-emerald-400">{o.avgWinnerProgress.toFixed(1)}</td>
+                              <td className="text-right text-orange-400">{o.avgPenalties.toFixed(1)}</td>
+                              <td className="text-right text-yellow-400">{o.progressSpread.toFixed(1)}</td>
+                              <td className="text-right text-blue-400">{(o.obstacleMatchRate * 100).toFixed(0)}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Mini visual: winner progress bar comparison */}
+                  <div className="mt-2 space-y-1">
+                    {sr.outcomes.map(o => {
+                      const maxProg = Math.max(...sr.outcomes.map(x => x.avgWinnerProgress), 1);
+                      const isBase = o.value === sr.param.baseValue;
+                      return (
+                        <div key={o.value} className="flex items-center gap-2">
+                          <span className={`text-[10px] w-12 text-right ${isBase ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
+                            {o.value}
+                          </span>
+                          <div className="flex-1 bg-black/30 rounded-full h-2.5 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${isBase ? 'bg-emerald-500' : 'bg-amber-600'}`}
+                              style={{ width: `${(o.avgWinnerProgress / maxProg) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-gray-400 w-8">{o.avgWinnerProgress.toFixed(1)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -550,6 +771,22 @@ function MetricCard({ label, value, color }: { label: string; value: string; col
     <div className="bg-black/20 rounded-lg p-3 text-center">
       <div className={`text-xl font-bold font-mono ${color}`}>{value}</div>
       <div className="text-[10px] text-gray-400 mt-1">{label}</div>
+    </div>
+  );
+}
+
+function GiniBar({ label, value }: { label: string; value: number }) {
+  const color = value < 0.15 ? 'bg-emerald-500' : value < 0.3 ? 'bg-yellow-500' : 'bg-red-500';
+  const textColor = value < 0.15 ? 'text-emerald-400' : value < 0.3 ? 'text-yellow-400' : 'text-red-400';
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-gray-400">{label}</span>
+        <span className={`font-mono font-bold ${textColor}`}>{value.toFixed(3)}</span>
+      </div>
+      <div className="bg-black/30 rounded-full h-3 overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(value * 200, 100)}%` }} />
+      </div>
     </div>
   );
 }
