@@ -499,19 +499,25 @@ export function HandDisplay({
         const matchingObs = getMatchingObstacles(card.symbol);
         const hasMatch = matchingObs.length > 0;
 
+        const canPlay = !disabled && !!onPlay;
+
         return (
           <button
             key={card.id}
             onClick={() => onPlay?.(i)}
             disabled={disabled}
-            className="playing-card text-left flex flex-col relative"
+            className={`playing-card text-left flex flex-col relative transition-all duration-150 ${
+              canPlay ? 'hover:-translate-y-1.5 hover:scale-105 cursor-pointer' : ''
+            } ${disabled ? 'opacity-60' : ''}`}
             style={{
               width: '120px',
               height: '170px',
               padding: '8px',
               boxShadow: hasMatch
                 ? `0 0 12px ${SYMBOL_COLORS[card.symbol]}90, 0 0 4px ${SYMBOL_COLORS[card.symbol]}60`
-                : undefined,
+                : canPlay
+                  ? `0 4px 12px rgba(0,0,0,0.3)`
+                  : undefined,
               border: hasMatch ? `2px solid ${SYMBOL_COLORS[card.symbol]}` : undefined,
             }}
           >
@@ -522,6 +528,15 @@ export function HandDisplay({
                 style={{ backgroundColor: SYMBOL_COLORS[card.symbol], boxShadow: `0 0 6px ${SYMBOL_COLORS[card.symbol]}` }}
               >
                 MATCH
+              </div>
+            )}
+            {/* Playable indicator */}
+            {canPlay && !hasMatch && (
+              <div
+                className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
+                style={{ backgroundColor: SYMBOL_COLORS[card.symbol], color: 'white', boxShadow: `0 0 6px ${SYMBOL_COLORS[card.symbol]}80` }}
+              >
+                PLAY
               </div>
             )}
             {/* Symbol display - always visible */}
@@ -557,8 +572,14 @@ export function HandDisplay({
                 ))}
               </div>
             )}
-            {/* Action text */}
-            <div className="text-[10px] leading-snug mt-auto" style={{ color: '#5a5040' }}>
+            {/* Action text — highlighted when playable */}
+            <div
+              className={`text-[10px] leading-snug mt-auto rounded px-1 py-0.5 -mx-1 ${canPlay ? 'font-semibold' : ''}`}
+              style={{
+                color: canPlay ? SYMBOL_COLORS[card.symbol] : '#5a5040',
+                backgroundColor: canPlay ? `${SYMBOL_COLORS[card.symbol]}12` : undefined,
+              }}
+            >
               {card.actionText}
             </div>
           </button>

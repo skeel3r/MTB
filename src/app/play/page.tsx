@@ -27,6 +27,7 @@ export default function PlayPage() {
   const [isAI, setIsAI] = useState([false, true]); // second player is AI by default
   const [selectedPlayer, setSelectedPlayer] = useState(0);
   const [selectedSteerRow, setSelectedSteerRow] = useState<number | null>(null);
+  const [effectToast, setEffectToast] = useState<{ cardName: string; text: string; color: string } | null>(null);
   const aiProcessingRef = useRef(false);
   const aiCommittedRoundRef = useRef(-1);
 
@@ -44,6 +45,28 @@ export default function PlayPage() {
 
   const doAction = useCallback((action: GameAction, playerIndex?: number) => {
     if (!game) return;
+
+    // Capture technique card info before it's removed from hand
+    if (action.type === 'technique') {
+      const pi = playerIndex ?? selectedPlayer;
+      const ci = (action.payload?.cardIndex as number) ?? 0;
+      const card = game.players[pi]?.hand[ci];
+      if (card) {
+        const EFFECT_DESCRIPTIONS: Record<string, string> = {
+          'Inside Line': 'Grip penalties ignored this turn',
+          'Manual': 'Row 1 & Row 2 tokens swapped',
+          'Flick': 'Two tokens shifted toward center',
+          'Recover': '2 Hazard Dice removed',
+        };
+        setEffectToast({
+          cardName: card.name,
+          text: EFFECT_DESCRIPTIONS[card.name] || card.actionText,
+          color: SYMBOL_COLORS[card.symbol],
+        });
+        setTimeout(() => setEffectToast(null), 3000);
+      }
+    }
+
     setGame(processAction(game, playerIndex ?? selectedPlayer, action));
   }, [game, selectedPlayer]);
 
@@ -613,19 +636,40 @@ export default function PlayPage() {
           </div>
         </div>
 
+        {/* ═══ Effect Toast ═══ */}
+        {effectToast && (
+          <div
+            className="animate-pulse rounded-lg px-4 py-3 mb-2 border-2 flex items-center gap-3"
+            style={{
+              borderColor: effectToast.color,
+              backgroundColor: `${effectToast.color}15`,
+              boxShadow: `0 0 20px ${effectToast.color}30`,
+            }}
+          >
+            <div
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: effectToast.color, boxShadow: `0 0 8px ${effectToast.color}` }}
+            />
+            <div>
+              <span className="font-bold text-sm" style={{ color: effectToast.color }}>{effectToast.cardName}</span>
+              <span className="text-gray-300 text-sm ml-2">{effectToast.text}</span>
+            </div>
+          </div>
+        )}
+
         {/* ═══ BOTTOM ZONE: Hand + Penalties + Game Log ═══ */}
         <div className="flex flex-wrap gap-4">
           {/* Player's Hand */}
           <div className="flex-1 min-w-[300px]">
             <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">
               {currentPlayer.name}&apos;s Hand
-              {game.phase === 'sprint' && <span className="text-gray-600 normal-case"> (Play = 1 Action)</span>}
+              {game.phase === 'sprint' && <span className="text-gray-600 normal-case"> (Click to play = 1 Action)</span>}
             </h3>
             <HandDisplay
               hand={currentPlayer.hand}
               onPlay={game.phase === 'sprint' ? (i) => doAction({ type: 'technique', payload: { cardIndex: i } }) : undefined}
               disabled={game.phase !== 'sprint' || currentPlayer.actionsRemaining < 1 || currentPlayer.turnEnded}
-              activeObstacles={[]}
+              activeObstacles={game.activeObstacles}
             />
           </div>
 
