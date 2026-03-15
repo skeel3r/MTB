@@ -34,7 +34,6 @@ export function createPlayer(id: string, name: string): PlayerState {
     cannotBrake: false,
     cardsPlayedThisTurn: [],
     combosTriggered: [],
-    comboFlowThisTurn: 0,
     totalCardsPlayed: 0,
     totalCombos: 0,
   };
@@ -189,15 +188,14 @@ export function advancePhase(state: GameState): GameState {
           p.cannotBrake = false;
           p.cardsPlayedThisTurn = [];
           p.combosTriggered = [];
-          p.comboFlowThisTurn = 0;
         }
-        // Reverse turn order based on standings (last place goes first = catch-up)
+        // Turn order: leader goes first (highest progress)
         {
           const sorted = [...s.players]
             .map((p, i) => ({ i, progress: p.progress }))
-            .sort((a, b) => a.progress - b.progress); // lowest progress first
+            .sort((a, b) => b.progress - a.progress); // highest progress first
           s.currentPlayerIndex = sorted[0].i;
-          s.log.push(`Sprint phase! Turn order: ${sorted.map(x => s.players[x.i].name).join(' → ')} (trailing players go first).`);
+          s.log.push(`Sprint phase! Turn order: ${sorted.map(x => s.players[x.i].name).join(' → ')} (leader goes first).`);
         }
         break;
       case 'alignment':
@@ -241,14 +239,6 @@ function executeScrollDescent(state: GameState): GameState {
 
   // Clear active obstacles from previous round (obstacles are now drawn manually)
   s.activeObstacles = [];
-
-  // Momentum decay: high momentum decays by 1 each round (gravity / trail friction)
-  for (const player of s.players) {
-    if (player.momentum > 4) {
-      player.momentum--;
-      s.log.push(`${player.name}: Momentum decays to ${player.momentum} (trail friction).`);
-    }
-  }
 
   s.log.push('All tokens shifted down. New token entered Row 1.');
   return s;
@@ -301,30 +291,20 @@ function executeEnvironment(state: GameState): GameState {
 function executePreparation(state: GameState): GameState {
   const s = state;
 
-  // Calculate leader progress for catch-up bonus
-  const maxProgress = Math.max(...s.players.map(p => p.progress));
-
   for (const player of s.players) {
-    let drawCount = Math.max(2, Math.min(6, player.momentum));
-
-    // Catch-up: trailing players draw +1 card for every 3 progress behind the leader
-    const gap = maxProgress - player.progress;
-    if (gap >= 3) {
-      const bonus = Math.min(2, Math.floor(gap / 3)); // +1 or +2 extra cards
-      drawCount = Math.min(8, drawCount + bonus); // absolute cap at 8
-      s.log.push(`${player.name}: +${bonus} catch-up cards (${gap} behind leader).`);
-    }
-
-    const drawn = drawCards(s, drawCount);
-    player.hand.push(...drawn);
-    s.log.push(`${player.name} draws ${drawn.length} cards (Momentum: ${player.momentum})`);
-
-    // Speed Trap
+    // Momentum is effectively capped by the trail card speed limit
+    // Excess momentum converts to hazard dice (speed trap)
     if (s.activeTrailCard && player.momentum > s.activeTrailCard.speedLimit) {
       const excess = player.momentum - s.activeTrailCard.speedLimit;
       player.hazardDice += excess;
-      s.log.push(`${player.name}: Speed Trap! +${excess} Hazard Dice (over speed limit)`);
+      player.momentum = s.activeTrailCard.speedLimit;
+      s.log.push(`${player.name}: Speed Trap! Momentum capped to ${s.activeTrailCard.speedLimit}, +${excess} Hazard Dice.`);
     }
+
+    const drawCount = Math.max(2, Math.min(6, player.momentum));
+    const drawn = drawCards(s, drawCount);
+    player.hand.push(...drawn);
+    s.log.push(`${player.name} draws ${drawn.length} cards (Momentum: ${player.momentum})`);
   }
 
   return s;
@@ -466,18 +446,6 @@ function executeStageBreak(state: GameState): GameState {
   return s;
 }
 
-/** Grant flow from combo effects, capped at 4 per turn to prevent snowballing */
-const COMBO_FLOW_CAP = 4;
-function grantComboFlow(player: PlayerState, amount: number): number {
-  const remaining = Math.max(0, COMBO_FLOW_CAP - player.comboFlowThisTurn);
-  const actual = Math.min(amount, remaining);
-  if (actual > 0) {
-    player.flow += actual;
-    player.comboFlowThisTurn += actual;
-  }
-  return actual;
-}
-
 // ── Process player action during Sprint ──
 export function processAction(state: GameState, playerIndex: number, action: GameAction): GameState {
   const s = cloneState(state);
@@ -597,8 +565,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
               }
             }
             if (moved >= 2) {
-              const gained = grantComboFlow(player, 1);
-              if (gained > 0) s.log.push(`${player.name}: +1 Flow from precision repositioning.`);
+              s.log.push(`${player.name}: Both tokens repositioned toward center.`);
             }
             break;
           }
@@ -614,9 +581,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
               const removed = player.penalties.pop()!;
               s.log.push(`${player.name}: No dice to remove — repaired "${removed.name}" instead!`);
             } else {
-              // Nothing to recover — gain +1 flow for clean riding
-              const gained = grantComboFlow(player, 1);
-              if (gained > 0) s.log.push(`${player.name}: Clean rider! +1 Flow bonus.`);
+              s.log.push(`${player.name}: Nothing to recover — already clean!`);
             }
             break;
           }
@@ -655,8 +620,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
                 s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} clears ALL ${player.hazardDice} Hazard Dice!`);
                 player.hazardDice = 0;
               } else {
-                const gained = grantComboFlow(player, 2);
-                s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} gains +${gained} Flow for clean balance!`);
+                s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} is already clean — no dice to clear.`);
               }
               break;
           }
@@ -666,29 +630,27 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         if (uniqueSymbols >= 3 && playCount >= 3) {
           player.combosTriggered.push('Versatility');
           player.totalCombos++;
-          const versGained = grantComboFlow(player, 2);
           player.momentum = Math.min(player.momentum + 1, 12);
-          s.log.push(`🌟 VERSATILITY (3 symbols): ${player.name} gains +${versGained} Flow and +1 Momentum!`);
+          s.log.push(`🌟 VERSATILITY (3 symbols): ${player.name} gains +1 Momentum!`);
         }
 
         // MASTERY: 4 unique symbols = ultimate combo
         if (uniqueSymbols >= 4) {
           player.combosTriggered.push('Mastery');
           player.totalCombos++;
-          const mastGained = grantComboFlow(player, 3);
           player.hazardDice = Math.max(0, player.hazardDice - 2);
           if (player.penalties.length > 0) {
             const removed = player.penalties.pop()!;
-            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} gains +${mastGained} Flow, -2 Hazard Dice, repaired "${removed.name}"!`);
+            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} removes 2 Hazard Dice and repaired "${removed.name}"!`);
           } else {
-            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} gains +${mastGained} Flow and -2 Hazard Dice!`);
+            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} removes 2 Hazard Dice!`);
           }
         }
 
-        // PRO LINE COMBO BONUS: cards played while on pro line get extra risk/reward
+        // PRO LINE COMBO BONUS: cards played while on pro line get extra momentum
         if (player.commitment === 'pro' && playCount >= 2) {
-          const proGained = grantComboFlow(player, 1);
-          if (proGained > 0) s.log.push(`${player.name}: Pro Line combo bonus — +1 Flow.`);
+          player.momentum = Math.min(player.momentum + 1, 12);
+          s.log.push(`${player.name}: Pro Line combo bonus — +1 Momentum.`);
         }
       }
       break;
@@ -957,10 +919,10 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       player.turnEnded = true;
       s.log.push(`${player.name}: Ends turn.`);
 
-      // Move to next player in standings order (lowest progress first)
+      // Move to next player in standings order (highest progress first)
       const turnOrder = [...s.players]
         .map((p, i) => ({ i, progress: p.progress }))
-        .sort((a, b) => a.progress - b.progress);
+        .sort((a, b) => b.progress - a.progress);
       const currentOrderIdx = turnOrder.findIndex(x => x.i === playerIndex);
       if (currentOrderIdx < turnOrder.length - 1) {
         s.currentPlayerIndex = turnOrder[currentOrderIdx + 1].i;

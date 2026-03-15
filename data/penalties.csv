@@ -1,0 +1,13 @@
+name,description,copies
+Bent Derailleur,Cannot use Pedal action.,2
+Snapped Brake,Cannot use Brake action.,2
+Tacoed Rim,"Columns 1 and 5 are Locked (hitting them = +1 Hazard Die).",2
+Blown Seals,Cannot use Flow Tokens to Ghost (copy) symbols.,2
+Dropped Chain,Max Momentum capped at 2.,2
+Arm Pump,Max Actions reduced to 3 per turn.,2
+Slipped Pedal,Discard 2 random cards from hand immediately.,2
+Loose Headset,Every Steer action adds +1 Hazard Die.,2
+Flat Tire,Must spend 2 Momentum to tackle any Obstacle.,2
+Muddy Goggles,Cannot see the Queued Main Trail Card.,2
+Stretched Cable,Must discard 1 card to perform a Steer action.,2
+Bent Bars,Row 3 and Row 4 tokens must move together.,2
