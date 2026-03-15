@@ -5,8 +5,10 @@ export type CardSymbol = 'grip' | 'air' | 'agility' | 'balance';
 export interface ProgressObstacle {
   id: string;
   name: string;
-  /** Symbols required to match (dual-symbol obstacles need both) */
+  /** Symbols that can be matched */
   symbols: CardSymbol[];
+  /** 'all' = need every symbol, 'any' = need just one. Defaults to 'all' */
+  matchMode?: 'all' | 'any';
   penaltyType: string;
   blowByText: string;
 }

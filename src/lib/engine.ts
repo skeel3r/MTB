@@ -519,14 +519,32 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       const matchCardIndices: number[] = [];
       let allMatched = true;
       const usedIndices = new Set<number>();
-      for (const sym of obstacle.symbols) {
-        const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-        if (idx >= 0) {
-          matchCardIndices.push(idx);
-          usedIndices.add(idx);
-        } else {
-          allMatched = false;
-          break;
+      const mode = obstacle.matchMode ?? 'all';
+
+      if (mode === 'any') {
+        // Only need ONE matching symbol from the list
+        let foundAny = false;
+        for (const sym of obstacle.symbols) {
+          const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+          if (idx >= 0) {
+            matchCardIndices.push(idx);
+            usedIndices.add(idx);
+            foundAny = true;
+            break;
+          }
+        }
+        allMatched = foundAny;
+      } else {
+        // Need ALL symbols
+        for (const sym of obstacle.symbols) {
+          const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+          if (idx >= 0) {
+            matchCardIndices.push(idx);
+            usedIndices.add(idx);
+          } else {
+            allMatched = false;
+            break;
+          }
         }
       }
 

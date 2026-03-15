@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { GameState, GameAction } from '@/lib/types';
 import { initGame, advancePhase, processAction, getStandings } from '@/lib/engine';
 import { SYMBOL_EMOJI, SYMBOL_COLORS, UPGRADES } from '@/lib/cards';
-import GameBoard, { PlayerStats, HandDisplay } from '@/components/GameBoard';
+import GameBoard, { PlayerStats, HandDisplay, TrailCardDisplay } from '@/components/GameBoard';
 import GameLog from '@/components/GameLog';
 
 const PHASE_LABELS: Record<string, string> = {
@@ -24,6 +24,7 @@ export default function PlayPage() {
   const [game, setGame] = useState<GameState | null>(null);
   const [playerNames, setPlayerNames] = useState(['Rider 1', 'Rider 2']);
   const [selectedPlayer, setSelectedPlayer] = useState(0);
+  const [selectedSteerRow, setSelectedSteerRow] = useState<number | null>(null);
 
   const startGame = useCallback(() => {
     const names = playerNames.filter(n => n.trim());
@@ -33,6 +34,7 @@ export default function PlayPage() {
 
   const doAdvance = useCallback(() => {
     if (!game) return;
+    setSelectedSteerRow(null);
     setGame(advancePhase(game));
   }, [game]);
 
@@ -165,17 +167,6 @@ export default function PlayPage() {
             </span>
           </div>
           <div className="flex gap-2 items-center">
-            {game.activeTrailCard && (
-              <div className="trail-card px-2 py-1 text-xs">
-                <span className="font-bold">{game.activeTrailCard.name}</span>{' '}
-                <span className="text-yellow-400">(Lim:{game.activeTrailCard.speedLimit})</span>
-              </div>
-            )}
-            {game.queuedTrailCard && (
-              <div className="trail-card px-2 py-1 text-xs opacity-60 hidden sm:block">
-                Next: {game.queuedTrailCard.name}
-              </div>
-            )}
             {/* Phase advance / next phase */}
             {game.phase !== 'sprint' && (game.phase as string) !== 'game_over' && (
               <button
@@ -201,12 +192,16 @@ export default function PlayPage() {
       <div className="p-3 sm:p-4">
         {/* ═══ TOP ZONE: Player grids + stats side by side ═══ */}
         <div className="flex flex-wrap gap-3 mb-4">
-          {game.players.map((player, i) => (
+          {game.players.map((player, i) => {
+            const isSelected = i === selectedPlayer;
+            const canSteer = isSelected && game.phase === 'sprint' && currentPlayer.actionsRemaining >= 1 && !currentPlayer.turnEnded && !currentPlayer.crashed;
+
+            return (
             <div
               key={player.id}
-              onClick={() => setSelectedPlayer(i)}
+              onClick={() => { setSelectedPlayer(i); if (!isSelected) setSelectedSteerRow(null); }}
               className={`cursor-pointer rounded-lg p-2 transition-all ${
-                i === selectedPlayer
+                isSelected
                   ? 'ring-2 ring-emerald-400 bg-black/20'
                   : 'bg-black/10 hover:bg-black/15 opacity-80'
               }`}
@@ -216,6 +211,17 @@ export default function PlayPage() {
                 checkedRows={game.activeTrailCard?.checkedRows}
                 targetLanes={game.activeTrailCard?.targetLanes}
                 compact
+                steerEnabled={canSteer}
+                selectedSteerRow={isSelected ? selectedSteerRow : null}
+                onTokenSelect={(row) => {
+                  if (!canSteer) return;
+                  setSelectedSteerRow(prev => prev === row ? null : row);
+                }}
+                onSteerTo={(row, direction) => {
+                  if (!canSteer) return;
+                  doAction({ type: 'steer', payload: { row, direction } });
+                  setSelectedSteerRow(null);
+                }}
               />
               {/* Mini stats under each board */}
               <div className="grid grid-cols-4 gap-1 mt-1 text-center text-[10px]">
@@ -225,7 +231,8 @@ export default function PlayPage() {
                 <div><span className="text-red-400 font-bold">{player.hazardDice}</span> <span className="text-gray-500">Haz</span></div>
               </div>
             </div>
-          ))}
+          );
+          })}
 
           {/* Standings */}
           <div className="trail-card p-3 self-start min-w-[140px]">
@@ -239,8 +246,29 @@ export default function PlayPage() {
           </div>
         </div>
 
-        {/* ═══ MIDDLE ZONE: Table center - Decks, Obstacles, Actions ═══ */}
+        {/* ═══ MIDDLE ZONE: Table center - Trail Cards, Decks, Obstacles, Actions ═══ */}
         <div className="flex flex-wrap gap-4 mb-4">
+
+          {/* Trail Cards */}
+          <div className="flex-shrink-0">
+            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Trail</h3>
+            <div className="flex gap-3 items-start">
+              <TrailCardDisplay card={game.activeTrailCard} label="Active" />
+              <TrailCardDisplay card={game.queuedTrailCard} label="Next" />
+              {/* Trail deck count */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Deck</div>
+                <div
+                  className="card-back deck-pile flex items-center justify-center"
+                  style={{ width: '80px', height: '115px' }}
+                >
+                  <div className="text-white/80 text-xs font-bold bg-black/40 rounded px-2 py-1">
+                    {game.trailDeck.length}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Obstacle Deck & Active Obstacles */}
           <div className="flex-shrink-0">
@@ -345,31 +373,6 @@ export default function PlayPage() {
                     disabled={currentPlayer.turnEnded}
                     color="bg-gray-600 hover:bg-gray-500"
                   />
-                </div>
-
-                {/* Steer controls - compact grid */}
-                <div>
-                  <div className="text-[10px] text-gray-500 mb-1">Steer (1 Action)</div>
-                  <div className="grid grid-cols-6 gap-1 text-[10px]">
-                    {[0, 1, 2, 3, 4, 5].map(r => (
-                      <div key={r} className="flex gap-0.5">
-                        <button
-                          onClick={() => doAction({ type: 'steer', payload: { row: r, direction: -1 } })}
-                          disabled={currentPlayer.actionsRemaining < 1 || currentPlayer.turnEnded}
-                          className="px-1 py-0.5 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-30 flex-1"
-                        >
-                          R{r + 1}&larr;
-                        </button>
-                        <button
-                          onClick={() => doAction({ type: 'steer', payload: { row: r, direction: 1 } })}
-                          disabled={currentPlayer.actionsRemaining < 1 || currentPlayer.turnEnded}
-                          className="px-1 py-0.5 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-30 flex-1"
-                        >
-                          R{r + 1}&rarr;
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
 
                 {/* Flow spending */}
