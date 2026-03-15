@@ -75,6 +75,13 @@ export interface PlayerState {
   /** Flags for symbol penalties */
   cannotPedal: boolean;
   cannotBrake: boolean;
+  /** Technique cards played this sprint turn (for combo tracking) */
+  cardsPlayedThisTurn: { symbol: CardSymbol; name: string }[];
+  /** Combo bonuses earned this turn */
+  combosTriggered: string[];
+  /** Cumulative stats across the whole game */
+  totalCardsPlayed: number;
+  totalCombos: number;
 }
 
 // ── Game state ──
@@ -136,6 +143,6 @@ export interface SimulationConfig {
 export interface SimulationResult {
   gameNumber: number;
   winner: string;
-  finalStandings: { name: string; progress: number; perfectMatches: number; penalties: number; flow: number; momentum: number }[];
+  finalStandings: { name: string; progress: number; perfectMatches: number; penalties: number; flow: number; momentum: number; combosTriggered: number; cardsPlayed: number }[];
   totalRounds: number;
 }

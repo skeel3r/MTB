@@ -31,8 +31,114 @@ export default function SimulatePage() {
   const [saGames, setSaGames] = useState(30);
   const [mcProgress, setMcProgress] = useState(0);
   const [mcGames, setMcGames] = useState(300);
+  const [exportCopied, setExportCopied] = useState(false);
   const cancelRef = useRef(false);
   const mcCancelRef = useRef(false);
+
+  const generateReport = useCallback(() => {
+    const report: Record<string, unknown> = {
+      _meta: {
+        generatedAt: new Date().toISOString(),
+        gameVersion: '1.0',
+        description: 'Flamme Rouge simulation analysis report. Share this with Claude for game balance suggestions.',
+      },
+      config: {
+        playerCount: config.playerCount,
+        gamesSimulated: results.length,
+        strategy: config.strategy,
+      },
+    };
+
+    if (balance) {
+      report.balanceSummary = {
+        avgWinnerProgress: balance.avgWinnerProgress,
+        avgLoserProgress: balance.avgLoserProgress,
+        progressSpread: balance.progressSpread,
+        firstPlayerAdvantage: balance.firstPlayerAdvantage,
+        obstacleMatchRate: balance.obstacleMatchRate,
+        avgPenaltiesPerGame: balance.avgPenaltiesPerGame,
+        avgCrashesPerGame: balance.avgCrashesPerGame,
+        avgPerfectMatches: balance.avgPerfectMatches,
+        avgMomentumAtEnd: balance.avgMomentumAtEnd,
+        avgFlowAtEnd: balance.avgFlowAtEnd,
+        avgHandSizeAtEnd: balance.avgHandSizeAtEnd,
+        warnings: balance.warnings,
+        winDistribution: balance.winDistribution,
+        progressByRound: balance.progressByRound,
+        momentumByRound: balance.momentumByRound,
+        hazardByRound: balance.hazardByRound,
+        trailCardDifficulty: balance.trailCardDifficulty,
+        playerAverages: balance.playerAverages,
+      };
+    }
+
+    if (results.length > 0) {
+      // Per-game detail summary
+      const comboStats = results.flatMap(r => r.finalStandings);
+      const totalCombos = comboStats.reduce((s, p) => s + p.combosTriggered, 0);
+      const totalCardsPlayed = comboStats.reduce((s, p) => s + p.cardsPlayed, 0);
+
+      report.comboAnalysis = {
+        totalCardsPlayed,
+        totalCombosTriggered: totalCombos,
+        comboRate: totalCardsPlayed > 0 ? totalCombos / totalCardsPlayed : 0,
+        avgCombosPerGame: totalCombos / results.length,
+        avgCardsPlayedPerGame: totalCardsPlayed / results.length,
+        avgCombosPerPlayer: totalCombos / comboStats.length,
+      };
+
+      report.gameResults = results.map(r => ({
+        game: r.gameNumber,
+        winner: r.winner,
+        rounds: r.totalRounds,
+        standings: r.finalStandings,
+      }));
+    }
+
+    if (mcResult) {
+      report.monteCarlo = {
+        totalGames: mcResult.totalGames,
+        fairnessVerdict: mcResult.fairnessVerdict,
+        strategyDominance: mcResult.strategyDominance,
+        p1WinRate: mcResult.p1Confidence,
+        snowballCorrelation: mcResult.snowballCorrelation,
+        obstacleMatchRate: mcResult.obstacleMatchRate,
+        scoreDistribution: mcResult.scoreDistribution,
+        seatWinRates: mcResult.seatWinRates,
+        strategyWinRates: mcResult.strategyWinRates,
+      };
+    }
+
+    if (gini) {
+      report.giniAnalysis = {
+        progressGini: gini.progressGini,
+        momentumGini: gini.momentumGini,
+        flowGini: gini.flowGini,
+        penaltyGini: gini.penaltyGini,
+        verdict: gini.verdict,
+        progressGiniByRound: gini.progressGiniByRound,
+      };
+    }
+
+    if (sensitivity) {
+      report.sensitivityAnalysis = sensitivity.map(sr => ({
+        param: sr.param.label,
+        baseValue: sr.param.baseValue,
+        unit: sr.param.unit,
+        outcomes: sr.outcomes,
+      }));
+    }
+
+    report.obstacleMatchProbabilities = obsProbabilities.map(o => ({
+      name: o.name,
+      symbols: o.symbols,
+      matchMode: o.matchMode,
+      weightedAvg: o.weightedAvg,
+      byHandSize: o.byHandSize,
+    }));
+
+    return report;
+  }, [results, balance, mcResult, gini, sensitivity, obsProbabilities, config]);
 
   const run = useCallback(() => {
     setRunning(true);
@@ -255,6 +361,44 @@ export default function SimulatePage() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Export Buttons */}
+        {results.length > 0 && !running && (
+          <div className="flex gap-3 mb-6">
+            <button
+              onClick={() => {
+                const report = generateReport();
+                const text = '```json\n' + JSON.stringify(report, null, 2) + '\n```';
+                navigator.clipboard.writeText(text).then(() => {
+                  setExportCopied(true);
+                  setTimeout(() => setExportCopied(false), 2000);
+                });
+              }}
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors border ${
+                exportCopied
+                  ? 'bg-emerald-700 border-emerald-500 text-white'
+                  : 'bg-purple-900/50 border-purple-600 hover:bg-purple-800 text-purple-300'
+              }`}
+            >
+              {exportCopied ? 'Copied to Clipboard!' : 'Copy Report for Claude'}
+            </button>
+            <button
+              onClick={() => {
+                const report = generateReport();
+                const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `simulation-report-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-4 py-2 rounded-lg font-bold text-sm bg-gray-700 hover:bg-gray-600 border border-gray-500 text-gray-300 transition-colors"
+            >
+              Download JSON
+            </button>
           </div>
         )}
 

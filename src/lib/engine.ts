@@ -32,6 +32,10 @@ export function createPlayer(id: string, name: string): PlayerState {
     turnEnded: false,
     cannotPedal: false,
     cannotBrake: false,
+    cardsPlayedThisTurn: [],
+    combosTriggered: [],
+    totalCardsPlayed: 0,
+    totalCombos: 0,
   };
 }
 
@@ -182,6 +186,8 @@ export function advancePhase(state: GameState): GameState {
           p.turnEnded = false;
           p.cannotPedal = false;
           p.cannotBrake = false;
+          p.cardsPlayedThisTurn = [];
+          p.combosTriggered = [];
         }
         s.currentPlayerIndex = 0;
         s.log.push('Sprint phase! Each player has 5 Actions.');
@@ -480,38 +486,148 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         s.log.push(`${player.name}: Plays "${card.name}" - ${card.actionText}`);
         s.techniqueDiscard.push(card);
 
-        // Apply technique card effects by name
+        // Track for combo system
+        player.cardsPlayedThisTurn.push({ symbol: card.symbol, name: card.name });
+        player.totalCardsPlayed++;
+        const playCount = player.cardsPlayedThisTurn.length;
+        const sameSymbolCount = player.cardsPlayedThisTurn.filter(c => c.symbol === card.symbol).length;
+        const uniqueSymbols = new Set(player.cardsPlayedThisTurn.map(c => c.symbol)).size;
+
+        // ── Apply base technique card effects ──
         switch (card.name) {
           case 'Inside Line':
-            // Ignore all Slide-Out (Grip) penalties for the rest of this turn
-            // Tracked via a flag (simplified: clear any grip penalty effects)
+            // Ignore grip penalties + gain +1 momentum (control = speed)
             s.log.push(`${player.name}: Grip penalties ignored this turn.`);
+            player.momentum = Math.min(player.momentum + 1, 12);
+            s.log.push(`${player.name}: +1 Momentum from grip mastery.`);
             break;
           case 'Manual': {
-            // Swap Row 1 token with Row 2 token
+            // Swap Row 1 and Row 2 + draw 1 card if swap happened
             const r1col = getTokenCol(player.grid, 0);
             const r2col = getTokenCol(player.grid, 1);
-            if (r1col >= 0 && r2col >= 0) {
+            if (r1col >= 0 && r2col >= 0 && r1col !== r2col) {
               setToken(player.grid, 0, r2col);
               setToken(player.grid, 1, r1col);
+              // Draw a card as reward for the repositioning
+              if (s.techniqueDeck.length > 0) {
+                player.hand.push(s.techniqueDeck.pop()!);
+                s.log.push(`${player.name}: Drew a card from the swap.`);
+              } else if (s.techniqueDiscard.length > 0) {
+                // Shuffle discard back in
+                s.techniqueDeck = [...s.techniqueDiscard].sort(() => Math.random() - 0.5);
+                s.techniqueDiscard = [];
+                player.hand.push(s.techniqueDeck.pop()!);
+                s.log.push(`${player.name}: Drew a card from the swap (deck reshuffled).`);
+              }
+            } else if (r1col >= 0 && r2col >= 0) {
+              // Already aligned — still swap but no draw bonus
+              s.log.push(`${player.name}: Rows already aligned, no draw bonus.`);
             }
             break;
           }
           case 'Flick': {
-            // Shift any two tokens 1 lane each (auto: shift rows 1 and 2 toward center)
+            // Shift rows 0-1 toward center + gain +1 Flow if both moved
+            let moved = 0;
             for (const r of [0, 1]) {
               const col = getTokenCol(player.grid, r);
               if (col >= 0) {
                 const dir = col > 2 ? -1 : col < 2 ? 1 : 0;
-                if (dir !== 0) setToken(player.grid, r, col + dir);
+                if (dir !== 0) { setToken(player.grid, r, col + dir); moved++; }
               }
+            }
+            if (moved >= 2) {
+              player.flow++;
+              s.log.push(`${player.name}: +1 Flow from precision repositioning.`);
             }
             break;
           }
-          case 'Recover':
-            // Discard 2 Hazard Dice
-            player.hazardDice = Math.max(0, player.hazardDice - 2);
+          case 'Recover': {
+            // Remove 2 hazard dice; if already at 0, remove a penalty card instead
+            if (player.hazardDice >= 2) {
+              player.hazardDice -= 2;
+              s.log.push(`${player.name}: Removed 2 Hazard Dice.`);
+            } else if (player.hazardDice === 1) {
+              player.hazardDice = 0;
+              s.log.push(`${player.name}: Removed 1 Hazard Die.`);
+            } else if (player.penalties.length > 0) {
+              const removed = player.penalties.pop()!;
+              s.log.push(`${player.name}: No dice to remove — repaired "${removed.name}" instead!`);
+            } else {
+              // Nothing to recover — gain +1 flow for clean riding
+              player.flow++;
+              s.log.push(`${player.name}: Clean rider! +1 Flow bonus.`);
+            }
             break;
+          }
+        }
+
+        // ── Combo Detection ──
+
+        // SYNERGY: 2+ cards of same symbol = amplified effect
+        if (sameSymbolCount === 2) {
+          player.combosTriggered.push(`Synergy: ${card.symbol}`);
+          player.totalCombos++;
+          switch (card.symbol) {
+            case 'grip':
+              // Double grip = extra momentum burst
+              player.momentum = Math.min(player.momentum + 2, 12);
+              s.log.push(`⚡ SYNERGY (Grip x2): ${player.name} gets +2 Momentum burst!`);
+              break;
+            case 'air':
+              // Double air = free action refund (the combo play is "free")
+              player.actionsRemaining = Math.min(player.actionsRemaining + 1, 5);
+              s.log.push(`⚡ SYNERGY (Air x2): ${player.name} recovers 1 Action!`);
+              break;
+            case 'agility':
+              // Double agility = shift ALL off-center tokens 1 lane toward center
+              for (let r = 0; r < 6; r++) {
+                const col = getTokenCol(player.grid, r);
+                if (col >= 0 && col !== 2) {
+                  setToken(player.grid, r, col + (col > 2 ? -1 : 1));
+                }
+              }
+              s.log.push(`⚡ SYNERGY (Agility x2): ${player.name} realigns ALL tokens toward center!`);
+              break;
+            case 'balance':
+              // Double balance = clear ALL hazard dice
+              if (player.hazardDice > 0) {
+                s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} clears ALL ${player.hazardDice} Hazard Dice!`);
+                player.hazardDice = 0;
+              } else {
+                player.flow += 2;
+                s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} gains +2 Flow for clean balance!`);
+              }
+              break;
+          }
+        }
+
+        // VERSATILITY: 3+ unique symbols played = big flow reward
+        if (uniqueSymbols >= 3 && playCount >= 3) {
+          player.combosTriggered.push('Versatility');
+          player.totalCombos++;
+          player.flow += 2;
+          player.momentum = Math.min(player.momentum + 1, 12);
+          s.log.push(`🌟 VERSATILITY (3 symbols): ${player.name} gains +2 Flow and +1 Momentum!`);
+        }
+
+        // MASTERY: 4 unique symbols = ultimate combo
+        if (uniqueSymbols >= 4) {
+          player.combosTriggered.push('Mastery');
+          player.totalCombos++;
+          player.flow += 3;
+          player.hazardDice = Math.max(0, player.hazardDice - 2);
+          if (player.penalties.length > 0) {
+            const removed = player.penalties.pop()!;
+            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} gains +3 Flow, -2 Hazard Dice, repaired "${removed.name}"!`);
+          } else {
+            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} gains +3 Flow and -2 Hazard Dice!`);
+          }
+        }
+
+        // PRO LINE COMBO BONUS: cards played while on pro line get extra risk/reward
+        if (player.commitment === 'pro' && playCount >= 2) {
+          player.flow++;
+          s.log.push(`${player.name}: Pro Line combo bonus — +1 Flow.`);
         }
       }
       break;
@@ -909,5 +1025,7 @@ export function getStandings(state: GameState) {
       penalties: p.penalties.length,
       flow: p.flow,
       momentum: p.momentum,
+      totalCardsPlayed: p.totalCardsPlayed,
+      totalCombos: p.totalCombos,
     }));
 }

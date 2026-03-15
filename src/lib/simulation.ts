@@ -60,7 +60,7 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       if (player.momentum < 5 && !player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else if (player.hand.length > 0) {
-        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
+        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: pickComboCard(player) } });
       } else if (!player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else {
@@ -104,7 +104,7 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       if (player.momentum < 4 && !player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else if (player.hand.length > 0) {
-        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
+        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: pickComboCard(player) } });
       } else if (!player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else {
@@ -117,6 +117,28 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
     s = processAction(s, playerIndex, { type: 'end_turn' });
   }
   return s;
+}
+
+/** Pick the best card index for combo potential */
+function pickComboCard(player: { hand: { symbol: string; name: string }[]; cardsPlayedThisTurn: { symbol: string }[]; hazardDice: number; grid: boolean[][] }): number {
+  if (player.hand.length === 0) return 0;
+  const played = player.cardsPlayedThisTurn || [];
+  if (played.length > 0) {
+    // Try synergy first (same symbol)
+    const playedSymbols = played.map(c => c.symbol);
+    const synergyIdx = player.hand.findIndex(c => playedSymbols.includes(c.symbol));
+    if (synergyIdx >= 0) return synergyIdx;
+    // Then diversify
+    const usedSymbols = new Set(playedSymbols);
+    const diverseIdx = player.hand.findIndex(c => !usedSymbols.has(c.symbol));
+    if (diverseIdx >= 0) return diverseIdx;
+  }
+  // First card: prioritize by state
+  if (player.hazardDice >= 3) {
+    const ri = player.hand.findIndex(c => c.name === 'Recover');
+    if (ri >= 0) return ri;
+  }
+  return 0;
 }
 
 function getTokenCol(grid: boolean[][], row: number): number {
@@ -224,6 +246,8 @@ export function runSingleGame(
         penalties: s.penalties,
         flow: s.flow,
         momentum: s.momentum,
+        combosTriggered: s.totalCombos,
+        cardsPlayed: s.totalCardsPlayed,
       })),
       totalRounds: state.round,
     },
@@ -972,6 +996,8 @@ function runSingleGameWithOverride(
         penalties: s.penalties,
         flow: s.flow,
         momentum: s.momentum,
+        combosTriggered: s.totalCombos,
+        cardsPlayed: s.totalCardsPlayed,
       })),
       totalRounds: state.round,
     },
