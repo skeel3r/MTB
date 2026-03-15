@@ -222,15 +222,8 @@ function executeScrollDescent(state: GameState): GameState {
     setToken(player.grid, 0, row5col >= 0 ? row5col : 2);
   }
 
-  // Draw 2 obstacles from the obstacle deck into activeObstacles
+  // Clear active obstacles from previous round (obstacles are now drawn manually)
   s.activeObstacles = [];
-  if (s.obstacleDeck.length === 0) {
-    // Reshuffle from all 10 definitions x 3 copies
-    s.obstacleDeck = createObstacleDeck();
-  }
-  for (let i = 0; i < 2 && s.obstacleDeck.length > 0; i++) {
-    s.activeObstacles.push(s.obstacleDeck.shift()!);
-  }
 
   s.log.push('All tokens shifted down. New token entered Row 1.');
   return s;
@@ -641,6 +634,17 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       player.flow -= upgrade.flowCost;
       player.upgrades.push(upgrade);
       s.log.push(`${player.name}: Purchased "${upgrade.name}" for ${upgrade.flowCost} Flow!`);
+      break;
+    }
+
+    case 'draw_obstacle': {
+      // Free action - draw an obstacle from the deck
+      if (s.obstacleDeck.length === 0) {
+        s.obstacleDeck = createObstacleDeck();
+      }
+      const drawn = s.obstacleDeck.shift()!;
+      s.activeObstacles.push(drawn);
+      s.log.push(`${player.name}: Drew obstacle "${drawn.name}" (${drawn.symbols.map(sym => sym).join(', ')})`);
       break;
     }
 

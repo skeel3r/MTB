@@ -1,7 +1,7 @@
 'use client';
 
-import { PlayerState } from '@/lib/types';
-import { SYMBOL_COLORS } from '@/lib/cards';
+import { PlayerState, ProgressObstacle, CardSymbol } from '@/lib/types';
+import { SYMBOL_COLORS, SYMBOL_EMOJI } from '@/lib/cards';
 
 interface GameBoardProps {
   player: PlayerState;
@@ -140,46 +140,99 @@ export function HandDisplay({
   hand,
   onPlay,
   disabled,
+  activeObstacles = [],
 }: {
   hand: PlayerState['hand'];
   onPlay?: (index: number) => void;
   disabled?: boolean;
+  activeObstacles?: ProgressObstacle[];
 }) {
   if (hand.length === 0) return <div className="text-sm" style={{ color: '#8a7a6a' }}>No cards in hand</div>;
 
+  // Find which obstacle symbols are needed
+  const neededSymbols = new Set<CardSymbol>();
+  for (const obs of activeObstacles) {
+    for (const sym of obs.symbols) {
+      neededSymbols.add(sym);
+    }
+  }
+
+  // Find which obstacles each card symbol matches
+  function getMatchingObstacles(symbol: CardSymbol): ProgressObstacle[] {
+    return activeObstacles.filter(obs => obs.symbols.includes(symbol));
+  }
+
   return (
     <div className="flex flex-wrap gap-3">
-      {hand.map((card, i) => (
-        <button
-          key={card.id}
-          onClick={() => onPlay?.(i)}
-          disabled={disabled}
-          className="playing-card text-left flex flex-col"
-          style={{ width: '120px', height: '170px', padding: '8px' }}
-        >
-          {/* Top pip/badge */}
-          <div className="flex items-center gap-1.5 mb-1">
-            <span
-              className="inline-block w-4 h-4 rounded-full border border-white/30"
-              style={{
-                backgroundColor: SYMBOL_COLORS[card.symbol],
-                boxShadow: `0 0 4px ${SYMBOL_COLORS[card.symbol]}80`,
-              }}
-            />
-            <span className="text-[10px] font-mono uppercase" style={{ color: SYMBOL_COLORS[card.symbol] }}>
-              {card.symbol}
-            </span>
-          </div>
-          {/* Card name */}
-          <div className="font-bold text-xs leading-tight mt-1" style={{ color: '#1a1a1a' }}>
-            {card.name}
-          </div>
-          {/* Action text */}
-          <div className="text-[10px] leading-snug mt-auto" style={{ color: '#5a5040' }}>
-            {card.actionText}
-          </div>
-        </button>
-      ))}
+      {hand.map((card, i) => {
+        const matchingObs = getMatchingObstacles(card.symbol);
+        const hasMatch = matchingObs.length > 0;
+
+        return (
+          <button
+            key={card.id}
+            onClick={() => onPlay?.(i)}
+            disabled={disabled}
+            className="playing-card text-left flex flex-col relative"
+            style={{
+              width: '120px',
+              height: '170px',
+              padding: '8px',
+              boxShadow: hasMatch
+                ? `0 0 12px ${SYMBOL_COLORS[card.symbol]}90, 0 0 4px ${SYMBOL_COLORS[card.symbol]}60`
+                : undefined,
+              border: hasMatch ? `2px solid ${SYMBOL_COLORS[card.symbol]}` : undefined,
+            }}
+          >
+            {/* Match indicator badge */}
+            {hasMatch && (
+              <div
+                className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white"
+                style={{ backgroundColor: SYMBOL_COLORS[card.symbol], boxShadow: `0 0 6px ${SYMBOL_COLORS[card.symbol]}` }}
+              >
+                MATCH
+              </div>
+            )}
+            {/* Symbol display - always visible */}
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-2xl">{SYMBOL_EMOJI[card.symbol]}</span>
+              <div className="flex flex-col">
+                <span
+                  className="inline-block w-3.5 h-3.5 rounded-full border border-white/30"
+                  style={{
+                    backgroundColor: SYMBOL_COLORS[card.symbol],
+                    boxShadow: `0 0 4px ${SYMBOL_COLORS[card.symbol]}80`,
+                  }}
+                />
+              </div>
+              <span className="text-[10px] font-mono uppercase font-bold" style={{ color: SYMBOL_COLORS[card.symbol] }}>
+                {card.symbol}
+              </span>
+            </div>
+            {/* Card name */}
+            <div className="font-bold text-xs leading-tight" style={{ color: '#1a1a1a' }}>
+              {card.name}
+            </div>
+            {/* Matching obstacle indicator */}
+            {hasMatch && (
+              <div className="flex flex-wrap gap-0.5 mt-1">
+                {matchingObs.map((obs, j) => (
+                  <div key={j} className="flex items-center gap-0.5 rounded px-1 py-0.5" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }}>
+                    {obs.symbols.map((sym, k) => (
+                      <span key={k} className="text-xs">{SYMBOL_EMOJI[sym]}</span>
+                    ))}
+                    <span className="text-[8px]" style={{ color: '#444' }}>{obs.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Action text */}
+            <div className="text-[10px] leading-snug mt-auto" style={{ color: '#5a5040' }}>
+              {card.actionText}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
