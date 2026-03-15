@@ -9,13 +9,32 @@ interface GameBoardProps {
   targetLanes?: number[];
   onCellClick?: (row: number, col: number) => void;
   compact?: boolean;
+  /** Row index of the currently selected token for steering */
+  selectedSteerRow?: number | null;
+  /** Whether click-to-steer is enabled (sprint phase, actions remaining) */
+  steerEnabled?: boolean;
+  /** Called when a token is clicked to select it for steering */
+  onTokenSelect?: (row: number) => void;
+  /** Called when a valid steer target cell is clicked */
+  onSteerTo?: (row: number, direction: number) => void;
 }
 
-export default function GameBoard({ player, checkedRows = [], targetLanes = [], onCellClick, compact }: GameBoardProps) {
+export default function GameBoard({
+  player, checkedRows = [], targetLanes = [], onCellClick, compact,
+  selectedSteerRow, steerEnabled, onTokenSelect, onSteerTo,
+}: GameBoardProps) {
   const cellSize = compact ? 'w-8 h-8' : 'w-9 h-9 sm:w-12 sm:h-12';
   const labelSize = compact ? 'w-8' : 'w-9 sm:w-12';
   const tokenSize = compact ? 'w-5 h-5' : 'w-6 h-6 sm:w-8 sm:h-8';
   const targetDotSize = compact ? 'w-4 h-4' : 'w-4 h-4 sm:w-6 sm:h-6';
+
+  // Find token column for a given row
+  function getTokenCol(row: number): number {
+    for (let c = 0; c < 5; c++) {
+      if (player.grid[row][c]) return c;
+    }
+    return -1;
+  }
 
   return (
     <div className="inline-block">
@@ -41,6 +60,14 @@ export default function GameBoard({ player, checkedRows = [], targetLanes = [], 
         {player.grid.map((row, r) => {
           const isChecked = checkedRows.includes(r);
           const targetLane = isChecked ? targetLanes[checkedRows.indexOf(r)] : -1;
+          const tokenCol = getTokenCol(r);
+          const isSelectedRow = selectedSteerRow === r;
+          // Valid steer targets: adjacent cells to the token in the selected row
+          const validSteerTargets: number[] = [];
+          if (isSelectedRow && tokenCol >= 0) {
+            if (tokenCol > 0) validSteerTargets.push(tokenCol - 1);
+            if (tokenCol < 4) validSteerTargets.push(tokenCol + 1);
+          }
 
           return (
             <div key={r} className="flex">
@@ -52,35 +79,75 @@ export default function GameBoard({ player, checkedRows = [], targetLanes = [], 
               {row.map((hasToken, c) => {
                 const isTarget = isChecked && c === targetLane;
                 const isCenter = c === 2;
+                const isValidSteerTarget = validSteerTargets.includes(c);
+                const isSelectedToken = isSelectedRow && hasToken;
+
+                const handleClick = () => {
+                  if (isValidSteerTarget && onSteerTo) {
+                    // Click on valid steer destination
+                    onSteerTo(r, c - tokenCol);
+                  } else if (hasToken && steerEnabled && onTokenSelect) {
+                    // Click on a token to select it
+                    onTokenSelect(r);
+                  }
+                  onCellClick?.(r, c);
+                };
 
                 return (
                   <div
                     key={c}
-                    onClick={() => onCellClick?.(r, c)}
+                    onClick={handleClick}
                     className={`${cellSize} flex items-center justify-center cursor-pointer transition-all duration-150`}
                     style={{
                       borderRadius: '4px',
                       margin: '1px',
-                      background: isTarget
-                        ? 'radial-gradient(circle, rgba(180,150,40,0.3) 0%, rgba(100,80,20,0.15) 100%)'
-                        : isCenter
-                          ? 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.15) 100%)'
-                          : 'radial-gradient(circle, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.2) 100%)',
-                      border: isTarget ? '1.5px solid rgba(200,170,50,0.6)' : '1px solid rgba(0,0,0,0.25)',
-                      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
+                      background: isValidSteerTarget
+                        ? 'radial-gradient(circle, rgba(59,130,246,0.35) 0%, rgba(30,64,175,0.2) 100%)'
+                        : isTarget
+                          ? 'radial-gradient(circle, rgba(180,150,40,0.3) 0%, rgba(100,80,20,0.15) 100%)'
+                          : isCenter
+                            ? 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.15) 100%)'
+                            : 'radial-gradient(circle, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.2) 100%)',
+                      border: isValidSteerTarget
+                        ? '2px solid rgba(96,165,250,0.7)'
+                        : isSelectedToken
+                          ? '2px solid rgba(250,204,21,0.8)'
+                          : isTarget
+                            ? '1.5px solid rgba(200,170,50,0.6)'
+                            : '1px solid rgba(0,0,0,0.25)',
+                      boxShadow: isValidSteerTarget
+                        ? '0 0 8px rgba(59,130,246,0.4), inset 0 0 6px rgba(59,130,246,0.2)'
+                        : isSelectedToken
+                          ? '0 0 10px rgba(250,204,21,0.5), inset 0 0 6px rgba(250,204,21,0.2)'
+                          : 'inset 0 1px 3px rgba(0,0,0,0.3)',
                     }}
                   >
                     {hasToken && (
                       <div
-                        className={`${tokenSize} rounded-full`}
+                        className={`${tokenSize} rounded-full transition-transform ${isSelectedToken ? 'scale-110' : ''}`}
                         style={{
-                          background: 'radial-gradient(circle at 35% 35%, #6ee7a0 0%, #10b981 40%, #047857 100%)',
-                          border: '2px solid #a7f3d0',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.5), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.3)',
+                          background: isSelectedToken
+                            ? 'radial-gradient(circle at 35% 35%, #fde68a 0%, #facc15 40%, #ca8a04 100%)'
+                            : 'radial-gradient(circle at 35% 35%, #6ee7a0 0%, #10b981 40%, #047857 100%)',
+                          border: isSelectedToken ? '2px solid #fef08a' : '2px solid #a7f3d0',
+                          boxShadow: isSelectedToken
+                            ? '0 2px 10px rgba(250,204,21,0.6), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.4)'
+                            : '0 2px 6px rgba(0,0,0,0.5), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.3)',
                         }}
                       />
                     )}
-                    {isTarget && !hasToken && (
+                    {isValidSteerTarget && !hasToken && (
+                      <div
+                        className="rounded-full animate-pulse"
+                        style={{
+                          width: compact ? '14px' : '18px',
+                          height: compact ? '14px' : '18px',
+                          border: '2px dashed rgba(96,165,250,0.7)',
+                          boxShadow: '0 0 8px rgba(59,130,246,0.3)',
+                        }}
+                      />
+                    )}
+                    {isTarget && !hasToken && !isValidSteerTarget && (
                       <div
                         className={`${targetDotSize} rounded-full`}
                         style={{
@@ -96,6 +163,13 @@ export default function GameBoard({ player, checkedRows = [], targetLanes = [], 
           );
         })}
       </div>
+      {/* Steer hint */}
+      {steerEnabled && selectedSteerRow === null && (
+        <div className="text-[9px] text-center mt-1 text-blue-300/50">Click a token to steer</div>
+      )}
+      {selectedSteerRow != null && (
+        <div className="text-[9px] text-center mt-1 text-yellow-300/70">Click adjacent cell to move &middot; Click token again to deselect</div>
+      )}
     </div>
   );
 }
