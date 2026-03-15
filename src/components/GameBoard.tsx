@@ -12,7 +12,10 @@ interface GameBoardProps {
 }
 
 export default function GameBoard({ player, checkedRows = [], targetLanes = [], onCellClick, compact }: GameBoardProps) {
-  const size = compact ? 'w-8 h-8' : 'w-12 h-12';
+  const cellSize = compact ? 'w-8 h-8' : 'w-9 h-9 sm:w-12 sm:h-12';
+  const labelSize = compact ? 'w-8' : 'w-9 sm:w-12';
+  const tokenSize = compact ? 'w-5 h-5' : 'w-6 h-6 sm:w-8 sm:h-8';
+  const targetDotSize = compact ? 'w-4 h-4' : 'w-4 h-4 sm:w-6 sm:h-6';
 
   return (
     <div className="inline-block">
@@ -20,9 +23,9 @@ export default function GameBoard({ player, checkedRows = [], targetLanes = [], 
       <div className="border-2 border-gray-600 rounded-lg overflow-hidden bg-gray-900">
         {/* Column headers */}
         <div className="flex">
-          <div className={`${compact ? 'w-8' : 'w-12'} flex-shrink-0`} />
+          <div className={`${labelSize} flex-shrink-0`} />
           {[1, 2, 3, 4, 5].map(c => (
-            <div key={c} className={`${size} flex items-center justify-center text-xs text-gray-500 font-mono`}>
+            <div key={c} className={`${cellSize} flex items-center justify-center text-[10px] sm:text-xs text-gray-500 font-mono`}>
               L{c}
             </div>
           ))}
@@ -35,7 +38,7 @@ export default function GameBoard({ player, checkedRows = [], targetLanes = [], 
           return (
             <div key={r} className="flex">
               {/* Row label */}
-              <div className={`${compact ? 'w-8' : 'w-12'} flex items-center justify-center text-xs font-mono ${isChecked ? 'text-yellow-400 font-bold' : 'text-gray-500'}`}>
+              <div className={`${labelSize} flex items-center justify-center text-[10px] sm:text-xs font-mono ${isChecked ? 'text-yellow-400 font-bold' : 'text-gray-500'}`}>
                 R{r + 1}
               </div>
 
@@ -49,7 +52,7 @@ export default function GameBoard({ player, checkedRows = [], targetLanes = [], 
                     key={c}
                     onClick={() => onCellClick?.(r, c)}
                     className={`
-                      ${size} border border-gray-700 flex items-center justify-center
+                      ${cellSize} border border-gray-700 flex items-center justify-center
                       cursor-pointer transition-all duration-150
                       ${isTarget ? 'bg-yellow-900/40 border-yellow-500' : ''}
                       ${isCenter && !isTarget ? 'bg-gray-800/50' : ''}
@@ -58,10 +61,10 @@ export default function GameBoard({ player, checkedRows = [], targetLanes = [], 
                     `}
                   >
                     {isToken && (
-                      <div className={`${compact ? 'w-5 h-5' : 'w-8 h-8'} rounded-full bg-emerald-500 border-2 border-emerald-300 shadow-lg shadow-emerald-500/30`} />
+                      <div className={`${tokenSize} rounded-full bg-emerald-500 border-2 border-emerald-300 shadow-lg shadow-emerald-500/30`} />
                     )}
                     {isTarget && !isToken && (
-                      <div className={`${compact ? 'w-4 h-4' : 'w-6 h-6'} rounded-full border-2 border-dashed border-yellow-500/50`} />
+                      <div className={`${targetDotSize} rounded-full border-2 border-dashed border-yellow-500/50`} />
                     )}
                   </div>
                 );

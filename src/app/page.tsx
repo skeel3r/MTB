@@ -3,20 +3,20 @@ import Link from 'next/link';
 export default function Home() {
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-      <div className="max-w-2xl mx-auto text-center px-8">
-        <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+      <div className="max-w-2xl mx-auto text-center px-4 sm:px-8 py-8">
+        <h1 className="text-4xl sm:text-6xl font-bold mb-4 bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
           The Descent
         </h1>
-        <p className="text-xl text-gray-400 mb-12">
+        <p className="text-lg sm:text-xl text-gray-400 mb-8 sm:mb-12">
           A strategic downhill racing board game. Manage momentum, dodge hazards, and outpace your rivals.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
           <Link
             href="/play"
-            className="group bg-gray-800 border border-gray-700 rounded-xl p-8 hover:border-emerald-500 transition-all hover:bg-gray-800/80"
+            className="group bg-gray-800 border border-gray-700 rounded-xl p-6 sm:p-8 hover:border-emerald-500 transition-all hover:bg-gray-800/80"
           >
-            <div className="text-4xl mb-3">&#9654;</div>
+            <div className="text-3xl sm:text-4xl mb-3">&#9654;</div>
             <h2 className="text-2xl font-bold mb-2 group-hover:text-emerald-400 transition-colors">
               Play Game
             </h2>
@@ -27,9 +27,9 @@ export default function Home() {
 
           <Link
             href="/simulate"
-            className="group bg-gray-800 border border-gray-700 rounded-xl p-8 hover:border-cyan-500 transition-all hover:bg-gray-800/80"
+            className="group bg-gray-800 border border-gray-700 rounded-xl p-6 sm:p-8 hover:border-cyan-500 transition-all hover:bg-gray-800/80"
           >
-            <div className="text-4xl mb-3">&#9881;</div>
+            <div className="text-3xl sm:text-4xl mb-3">&#9881;</div>
             <h2 className="text-2xl font-bold mb-2 group-hover:text-cyan-400 transition-colors">
               Simulate
             </h2>
@@ -40,10 +40,10 @@ export default function Home() {
         </div>
 
         {/* Quick Rules Reference */}
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 text-left">
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 sm:p-6 text-left">
           <h3 className="text-lg font-bold mb-4 text-center">Quick Reference</h3>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <h4 className="font-bold text-yellow-400 mb-2">Actions (5 per Sprint)</h4>
               <div className="space-y-1 text-gray-300">
