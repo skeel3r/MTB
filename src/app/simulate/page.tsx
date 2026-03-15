@@ -32,6 +32,8 @@ export default function SimulatePage() {
   const [mcProgress, setMcProgress] = useState(0);
   const [mcGames, setMcGames] = useState(300);
   const [exportCopied, setExportCopied] = useState(false);
+  const [runAllActive, setRunAllActive] = useState(false);
+  const [runAllStep, setRunAllStep] = useState('');
   const cancelRef = useRef(false);
   const mcCancelRef = useRef(false);
 
@@ -236,6 +238,87 @@ export default function SimulatePage() {
     }, 50);
   }, [config.playerCount, saGames]);
 
+  const anyRunning = running || mcRunning || saRunning || runAllActive;
+  const hasAnyData = results.length > 0 || mcResult !== null || sensitivity !== null;
+
+  // "Run All Analyses" — chains simulation → MC → sensitivity sequentially
+  const runAll = useCallback(() => {
+    setRunAllActive(true);
+    setRunAllStep('simulation');
+    cancelRef.current = false;
+
+    // Clear previous results
+    setResults([]);
+    setAllSnapshots([]);
+    setBalance(null);
+    setGini(null);
+    setMcResult(null);
+    setSensitivity(null);
+    setCurrentGame(0);
+    setLiveSnapshot(null);
+    setMcProgress(0);
+
+    // Step 1: Run basic simulation
+    setRunning(true);
+    const newResults: SimulationResult[] = [];
+    const newSnapshots: RoundSnapshot[][] = [];
+    let gameIdx = 0;
+
+    const runSimNext = () => {
+      if (cancelRef.current) { setRunning(false); setRunAllActive(false); return; }
+      if (gameIdx >= config.gamesCount) {
+        setRunning(false);
+        if (newResults.length > 0) {
+          setBalance(computeBalanceSummary(newResults, newSnapshots, config));
+          setGini(computeGiniAnalysis(newResults, newSnapshots));
+        }
+        // Step 2: Monte Carlo
+        setRunAllStep('monte_carlo');
+        setTimeout(runMCStep, 50);
+        return;
+      }
+
+      const { result, roundSnapshots } = runSingleGame(config, gameIdx + 1);
+      newResults.push(result);
+      newSnapshots.push(roundSnapshots);
+      setResults([...newResults]);
+      setAllSnapshots([...newSnapshots]);
+      setCurrentGame(gameIdx + 1);
+      setLiveSnapshot(roundSnapshots);
+      gameIdx++;
+      setTimeout(runSimNext, 0);
+    };
+
+    const runMCStep = () => {
+      if (cancelRef.current) { setRunAllActive(false); return; }
+      setMcRunning(true);
+      setTimeout(() => {
+        const mcRes = runMonteCarlo(config.playerCount, mcGames);
+        setMcResult(mcRes);
+        setMcProgress(mcGames);
+        setMcRunning(false);
+
+        // Step 3: Sensitivity
+        setRunAllStep('sensitivity');
+        setTimeout(runSAStep, 50);
+      }, 50);
+    };
+
+    const runSAStep = () => {
+      if (cancelRef.current) { setRunAllActive(false); return; }
+      setSaRunning(true);
+      setTimeout(() => {
+        const saRes = runSensitivityAnalysis(config.playerCount, saGames);
+        setSensitivity(saRes);
+        setSaRunning(false);
+        setRunAllStep('complete');
+        setRunAllActive(false);
+      }, 50);
+    };
+
+    setTimeout(runSimNext, 0);
+  }, [config, mcGames, saGames]);
+
   return (
     <div className="min-h-screen game-table text-white p-4 sm:p-8">
       <div className="max-w-5xl mx-auto">
@@ -281,20 +364,60 @@ export default function SimulatePage() {
         <div className="flex gap-3 mb-6">
           <button
             onClick={run}
-            disabled={running}
+            disabled={anyRunning}
             className="flex-1 py-3 bg-emerald-700 rounded-lg font-bold text-lg hover:bg-emerald-600 disabled:opacity-50 transition-colors border border-emerald-500"
           >
-            {running ? `Simulating... ${currentGame}/${config.gamesCount}` : 'Run Simulation'}
+            {running && !runAllActive ? `Simulating... ${currentGame}/${config.gamesCount}` : 'Run Simulation'}
           </button>
-          {running && (
+          <button
+            onClick={runAll}
+            disabled={anyRunning}
+            className="flex-1 py-3 bg-purple-700 rounded-lg font-bold text-lg hover:bg-purple-600 disabled:opacity-50 transition-colors border border-purple-500"
+          >
+            {runAllActive ? `Running All...` : 'Run All & Export'}
+          </button>
+          {anyRunning && (
             <button
-              onClick={stop}
+              onClick={() => { cancelRef.current = true; stop(); }}
               className="px-6 py-3 bg-red-900 rounded-lg font-bold hover:bg-red-800 border border-red-600"
             >
               Stop
             </button>
           )}
         </div>
+
+        {/* Run All Progress */}
+        {runAllActive && (
+          <div className="mb-6 rounded-lg p-3 border border-purple-600 bg-purple-900/20">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-sm font-bold text-purple-300">Running Full Analysis Suite</div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              {[
+                { key: 'simulation', label: `Simulation (${config.gamesCount} games)` },
+                { key: 'monte_carlo', label: `Monte Carlo (${mcGames} games)` },
+                { key: 'sensitivity', label: 'Sensitivity Analysis' },
+              ].map(step => {
+                const done = step.key === 'simulation' ? (!running && results.length > 0)
+                  : step.key === 'monte_carlo' ? (mcResult !== null)
+                  : (sensitivity !== null);
+                const active = runAllStep === step.key;
+                return (
+                  <div
+                    key={step.key}
+                    className={`rounded px-2 py-1.5 border ${
+                      done ? 'border-emerald-600 bg-emerald-900/30 text-emerald-400' :
+                      active ? 'border-purple-500 bg-purple-900/40 text-purple-300 animate-pulse' :
+                      'border-gray-700 bg-black/20 text-gray-500'
+                    }`}
+                  >
+                    {done ? '\u2713' : active ? '\u25B6' : '\u25CB'} {step.label}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Live Progress Bar */}
         {running && (
@@ -364,41 +487,74 @@ export default function SimulatePage() {
           </div>
         )}
 
-        {/* Export Buttons */}
-        {results.length > 0 && !running && (
-          <div className="flex gap-3 mb-6">
-            <button
-              onClick={() => {
-                const report = generateReport();
-                const text = '```json\n' + JSON.stringify(report, null, 2) + '\n```';
-                navigator.clipboard.writeText(text).then(() => {
-                  setExportCopied(true);
-                  setTimeout(() => setExportCopied(false), 2000);
-                });
-              }}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors border ${
-                exportCopied
-                  ? 'bg-emerald-700 border-emerald-500 text-white'
-                  : 'bg-purple-900/50 border-purple-600 hover:bg-purple-800 text-purple-300'
-              }`}
-            >
-              {exportCopied ? 'Copied to Clipboard!' : 'Copy Report for Claude'}
-            </button>
-            <button
-              onClick={() => {
-                const report = generateReport();
-                const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `simulation-report-${new Date().toISOString().slice(0, 10)}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="px-4 py-2 rounded-lg font-bold text-sm bg-gray-700 hover:bg-gray-600 border border-gray-500 text-gray-300 transition-colors"
-            >
-              Download JSON
-            </button>
+        {/* Export Panel — visible after any analysis completes */}
+        {hasAnyData && !anyRunning && (
+          <div className="trail-card p-4 mb-6 border-2 border-purple-600/50">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-sm text-purple-300 uppercase tracking-wider">Export Report</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const report = generateReport();
+                    const text = '```json\n' + JSON.stringify(report, null, 2) + '\n```';
+                    navigator.clipboard.writeText(text).then(() => {
+                      setExportCopied(true);
+                      setTimeout(() => setExportCopied(false), 2000);
+                    });
+                  }}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors border ${
+                    exportCopied
+                      ? 'bg-emerald-700 border-emerald-500 text-white'
+                      : 'bg-purple-900/50 border-purple-600 hover:bg-purple-800 text-purple-300'
+                  }`}
+                >
+                  {exportCopied ? 'Copied!' : 'Copy for Claude'}
+                </button>
+                <button
+                  onClick={() => {
+                    const report = generateReport();
+                    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `simulation-report-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-4 py-2 rounded-lg font-bold text-sm bg-gray-700 hover:bg-gray-600 border border-gray-500 text-gray-300 transition-colors"
+                >
+                  Download JSON
+                </button>
+              </div>
+            </div>
+            {/* Report contents summary */}
+            <div className="flex flex-wrap gap-2 text-[10px]">
+              {[
+                { label: 'Simulation', active: results.length > 0, detail: `${results.length} games` },
+                { label: 'Balance Summary', active: !!balance, detail: balance ? `Spread: ${balance.progressSpread.toFixed(1)}` : '' },
+                { label: 'Gini Analysis', active: !!gini, detail: gini ? `Prog: ${gini.progressGini.toFixed(3)}` : '' },
+                { label: 'Monte Carlo', active: !!mcResult, detail: mcResult ? `${mcResult.totalGames} games` : '' },
+                { label: 'Sensitivity', active: !!sensitivity, detail: sensitivity ? `${sensitivity.length} params` : '' },
+                { label: 'Obstacle Probs', active: true, detail: `${obsProbabilities.length} obstacles` },
+                { label: 'Combo Analysis', active: results.length > 0, detail: results.length > 0 ? `${results.flatMap(r => r.finalStandings).reduce((s, p) => s + p.combosTriggered, 0)} combos` : '' },
+              ].map(item => (
+                <span
+                  key={item.label}
+                  className={`px-2 py-1 rounded-full border ${
+                    item.active
+                      ? 'border-emerald-600 bg-emerald-900/30 text-emerald-400'
+                      : 'border-gray-700 bg-black/20 text-gray-600'
+                  }`}
+                >
+                  {item.active ? '\u2713' : '\u2717'} {item.label}{item.active && item.detail ? ` (${item.detail})` : ''}
+                </span>
+              ))}
+            </div>
+            {(!balance || !mcResult || !sensitivity) && (
+              <div className="text-[10px] text-gray-500 mt-2 italic">
+                Some analyses haven&apos;t been run yet. Use &quot;Run All &amp; Export&quot; to generate a complete report.
+              </div>
+            )}
           </div>
         )}
 
