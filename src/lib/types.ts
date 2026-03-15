@@ -82,6 +82,8 @@ export interface PlayerState {
   /** Cumulative stats across the whole game */
   totalCardsPlayed: number;
   totalCombos: number;
+  /** Trail Read: set to true once the player draws a fresh obstacle, locking them out of revealed pool */
+  drewFreshObstacle: boolean;
 }
 
 // ── Game state ──
@@ -123,6 +125,10 @@ export interface GameState {
   activeObstacles: ProgressObstacle[];
   trailHazards: TrailHazard[];
   currentHazards: TrailHazard[];
+  /** Trail Read: each player's obstacle line — keyed by player id, built up as players take turns */
+  playerObstacleLines: Record<string, ProgressObstacle[]>;
+  /** Trail Read: flat list of all revealed obstacles (derived from playerObstacleLines for convenience) */
+  roundRevealedObstacles: ProgressObstacle[];
   /** Last hazard roll results per player (set during reckoning) */
   lastHazardRolls: { playerName: string; rolls: number[]; penaltyDrawn: string | null }[];
   log: string[];
@@ -130,7 +136,7 @@ export interface GameState {
 
 export interface GameAction {
   type: 'pedal' | 'brake' | 'steer' | 'technique' | 'tackle' | 'pass_duel' |
-        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle' | 'resolve_obstacle';
+        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle' | 'resolve_obstacle' | 'reuse_obstacle';
   payload?: Record<string, unknown>;
 }
 
