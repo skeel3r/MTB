@@ -61,8 +61,8 @@ export default function PlayPage() {
         const EFFECT_DESCRIPTIONS: Record<string, string> = {
           'Inside Line': 'Grip immunity + Momentum boost',
           'Manual': 'Swap rows 1 & 2 + draw a card',
-          'Flick': 'Shift toward center + Flow if both moved',
-          'Recover': 'Remove dice, or repair penalty, or +1 Flow',
+          'Flick': 'Shift tokens toward center',
+          'Recover': 'Remove dice or repair penalty',
         };
 
         let comboText = '';
@@ -76,10 +76,10 @@ export default function PlayPage() {
           comboText = ` | SYNERGY: ${SYNERGY_DESC[card.symbol] || 'Bonus!'}`;
         }
         if (uniqueAfter >= 3 && playCountAfter >= 3) {
-          comboText += ' | VERSATILITY: +2 Flow, +1 Mtm!';
+          comboText += ' | VERSATILITY: +1 Momentum!';
         }
         if (uniqueAfter >= 4) {
-          comboText += ' | MASTERY: +3 Flow, -2 Dice, repair!';
+          comboText += ' | MASTERY: -2 Dice, repair penalty!';
         }
 
         setEffectToast({

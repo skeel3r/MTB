@@ -1,0 +1,7 @@
+id,name,flowCost,description
+upgrade-1,High-Engagement Hubs,3,1st Pedal action per turn costs 0 Actions.
+upgrade-2,Oversized Rotors,4,1 Brake action drops Momentum by 2 instead of 1.
+upgrade-3,Carbon Frame,5,Max Momentum = 12; Min Hand Size = 4.
+upgrade-4,Electronic Shifting,5,1 Steer action per turn costs 0 Actions.
+upgrade-5,Telemetry System,6,"Look at top 3 Obstacles at turn start; keep 1."
+upgrade-6,Factory Suspension,8,Pro Line combos gain +2 Flow instead of 1.

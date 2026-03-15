@@ -189,8 +189,14 @@ export function advancePhase(state: GameState): GameState {
           p.cardsPlayedThisTurn = [];
           p.combosTriggered = [];
         }
-        s.currentPlayerIndex = 0;
-        s.log.push('Sprint phase! Each player has 5 Actions.');
+        // Turn order: leader goes first (highest progress)
+        {
+          const sorted = [...s.players]
+            .map((p, i) => ({ i, progress: p.progress }))
+            .sort((a, b) => b.progress - a.progress); // highest progress first
+          s.currentPlayerIndex = sorted[0].i;
+          s.log.push(`Sprint phase! Turn order: ${sorted.map(x => s.players[x.i].name).join(' → ')} (leader goes first).`);
+        }
         break;
       case 'alignment':
         return executeAlignment(s);
@@ -286,17 +292,19 @@ function executePreparation(state: GameState): GameState {
   const s = state;
 
   for (const player of s.players) {
+    // Momentum is effectively capped by the trail card speed limit
+    // Excess momentum converts to hazard dice (speed trap)
+    if (s.activeTrailCard && player.momentum > s.activeTrailCard.speedLimit) {
+      const excess = player.momentum - s.activeTrailCard.speedLimit;
+      player.hazardDice += excess;
+      player.momentum = s.activeTrailCard.speedLimit;
+      s.log.push(`${player.name}: Speed Trap! Momentum capped to ${s.activeTrailCard.speedLimit}, +${excess} Hazard Dice.`);
+    }
+
     const drawCount = Math.max(2, Math.min(6, player.momentum));
     const drawn = drawCards(s, drawCount);
     player.hand.push(...drawn);
     s.log.push(`${player.name} draws ${drawn.length} cards (Momentum: ${player.momentum})`);
-
-    // Speed Trap
-    if (s.activeTrailCard && player.momentum > s.activeTrailCard.speedLimit) {
-      const excess = player.momentum - s.activeTrailCard.speedLimit;
-      player.hazardDice += excess;
-      s.log.push(`${player.name}: Speed Trap! +${excess} Hazard Dice (over speed limit)`);
-    }
   }
 
   return s;
@@ -378,6 +386,27 @@ function executeReckoning(state: GameState): GameState {
     }
 
     s.lastHazardRolls.push({ playerName: player.name, rolls, penaltyDrawn });
+
+    // Crash check: if accumulated dice were >= 6, crash during reckoning
+    if (player.hazardDice >= 6) {
+      player.crashed = true;
+      // Reset all tokens to center
+      for (let r = 0; r < 6; r++) {
+        player.grid[r].fill(false);
+        player.grid[r][2] = true;
+      }
+      // Draw an extra penalty card for crashing
+      if (s.penaltyDeck.length > 0) {
+        const crashPen = s.penaltyDeck.shift()!;
+        player.penalties.push(crashPen);
+        s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) — Tokens reset, penalty: ${crashPen.name}`);
+      } else {
+        s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) — Tokens reset to center.`);
+      }
+      // Lose momentum on crash
+      player.momentum = Math.max(0, player.momentum - 3);
+    }
+
     player.hazardDice = 0;
   }
 
@@ -536,8 +565,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
               }
             }
             if (moved >= 2) {
-              player.flow++;
-              s.log.push(`${player.name}: +1 Flow from precision repositioning.`);
+              s.log.push(`${player.name}: Both tokens repositioned toward center.`);
             }
             break;
           }
@@ -553,9 +581,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
               const removed = player.penalties.pop()!;
               s.log.push(`${player.name}: No dice to remove — repaired "${removed.name}" instead!`);
             } else {
-              // Nothing to recover — gain +1 flow for clean riding
-              player.flow++;
-              s.log.push(`${player.name}: Clean rider! +1 Flow bonus.`);
+              s.log.push(`${player.name}: Nothing to recover — already clean!`);
             }
             break;
           }
@@ -594,8 +620,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
                 s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} clears ALL ${player.hazardDice} Hazard Dice!`);
                 player.hazardDice = 0;
               } else {
-                player.flow += 2;
-                s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} gains +2 Flow for clean balance!`);
+                s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} is already clean — no dice to clear.`);
               }
               break;
           }
@@ -605,29 +630,27 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         if (uniqueSymbols >= 3 && playCount >= 3) {
           player.combosTriggered.push('Versatility');
           player.totalCombos++;
-          player.flow += 2;
           player.momentum = Math.min(player.momentum + 1, 12);
-          s.log.push(`🌟 VERSATILITY (3 symbols): ${player.name} gains +2 Flow and +1 Momentum!`);
+          s.log.push(`🌟 VERSATILITY (3 symbols): ${player.name} gains +1 Momentum!`);
         }
 
         // MASTERY: 4 unique symbols = ultimate combo
         if (uniqueSymbols >= 4) {
           player.combosTriggered.push('Mastery');
           player.totalCombos++;
-          player.flow += 3;
           player.hazardDice = Math.max(0, player.hazardDice - 2);
           if (player.penalties.length > 0) {
             const removed = player.penalties.pop()!;
-            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} gains +3 Flow, -2 Hazard Dice, repaired "${removed.name}"!`);
+            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} removes 2 Hazard Dice and repaired "${removed.name}"!`);
           } else {
-            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} gains +3 Flow and -2 Hazard Dice!`);
+            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} removes 2 Hazard Dice!`);
           }
         }
 
-        // PRO LINE COMBO BONUS: cards played while on pro line get extra risk/reward
+        // PRO LINE COMBO BONUS: cards played while on pro line get extra momentum
         if (player.commitment === 'pro' && playCount >= 2) {
-          player.flow++;
-          s.log.push(`${player.name}: Pro Line combo bonus — +1 Flow.`);
+          player.momentum = Math.min(player.momentum + 1, 12);
+          s.log.push(`${player.name}: Pro Line combo bonus — +1 Momentum.`);
         }
       }
       break;
@@ -896,9 +919,13 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       player.turnEnded = true;
       s.log.push(`${player.name}: Ends turn.`);
 
-      // Move to next player or next phase
-      if (playerIndex < s.players.length - 1) {
-        s.currentPlayerIndex = playerIndex + 1;
+      // Move to next player in standings order (highest progress first)
+      const turnOrder = [...s.players]
+        .map((p, i) => ({ i, progress: p.progress }))
+        .sort((a, b) => b.progress - a.progress);
+      const currentOrderIdx = turnOrder.findIndex(x => x.i === playerIndex);
+      if (currentOrderIdx < turnOrder.length - 1) {
+        s.currentPlayerIndex = turnOrder[currentOrderIdx + 1].i;
       }
       break;
     }

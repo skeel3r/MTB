@@ -1,0 +1,6 @@
+name,description,rows,direction,copies
+Camber Left,"Shift all tokens in Rows 1-3 one lane Left.",1|2|3,left,6
+Camber Right,"Shift all tokens in Rows 1-3 one lane Right.",1|2|3,right,6
+Brake Bumps,"Shift Row 1 and Row 2 one lane toward the nearest Edge.",1|2,edge,6
+Compression,"Shift Row 3 and Row 4 one lane toward the Center.",3|4,center,6
+Loose Dirt,"Shift Row 5 and Row 6 one lane in a random direction.",5|6,random,6
