@@ -79,6 +79,8 @@ export interface PlayerState {
   cardsPlayedThisTurn: { symbol: CardSymbol; name: string }[];
   /** Combo bonuses earned this turn */
   combosTriggered: string[];
+  /** Flow gained from combos this turn (capped to prevent snowball) */
+  comboFlowThisTurn: number;
   /** Cumulative stats across the whole game */
   totalCardsPlayed: number;
   totalCombos: number;
