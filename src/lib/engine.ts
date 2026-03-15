@@ -2,7 +2,7 @@ import {
   GameState, PlayerState, GamePhase, GameAction, CardSymbol, TechniqueCard, ProgressObstacle,
 } from './types';
 import {
-  createTechniqueDeck, createPenaltyDeck, createTrailDeck, createTrailHazards, shuffle, UPGRADES,
+  createTechniqueDeck, createPenaltyDeck, createTrailDeck, createTrailHazards, createObstacleDeck, shuffle, UPGRADES, OBSTACLE_DEFINITIONS,
 } from './cards';
 
 // ── Create initial player state ──
@@ -58,6 +58,8 @@ export function initGame(playerNames: string[]): GameState {
     techniqueDeck,
     techniqueDiscard: [],
     penaltyDeck: createPenaltyDeck(),
+    obstacleDeck: createObstacleDeck(),
+    activeObstacles: [],
     trailHazards: createTrailHazards(),
     currentHazards: [],
     log: ['Game initialized. Ready to start!'],
@@ -218,6 +220,16 @@ function executeScrollDescent(state: GameState): GameState {
     // New token enters Row 0 matching previous Row 5 (now Row 6 equivalent)
     for (let c = 0; c < 5; c++) player.grid[0][c] = false;
     setToken(player.grid, 0, row5col >= 0 ? row5col : 2);
+  }
+
+  // Draw 2 obstacles from the obstacle deck into activeObstacles
+  s.activeObstacles = [];
+  if (s.obstacleDeck.length === 0) {
+    // Reshuffle from all 10 definitions x 3 copies
+    s.obstacleDeck = createObstacleDeck();
+  }
+  for (let i = 0; i < 2 && s.obstacleDeck.length > 0; i++) {
+    s.activeObstacles.push(s.obstacleDeck.shift()!);
   }
 
   s.log.push('All tokens shifted down. New token entered Row 1.');
@@ -506,12 +518,10 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
 
     case 'tackle': {
       // Free action - tackle an obstacle
-      if (!s.activeTrailCard) break;
-
       const obstacleIndex = (action.payload?.obstacleIndex as number) ?? 0;
-      if (obstacleIndex >= s.activeTrailCard.obstacles.length) break;
+      if (obstacleIndex >= s.activeObstacles.length) break;
 
-      const obstacle = s.activeTrailCard.obstacles[obstacleIndex];
+      const obstacle = s.activeObstacles[obstacleIndex];
       // Check if player has matching cards for ALL required symbols
       const matchCardIndices: number[] = [];
       let allMatched = true;
@@ -559,7 +569,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       }
 
       // Remove used obstacle
-      s.activeTrailCard.obstacles.splice(obstacleIndex, 1);
+      s.activeObstacles.splice(obstacleIndex, 1);
 
       // Check crash: 6+ hazard dice
       if (player.hazardDice >= 6) {

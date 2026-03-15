@@ -44,8 +44,6 @@ export interface MainTrailCard {
   checkedRows: number[];
   /** Target lane for each checked row (0-4, where 2 is center) */
   targetLanes: number[];
-  /** Obstacles on this trail section */
-  obstacles: ProgressObstacle[];
 }
 
 // ── Player state ──
@@ -109,6 +107,8 @@ export interface GameState {
   techniqueDeck: TechniqueCard[];
   techniqueDiscard: TechniqueCard[];
   penaltyDeck: PenaltyCard[];
+  obstacleDeck: ProgressObstacle[];
+  activeObstacles: ProgressObstacle[];
   trailHazards: TrailHazard[];
   currentHazards: TrailHazard[];
   log: string[];
