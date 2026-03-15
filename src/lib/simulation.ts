@@ -17,6 +17,12 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
   let actions = 5;
   const p = s.players[playerIndex];
 
+  // AI draws 1-2 obstacles at the start of its turn
+  s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+  if (strategy === 'aggressive') {
+    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+  }
+
   while (actions > 0 && !p.crashed && !p.turnEnded) {
     if (strategy === 'aggressive') {
       if (actions > 2 && p.momentum < 5) {

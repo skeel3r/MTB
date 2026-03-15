@@ -116,7 +116,7 @@ export interface GameState {
 
 export interface GameAction {
   type: 'pedal' | 'brake' | 'steer' | 'technique' | 'tackle' | 'pass_duel' |
-        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn';
+        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle';
   payload?: Record<string, unknown>;
 }
 
