@@ -125,7 +125,9 @@ export interface GameState {
   activeObstacles: ProgressObstacle[];
   trailHazards: TrailHazard[];
   currentHazards: TrailHazard[];
-  /** Trail Read: obstacles revealed by players who already took their turn this round */
+  /** Trail Read: each player's obstacle line — keyed by player id, built up as players take turns */
+  playerObstacleLines: Record<string, ProgressObstacle[]>;
+  /** Trail Read: flat list of all revealed obstacles (derived from playerObstacleLines for convenience) */
   roundRevealedObstacles: ProgressObstacle[];
   /** Last hazard roll results per player (set during reckoning) */
   lastHazardRolls: { playerName: string; rolls: number[]; penaltyDrawn: string | null }[];

@@ -73,12 +73,14 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
   let s = { ...state };
   const p = () => s.players[playerIndex];
 
-  // Trail Read: first try to reuse revealed obstacles from players ahead
-  const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, 2);
+  // Trail Read: reuse scales with how many player lines are visible
+  const linesAvailable = Object.keys(s.playerObstacleLines).length;
+  const maxReuse = Math.max(1, linesAvailable); // P2: 1, P3: 2, P4: 3
+  const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, maxReuse);
   s = afterReuse;
 
   // Determine how many fresh obstacles to draw
-  const targetObstacles = strategy === 'aggressive' ? 2 : 1;
+  const targetObstacles = strategy === 'aggressive' ? 2 : Math.max(1, Math.min(2, 1 + linesAvailable));
   const freshNeeded = Math.max(0, targetObstacles - reused);
 
   for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {

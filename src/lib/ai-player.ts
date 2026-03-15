@@ -95,13 +95,15 @@ export function aiPlaySprint(state: GameState, playerIndex: number): GameState {
   let s = state;
   const p = () => s.players[playerIndex];
 
-  // Trail Read: first try to reuse revealed obstacles from players ahead
-  // AI will reuse up to 2 obstacles it can match before drawing fresh
-  const { state: afterReuse, reused } = tryReuseRevealedObstacles(s, playerIndex, 2);
+  // Trail Read: reuse scales with how many player lines are visible
+  // More players ahead = more obstacles to pick from = bigger advantage
+  const linesAvailable = Object.keys(s.playerObstacleLines).length;
+  const maxReuse = Math.max(1, linesAvailable); // P2: 1, P3: 2, P4: 3
+  const { state: afterReuse, reused } = tryReuseRevealedObstacles(s, playerIndex, maxReuse);
   s = afterReuse;
 
   // Draw fresh obstacles if we haven't tackled enough yet
-  const targetObstacles = 2; // AI wants to tackle up to 2 obstacles total
+  const targetObstacles = Math.max(1, Math.min(2, 1 + linesAvailable)); // more lines = less need to draw fresh
   const freshNeeded = Math.max(0, (p().hand.length >= 3 ? targetObstacles : 1) - reused);
 
   for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {

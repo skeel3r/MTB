@@ -67,6 +67,7 @@ export function initGame(playerNames: string[]): GameState {
     obstacleDeck: createObstacleDeck(),
     obstacleDiscard: [],
     activeObstacles: [],
+    playerObstacleLines: {},
     roundRevealedObstacles: [],
     trailHazards: createTrailHazards(),
     currentHazards: [],
@@ -93,6 +94,15 @@ function setToken(grid: boolean[][], row: number, col: number): void {
   for (let c = 0; c < 5; c++) grid[row][c] = false;
   const clamped = Math.max(0, Math.min(4, col));
   grid[row][clamped] = true;
+}
+
+// ── Trail Read: add obstacle to a player's obstacle line and the shared pool ──
+function revealObstacle(state: GameState, playerId: string, obstacle: ProgressObstacle): void {
+  if (!state.playerObstacleLines[playerId]) {
+    state.playerObstacleLines[playerId] = [];
+  }
+  state.playerObstacleLines[playerId].push({ ...obstacle });
+  state.roundRevealedObstacles.push({ ...obstacle });
 }
 
 // ── Draw cards from technique deck ──
@@ -243,6 +253,7 @@ function executeScrollDescent(state: GameState): GameState {
   // Clear active obstacles and revealed obstacles from previous round
   s.activeObstacles = [];
   s.roundRevealedObstacles = [];
+  s.playerObstacleLines = {};
 
   s.log.push('All tokens shifted down. New token entered Row 1.');
   return s;
@@ -842,8 +853,17 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       }
       // Copy the revealed obstacle into active obstacles for this player to resolve
       const reused = { ...s.roundRevealedObstacles[revealedIdx] };
+      // Find which player originally revealed this obstacle
+      let revealedBy = 'unknown';
+      for (const [pid, line] of Object.entries(s.playerObstacleLines)) {
+        if (line.some(o => o.id === reused.id)) {
+          const revealerPlayer = s.players.find(p => p.id === pid);
+          if (revealerPlayer) { revealedBy = revealerPlayer.name; break; }
+        }
+      }
       s.activeObstacles.push(reused);
-      s.log.push(`${player.name}: Trail Read — tackles revealed obstacle "${reused.name}" (${reused.symbols.join(', ')})`);
+      const linesAvailable = Object.keys(s.playerObstacleLines).length;
+      s.log.push(`${player.name}: Trail Read — tackles "${reused.name}" from ${revealedBy}'s line (${linesAvailable} player line${linesAvailable !== 1 ? 's' : ''} visible)`);
       break;
     }
 
@@ -904,8 +924,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
 
         if (allMatched) {
           s.activeObstacles.splice(obstacleIndex, 1);
-          // Trail Read: add to revealed pool so trailing players can see & reuse it
-          s.roundRevealedObstacles.push({ ...obstacle });
+          // Trail Read: add to this player's obstacle line so trailing players can see & reuse it
+          revealObstacle(s, player.id, obstacle);
           s.obstacleDiscard.push(obstacle);
           break;
         }
@@ -928,7 +948,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
 
       s.activeObstacles.splice(obstacleIndex, 1);
       // Trail Read: even blow-by obstacles are revealed (trailing players saw the attempt)
-      s.roundRevealedObstacles.push({ ...obstacle });
+      revealObstacle(s, player.id, obstacle);
       s.obstacleDiscard.push(obstacle);
 
       // Check crash: 6+ hazard dice
