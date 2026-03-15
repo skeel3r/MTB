@@ -117,8 +117,6 @@ export function createObstacleDeck(): ProgressObstacle[] {
 }
 
 export function createTrailDeck(): MainTrailCard[] {
-  const obstacleDeck = createObstacleDeck();
-
   return TRAIL_DATA.map(([name, speedLimit, targets], i) => {
     const checkedRows: number[] = [];
     const targetLanes: number[] = [];
@@ -129,20 +127,12 @@ export function createTrailDeck(): MainTrailCard[] {
       }
     }
 
-    // Deal 2-3 obstacles per trail card from the shuffled deck
-    const numObstacles = checkedRows.length <= 3 ? 2 : 3;
-    const obstacles: ProgressObstacle[] = [];
-    for (let j = 0; j < numObstacles && obstacleDeck.length > 0; j++) {
-      obstacles.push(obstacleDeck.shift()!);
-    }
-
     return {
       id: i + 1,
       name,
       speedLimit,
       checkedRows,
       targetLanes,
-      obstacles,
     };
   });
 }

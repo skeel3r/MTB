@@ -45,48 +45,50 @@ export default function PlayPage() {
   // ── Setup Screen ──
   if (!game) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-8">
+      <div className="min-h-screen game-table text-white p-4 sm:p-8">
         <div className="max-w-lg mx-auto">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">The Descent</h1>
-          <p className="text-gray-400 mb-6">Set up your game</p>
+          <p className="text-emerald-300/60 mb-6">Set up your game</p>
 
-          <div className="space-y-3 mb-6">
-            {playerNames.map((name, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  value={name}
-                  onChange={e => {
-                    const n = [...playerNames];
-                    n[i] = e.target.value;
-                    setPlayerNames(n);
-                  }}
-                  className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white"
-                  placeholder={`Player ${i + 1}`}
-                />
-                {playerNames.length > 1 && (
-                  <button
-                    onClick={() => setPlayerNames(playerNames.filter((_, j) => j !== i))}
-                    className="px-3 py-2 bg-red-900 rounded hover:bg-red-800"
-                  >
-                    X
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="trail-card p-6 mb-6">
+            <div className="space-y-3 mb-6">
+              {playerNames.map((name, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    value={name}
+                    onChange={e => {
+                      const n = [...playerNames];
+                      n[i] = e.target.value;
+                      setPlayerNames(n);
+                    }}
+                    className="flex-1 bg-black/30 border border-gray-600 rounded px-3 py-2 text-white"
+                    placeholder={`Player ${i + 1}`}
+                  />
+                  {playerNames.length > 1 && (
+                    <button
+                      onClick={() => setPlayerNames(playerNames.filter((_, j) => j !== i))}
+                      className="px-3 py-2 bg-red-900 rounded hover:bg-red-800"
+                    >
+                      X
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {playerNames.length < 6 && (
+              <button
+                onClick={() => setPlayerNames([...playerNames, `Rider ${playerNames.length + 1}`])}
+                className="w-full py-2 mb-4 bg-black/20 rounded hover:bg-black/30 border border-gray-600"
+              >
+                + Add Player
+              </button>
+            )}
           </div>
-
-          {playerNames.length < 6 && (
-            <button
-              onClick={() => setPlayerNames([...playerNames, `Rider ${playerNames.length + 1}`])}
-              className="w-full py-2 mb-4 bg-gray-800 rounded hover:bg-gray-700 border border-gray-600"
-            >
-              + Add Player
-            </button>
-          )}
 
           <button
             onClick={startGame}
-            className="w-full py-3 bg-emerald-600 rounded-lg font-bold text-lg hover:bg-emerald-500 transition-colors"
+            className="w-full py-3 bg-emerald-700 rounded-lg font-bold text-lg hover:bg-emerald-600 transition-colors border border-emerald-500"
           >
             Start Game
           </button>
@@ -101,14 +103,14 @@ export default function PlayPage() {
   // ── Game Over ──
   if (game.phase === 'game_over') {
     return (
-      <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-8">
+      <div className="min-h-screen game-table text-white p-4 sm:p-8">
         <div className="max-w-2xl mx-auto">
           <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-center">Game Over!</h1>
           <p className="text-center text-emerald-400 text-lg sm:text-xl mb-6 sm:mb-8">
             Winner: {standings[0].name}
           </p>
 
-          <div className="bg-gray-800 rounded-lg p-3 sm:p-4 mb-6 overflow-x-auto">
+          <div className="trail-card p-3 sm:p-4 mb-6 overflow-x-auto">
             <h2 className="font-bold mb-3">Final Standings</h2>
             <table className="w-full text-xs sm:text-sm">
               <thead>
@@ -239,24 +241,24 @@ export default function PlayPage() {
           </div>
 
           {/* Obstacles */}
-          {game.activeTrailCard && game.activeTrailCard.obstacles.length > 0 && (
+          {game.activeObstacles.length > 0 && (
             <div>
               <h3 className="text-sm font-bold mb-2">Obstacles (Free Action)</h3>
               <div className="flex flex-wrap gap-2">
-                {game.activeTrailCard.obstacles.map((obs, i) => (
+                {game.activeObstacles.map((obs, i) => (
                   <button
                     key={i}
                     onClick={() => doAction({ type: 'tackle', payload: { obstacleIndex: i } })}
                     disabled={currentPlayer.turnEnded}
-                    className="px-3 py-2 rounded-lg border-2 hover:border-white disabled:opacity-30 transition-colors"
-                    style={{ borderColor: SYMBOL_COLORS[obs.symbols[0]], backgroundColor: SYMBOL_COLORS[obs.symbols[0]] + '20' }}
+                    className="obstacle-card px-3 py-3 w-28 text-center disabled:opacity-30"
                   >
-                    <div className="flex gap-1 justify-center">
+                    <div className="flex gap-1 justify-center mb-1">
                       {obs.symbols.map((sym, j) => (
-                        <span key={j} className="text-lg">{SYMBOL_EMOJI[sym]}</span>
+                        <span key={j} className="text-xl">{SYMBOL_EMOJI[sym]}</span>
                       ))}
                     </div>
-                    <div className="text-xs font-medium">{obs.name}</div>
+                    <div className="text-xs font-bold">{obs.name}</div>
+                    <div className="text-[10px] text-red-300/70 mt-0.5">{obs.penaltyType}</div>
                   </button>
                 ))}
               </div>
@@ -301,7 +303,7 @@ export default function PlayPage() {
 
       {/* Upgrade Shop during Stage Break */}
       {game.phase === 'stage_break' && (
-        <div className="mt-4 bg-gray-800 rounded-lg p-4">
+        <div className="mt-4 trail-card p-4">
           <h3 className="text-sm font-bold mb-3">Upgrade Shop</h3>
           {game.players.map((player, pi) => (
             <div key={player.id} className="mb-4">
@@ -315,10 +317,10 @@ export default function PlayPage() {
                       key={upgrade.id}
                       onClick={() => doAction({ type: 'buy_upgrade', payload: { upgradeId: upgrade.id } }, pi)}
                       disabled={owned || !canAfford}
-                      className={`text-left p-2 rounded border text-xs transition-colors ${
-                        owned ? 'border-emerald-500 bg-emerald-900/30 opacity-60' :
-                        canAfford ? 'border-gray-600 hover:border-yellow-400 bg-gray-700' :
-                        'border-gray-700 bg-gray-800 opacity-40'
+                      className={`text-left p-2 text-xs transition-colors ${
+                        owned ? 'upgrade-card opacity-60' :
+                        canAfford ? 'upgrade-card' :
+                        'upgrade-card opacity-40'
                       }`}
                     >
                       <div className="font-bold">{upgrade.name} <span className="text-yellow-400">({upgrade.flowCost} Flow)</span></div>
@@ -358,9 +360,9 @@ export default function PlayPage() {
           <h3 className="text-sm font-bold mb-2 text-orange-400">Active Penalties</h3>
           <div className="flex flex-wrap gap-2">
             {currentPlayer.penalties.map((p, i) => (
-              <div key={i} className="bg-orange-900/30 border border-orange-700 rounded px-2 py-1 text-xs">
+              <div key={i} className="penalty-card px-2 py-1.5 text-xs">
                 <div className="font-bold">{p.name}</div>
-                <div className="text-gray-400">{p.description}</div>
+                <div className="text-yellow-700/80 text-[10px]">{p.description}</div>
               </div>
             ))}
           </div>
@@ -371,9 +373,9 @@ export default function PlayPage() {
 
   // ── Main Game UI ──
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen game-table text-white">
       {/* Top bar */}
-      <div className="bg-gray-900 border-b border-gray-700 px-3 sm:px-4 py-2 sm:py-3">
+      <div className="bg-black/40 border-b border-emerald-900/50 px-3 sm:px-4 py-2 sm:py-3 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg sm:text-xl font-bold">The Descent</h1>
@@ -383,13 +385,13 @@ export default function PlayPage() {
           </div>
           <div className="flex gap-2 flex-wrap justify-end">
             {game.activeTrailCard && (
-              <div className="bg-gray-800 px-2 sm:px-3 py-1 rounded text-xs sm:text-sm">
+              <div className="trail-card px-2 sm:px-3 py-1 text-xs sm:text-sm">
                 <span className="font-bold">{game.activeTrailCard.name}</span>{' '}
                 <span className="text-yellow-400">(Lim:{game.activeTrailCard.speedLimit})</span>
               </div>
             )}
             {game.queuedTrailCard && (
-              <div className="bg-gray-800 px-2 sm:px-3 py-1 rounded text-xs sm:text-sm hidden sm:block">
+              <div className="trail-card px-2 sm:px-3 py-1 text-xs sm:text-sm hidden sm:block opacity-70">
                 <span className="text-gray-400">Next:</span> {game.queuedTrailCard.name}
               </div>
             )}
@@ -413,7 +415,7 @@ export default function PlayPage() {
       </div>
 
       {/* Mobile tab bar */}
-      <div className="flex lg:hidden border-b border-gray-700 bg-gray-900">
+      <div className="flex lg:hidden border-b border-emerald-900/50 bg-black/30">
         {(['actions', 'board', 'log'] as const).map(tab => (
           <button
             key={tab}
@@ -433,19 +435,19 @@ export default function PlayPage() {
           <div>
             {/* Compact stats bar */}
             <div className="grid grid-cols-4 gap-2 mb-3 text-center text-xs">
-              <div className="bg-gray-800 rounded p-1.5">
+              <div className="bg-black/30 rounded p-1.5 border border-emerald-900/30">
                 <div className="text-green-400 font-bold text-sm">{currentPlayer.progress}</div>
                 <div className="text-gray-500">Prog</div>
               </div>
-              <div className="bg-gray-800 rounded p-1.5">
+              <div className="bg-black/30 rounded p-1.5 border border-emerald-900/30">
                 <div className="text-blue-400 font-bold text-sm">{currentPlayer.momentum}</div>
                 <div className="text-gray-500">Speed</div>
               </div>
-              <div className="bg-gray-800 rounded p-1.5">
+              <div className="bg-black/30 rounded p-1.5 border border-emerald-900/30">
                 <div className="text-purple-400 font-bold text-sm">{currentPlayer.flow}</div>
                 <div className="text-gray-500">Flow</div>
               </div>
-              <div className="bg-gray-800 rounded p-1.5">
+              <div className="bg-black/30 rounded p-1.5 border border-emerald-900/30">
                 <div className="text-red-400 font-bold text-sm">{currentPlayer.hazardDice}</div>
                 <div className="text-gray-500">Hazard</div>
               </div>
@@ -465,7 +467,7 @@ export default function PlayPage() {
               />
             </div>
             <PlayerStats player={currentPlayer} />
-            <div className="bg-gray-800 rounded-lg p-3">
+            <div className="trail-card p-3">
               <h3 className="font-bold text-sm mb-2">Standings</h3>
               {standings.map(s => (
                 <div key={s.name} className="flex justify-between text-xs py-0.5">
@@ -483,7 +485,7 @@ export default function PlayPage() {
       {/* Desktop layout */}
       <div className="hidden lg:flex">
         {/* Left panel: Board */}
-        <div className="w-1/3 p-4 border-r border-gray-800">
+        <div className="w-1/3 p-4 border-r border-emerald-900/30">
           <GameBoard
             player={currentPlayer}
             checkedRows={game.activeTrailCard?.checkedRows}
@@ -512,7 +514,7 @@ export default function PlayPage() {
         </div>
 
         {/* Right panel: Log */}
-        <div className="w-1/4 p-4 border-l border-gray-800">
+        <div className="w-1/4 p-4 border-l border-emerald-900/30">
           <h3 className="font-bold mb-2">Game Log</h3>
           <GameLog log={game.log} />
         </div>
