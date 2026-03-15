@@ -28,6 +28,7 @@ export default function PlayPage() {
   const [selectedPlayer, setSelectedPlayer] = useState(0);
   const [selectedSteerRow, setSelectedSteerRow] = useState<number | null>(null);
   const aiProcessingRef = useRef(false);
+  const aiCommittedRoundRef = useRef(-1);
 
   const startGame = useCallback(() => {
     const names = playerNames.filter(n => n.trim());
@@ -50,14 +51,13 @@ export default function PlayPage() {
   useEffect(() => {
     if (!game || aiProcessingRef.current) return;
 
-    // AI commitment: auto-commit for AI players during commitment phase
-    if (game.phase === 'commitment') {
+    // AI commitment: auto-commit for AI players during commitment phase (once per round)
+    if (game.phase === 'commitment' && aiCommittedRoundRef.current !== game.round) {
+      aiCommittedRoundRef.current = game.round;
       let s = game;
       let changed = false;
       for (let i = 0; i < s.players.length; i++) {
-        if (isAI[i] && s.players[i].commitment === 'main') {
-          // Only commit if they haven't already been committed this round
-          // The commitment phase expects all players to commit
+        if (isAI[i]) {
           s = aiCommit(s, i);
           changed = true;
         }
