@@ -52,18 +52,42 @@ export default function PlayPage() {
       const ci = (action.payload?.cardIndex as number) ?? 0;
       const card = game.players[pi]?.hand[ci];
       if (card) {
+        const player = game.players[pi];
+        const played = player.cardsPlayedThisTurn || [];
+        const sameSymbolCount = played.filter(c => c.symbol === card.symbol).length + 1;
+        const uniqueAfter = new Set([...played.map(c => c.symbol), card.symbol]).size;
+        const playCountAfter = played.length + 1;
+
         const EFFECT_DESCRIPTIONS: Record<string, string> = {
-          'Inside Line': 'Grip penalties ignored this turn',
-          'Manual': 'Row 1 & Row 2 tokens swapped',
-          'Flick': 'Two tokens shifted toward center',
-          'Recover': '2 Hazard Dice removed',
+          'Inside Line': 'Grip immunity + Momentum boost',
+          'Manual': 'Swap rows 1 & 2 + draw a card',
+          'Flick': 'Shift toward center + Flow if both moved',
+          'Recover': 'Remove dice, or repair penalty, or +1 Flow',
         };
+
+        let comboText = '';
+        if (sameSymbolCount === 2) {
+          const SYNERGY_DESC: Record<string, string> = {
+            grip: '+2 Momentum burst!',
+            air: 'Recover 1 Action!',
+            agility: 'Realign ALL tokens!',
+            balance: 'Clear ALL hazard dice!',
+          };
+          comboText = ` | SYNERGY: ${SYNERGY_DESC[card.symbol] || 'Bonus!'}`;
+        }
+        if (uniqueAfter >= 3 && playCountAfter >= 3) {
+          comboText += ' | VERSATILITY: +2 Flow, +1 Mtm!';
+        }
+        if (uniqueAfter >= 4) {
+          comboText += ' | MASTERY: +3 Flow, -2 Dice, repair!';
+        }
+
         setEffectToast({
           cardName: card.name,
-          text: EFFECT_DESCRIPTIONS[card.name] || card.actionText,
-          color: SYMBOL_COLORS[card.symbol],
+          text: (EFFECT_DESCRIPTIONS[card.name] || card.actionText) + comboText,
+          color: comboText ? '#ffd700' : SYMBOL_COLORS[card.symbol],
         });
-        setTimeout(() => setEffectToast(null), 3000);
+        setTimeout(() => setEffectToast(null), comboText ? 4500 : 3000);
       }
     }
 
@@ -487,6 +511,48 @@ export default function PlayPage() {
             {game.phase === 'sprint' && hasPendingObstacle && (
               <div className="text-yellow-400 text-xs font-bold mb-2 animate-pulse">
                 Resolve the flipped obstacle before taking other actions!
+              </div>
+            )}
+
+            {/* Combo tracker */}
+            {game.phase === 'sprint' && currentPlayer.cardsPlayedThisTurn.length > 0 && (
+              <div className="rounded-lg px-3 py-2 mb-2 border border-gray-600 bg-black/30">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] text-gray-500 uppercase font-bold">Cards Played:</span>
+                  {currentPlayer.cardsPlayedThisTurn.map((c, i) => (
+                    <span
+                      key={i}
+                      className="text-xs font-bold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: `${SYMBOL_COLORS[c.symbol]}25`, color: SYMBOL_COLORS[c.symbol], border: `1px solid ${SYMBOL_COLORS[c.symbol]}50` }}
+                    >
+                      {SYMBOL_EMOJI[c.symbol]} {c.name}
+                    </span>
+                  ))}
+                  {(() => {
+                    const played = currentPlayer.cardsPlayedThisTurn;
+                    const uniqueSymbols = new Set(played.map(c => c.symbol)).size;
+                    const hints: string[] = [];
+                    if (played.length === 1) {
+                      hints.push(`Play another ${played[0].symbol} card for a Synergy combo!`);
+                      if (currentPlayer.hand.some(c => c.symbol !== played[0].symbol))
+                        hints.push(`Or play different symbols toward Versatility (3) / Mastery (4)!`);
+                    } else if (uniqueSymbols === 2 && played.length === 2) {
+                      hints.push('1 more unique symbol = Versatility bonus!');
+                    }
+                    return hints.length > 0 ? (
+                      <span className="text-[10px] text-yellow-500/70 ml-auto italic">{hints[0]}</span>
+                    ) : null;
+                  })()}
+                </div>
+                {currentPlayer.combosTriggered.length > 0 && (
+                  <div className="flex gap-2 mt-1">
+                    {currentPlayer.combosTriggered.map((combo, i) => (
+                      <span key={i} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
+                        {combo}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
