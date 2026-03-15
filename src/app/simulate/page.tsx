@@ -27,13 +27,13 @@ export default function SimulatePage() {
   const stats = results ? computeStats(results) : null;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-8">
+    <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2">Simulation Mode</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Simulation Mode</h1>
         <p className="text-gray-400 mb-6">Run automated games to test balance and mechanics.</p>
 
         {/* Config */}
-        <div className="bg-gray-800 rounded-lg p-4 mb-6 grid grid-cols-3 gap-4">
+        <div className="bg-gray-800 rounded-lg p-4 mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Players</label>
             <select
@@ -116,17 +116,17 @@ export default function SimulatePage() {
             </div>
 
             {/* Progress Distribution */}
-            <div className="bg-gray-800 rounded-lg p-4">
+            <div className="bg-gray-800 rounded-lg p-3 sm:p-4 overflow-x-auto">
               <h2 className="font-bold text-lg mb-3">Player Averages Across Games</h2>
-              <table className="w-full text-sm">
+              <table className="w-full text-xs sm:text-sm min-w-[400px]">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-700">
                     <th className="py-2 text-left">Player</th>
-                    <th className="text-right">Avg Progress</th>
-                    <th className="text-right">Avg Perfect</th>
-                    <th className="text-right">Avg Penalties</th>
-                    <th className="text-right">Avg Flow</th>
-                    <th className="text-right">Avg Momentum</th>
+                    <th className="text-right">Prog</th>
+                    <th className="text-right">Perfect</th>
+                    <th className="text-right">Pen</th>
+                    <th className="text-right">Flow</th>
+                    <th className="text-right">Mom</th>
                   </tr>
                 </thead>
                 <tbody>
