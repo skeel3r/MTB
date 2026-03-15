@@ -239,20 +239,24 @@ export default function PlayPage() {
           </div>
 
           {/* Obstacles */}
-          {game.activeTrailCard && game.activeTrailCard.obstacleSymbols.length > 0 && (
+          {game.activeTrailCard && game.activeTrailCard.obstacles.length > 0 && (
             <div>
               <h3 className="text-sm font-bold mb-2">Obstacles (Free Action)</h3>
               <div className="flex flex-wrap gap-2">
-                {game.activeTrailCard.obstacleSymbols.map((sym, i) => (
+                {game.activeTrailCard.obstacles.map((obs, i) => (
                   <button
                     key={i}
                     onClick={() => doAction({ type: 'tackle', payload: { obstacleIndex: i } })}
                     disabled={currentPlayer.turnEnded}
                     className="px-3 py-2 rounded-lg border-2 hover:border-white disabled:opacity-30 transition-colors"
-                    style={{ borderColor: SYMBOL_COLORS[sym], backgroundColor: SYMBOL_COLORS[sym] + '20' }}
+                    style={{ borderColor: SYMBOL_COLORS[obs.symbols[0]], backgroundColor: SYMBOL_COLORS[obs.symbols[0]] + '20' }}
                   >
-                    <span className="text-lg">{SYMBOL_EMOJI[sym]}</span>
-                    <div className="text-xs capitalize">{sym}</div>
+                    <div className="flex gap-1 justify-center">
+                      {obs.symbols.map((sym, j) => (
+                        <span key={j} className="text-lg">{SYMBOL_EMOJI[sym]}</span>
+                      ))}
+                    </div>
+                    <div className="text-xs font-medium">{obs.name}</div>
                   </button>
                 ))}
               </div>

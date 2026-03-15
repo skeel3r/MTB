@@ -25,7 +25,7 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       if (actions > 2 && p.momentum < 5) {
         s = processAction(s, playerIndex, { type: 'pedal' });
         actions--;
-      } else if (s.activeTrailCard && s.activeTrailCard.obstacleSymbols.length > 0) {
+      } else if (s.activeTrailCard && s.activeTrailCard.obstacles.length > 0) {
         s = processAction(s, playerIndex, { type: 'tackle', payload: { obstacleIndex: 0 } });
         // tackle is free
       } else {
@@ -37,10 +37,15 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       if (p.momentum > 3 && actions > 0) {
         s = processAction(s, playerIndex, { type: 'brake' });
         actions--;
-      } else if (s.activeTrailCard && s.activeTrailCard.obstacleSymbols.length > 0) {
-        // Only tackle if we have a matching card
-        const obstacle = s.activeTrailCard.obstacleSymbols[0];
-        const hasMatch = p.hand.some(c => c.symbol === obstacle);
+      } else if (s.activeTrailCard && s.activeTrailCard.obstacles.length > 0) {
+        // Only tackle if we have matching cards for all required symbols
+        const obstacle = s.activeTrailCard.obstacles[0];
+        const usedIndices = new Set<number>();
+        const hasMatch = obstacle.symbols.every(sym => {
+          const idx = p.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+          if (idx >= 0) { usedIndices.add(idx); return true; }
+          return false;
+        });
         if (hasMatch) {
           s = processAction(s, playerIndex, { type: 'tackle', payload: { obstacleIndex: 0 } });
         } else {
@@ -65,7 +70,7 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       }
     } else {
       // Balanced: mix of pedal and tackle
-      if (s.activeTrailCard && s.activeTrailCard.obstacleSymbols.length > 0) {
+      if (s.activeTrailCard && s.activeTrailCard.obstacles.length > 0) {
         s = processAction(s, playerIndex, { type: 'tackle', payload: { obstacleIndex: 0 } });
       } else if (actions > 0) {
         if (p.momentum < 4) {
@@ -86,7 +91,7 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
     }
 
     // Safety: if no obstacles left and few actions, end
-    if (s.activeTrailCard && s.activeTrailCard.obstacleSymbols.length === 0 && actions <= 1) {
+    if (s.activeTrailCard && s.activeTrailCard.obstacles.length === 0 && actions <= 1) {
       break;
     }
   }

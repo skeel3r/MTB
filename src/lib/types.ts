@@ -1,6 +1,16 @@
 // ── Symbol types used on cards and obstacles ──
 export type CardSymbol = 'grip' | 'air' | 'agility' | 'balance';
 
+// ── Progress Obstacles ──
+export interface ProgressObstacle {
+  id: string;
+  name: string;
+  /** Symbols required to match (dual-symbol obstacles need both) */
+  symbols: CardSymbol[];
+  penaltyType: string;
+  blowByText: string;
+}
+
 // ── Card definitions ──
 export interface TechniqueCard {
   id: string;
@@ -26,9 +36,8 @@ export interface MainTrailCard {
   checkedRows: number[];
   /** Target lane for each checked row (0-4, where 2 is center) */
   targetLanes: number[];
-  /** Number of obstacles on this trail section */
-  obstacleCount: number;
-  obstacleSymbols: CardSymbol[];
+  /** Obstacles on this trail section */
+  obstacles: ProgressObstacle[];
 }
 
 // ── Player state ──

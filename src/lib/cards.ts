@@ -1,4 +1,4 @@
-import { TechniqueCard, PenaltyCard, MainTrailCard, TrailHazard, CardSymbol } from './types';
+import { TechniqueCard, PenaltyCard, MainTrailCard, TrailHazard, CardSymbol, ProgressObstacle } from './types';
 
 // ── Technique Cards ──
 const SYMBOLS: CardSymbol[] = ['grip', 'air', 'agility', 'balance'];
@@ -103,7 +103,35 @@ const TRAIL_DATA: [string, number, (number | -1)[]][] = [
   ['Hero Shot',      6, [C3, C3, C3, C3, C3]],
 ];
 
+// ── Progress Obstacles (fixed definitions) ──
+export const OBSTACLE_DEFINITIONS: ProgressObstacle[] = [
+  { id: 'obs-1',  name: 'Loose Scree',    symbols: ['grip'],              penaltyType: 'Slide Out',   blowByText: 'Row 1 token shifts 2 lanes randomly.' },
+  { id: 'obs-2',  name: 'The Mud Bog',     symbols: ['grip'],              penaltyType: 'Heavy Drag',  blowByText: 'Lose 2 Momentum and 1 card from hand.' },
+  { id: 'obs-3',  name: 'Double Jump',     symbols: ['air'],               penaltyType: 'Case It',     blowByText: 'Lose 2 Momentum immediately.' },
+  { id: 'obs-4',  name: 'The 10ft Drop',   symbols: ['air'],               penaltyType: 'Bottom Out',  blowByText: 'Take 2 Hazard Dice instead of 1.' },
+  { id: 'obs-5',  name: 'Tight Trees',     symbols: ['agility'],           penaltyType: 'Wide Turn',   blowByText: 'Row 1 shifts 1 lane away from Center.' },
+  { id: 'obs-6',  name: 'Rapid Berms',     symbols: ['agility'],           penaltyType: 'Whiplash',    blowByText: 'Shift Row 2 and Row 3 one lane Right.' },
+  { id: 'obs-7',  name: 'Log Skinny',      symbols: ['balance'],           penaltyType: 'Stall',       blowByText: 'Cannot Pedal or use Momentum this turn.' },
+  { id: 'obs-8',  name: 'Granite Slab',    symbols: ['balance'],           penaltyType: 'Locked',      blowByText: 'Your Row 1 token cannot move next turn.' },
+  { id: 'obs-9',  name: 'Rooty Drop',      symbols: ['grip', 'air'],       penaltyType: 'Wipeout',     blowByText: 'Take 2 Hazard Dice and end turn immediately.' },
+  { id: 'obs-10', name: 'Slippery Berm',   symbols: ['grip', 'agility'],   penaltyType: 'Wash Out',    blowByText: 'Shift Row 1 and Row 2 three lanes.' },
+];
+
+/** Create a shuffled obstacle deck (3 copies of each obstacle = 30 total) */
+export function createObstacleDeck(): ProgressObstacle[] {
+  const deck: ProgressObstacle[] = [];
+  let copyId = 0;
+  for (const obs of OBSTACLE_DEFINITIONS) {
+    for (let i = 0; i < 3; i++) {
+      deck.push({ ...obs, id: `${obs.id}-${copyId++}` });
+    }
+  }
+  return shuffle(deck);
+}
+
 export function createTrailDeck(): MainTrailCard[] {
+  const obstacleDeck = createObstacleDeck();
+
   return TRAIL_DATA.map(([name, speedLimit, targets], i) => {
     const checkedRows: number[] = [];
     const targetLanes: number[] = [];
@@ -114,11 +142,11 @@ export function createTrailDeck(): MainTrailCard[] {
       }
     }
 
-    // Generate obstacle symbols based on the number of checked rows
-    const obstacleCount = checkedRows.length;
-    const obstacleSymbols: CardSymbol[] = [];
-    for (let j = 0; j < obstacleCount; j++) {
-      obstacleSymbols.push(SYMBOLS[j % SYMBOLS.length]);
+    // Deal 2-3 obstacles per trail card from the shuffled deck
+    const numObstacles = checkedRows.length <= 3 ? 2 : 3;
+    const obstacles: ProgressObstacle[] = [];
+    for (let j = 0; j < numObstacles && obstacleDeck.length > 0; j++) {
+      obstacles.push(obstacleDeck.shift()!);
     }
 
     return {
@@ -127,8 +155,7 @@ export function createTrailDeck(): MainTrailCard[] {
       speedLimit,
       checkedRows,
       targetLanes,
-      obstacleCount,
-      obstacleSymbols,
+      obstacles,
     };
   });
 }
