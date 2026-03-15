@@ -495,11 +495,35 @@ export default function PlayPage() {
                 {currentPlayer.flow > 0 && (
                   <div>
                     <div className="text-[10px] text-gray-500 mb-1">Spend Flow ({currentPlayer.flow})</div>
-                    <div className="flex gap-1.5 flex-wrap">
-                      <ActionButton label="Ghost (1)" onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'ghost_copy' } })} disabled={currentPlayer.flow < 1} color="bg-purple-700 hover:bg-purple-600" />
-                      <ActionButton label="Reroll (1)" onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'reroll' } })} disabled={currentPlayer.flow < 1} color="bg-purple-700 hover:bg-purple-600" />
-                      <ActionButton label="Brace (1)" onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'brace' } })} disabled={currentPlayer.flow < 1} color="bg-purple-700 hover:bg-purple-600" />
-                      <ActionButton label="Scrub (3)" onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'scrub' } })} disabled={currentPlayer.flow < 3} color="bg-purple-700 hover:bg-purple-600" />
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <FlowButton
+                        label="Ghost"
+                        cost={1}
+                        description="Duplicate a card symbol to help match an obstacle"
+                        onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'ghost_copy' } })}
+                        disabled={hasPendingObstacle || currentPlayer.flow < 1}
+                      />
+                      <FlowButton
+                        label="Reroll"
+                        cost={1}
+                        description="Clear all hazard dice before the reckoning roll"
+                        onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'reroll' } })}
+                        disabled={hasPendingObstacle || currentPlayer.flow < 1}
+                      />
+                      <FlowButton
+                        label="Brace"
+                        cost={1}
+                        description="Ignore one environmental hazard push this round"
+                        onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'brace' } })}
+                        disabled={hasPendingObstacle || currentPlayer.flow < 1}
+                      />
+                      <FlowButton
+                        label="Scrub"
+                        cost={3}
+                        description="Ignore the speed limit — avoid speed trap penalties"
+                        onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'scrub' } })}
+                        disabled={hasPendingObstacle || currentPlayer.flow < 3}
+                      />
                     </div>
                   </div>
                 )}
@@ -667,6 +691,34 @@ function ActionButton({
       className={`px-3 py-1.5 rounded-lg font-bold text-xs ${color} disabled:opacity-30 disabled:cursor-not-allowed transition-colors`}
     >
       {label}
+    </button>
+  );
+}
+
+function FlowButton({
+  label,
+  cost,
+  description,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  cost: number;
+  description: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="text-left p-2 rounded-lg bg-purple-900/60 hover:bg-purple-800/70 border border-purple-600/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+    >
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="font-bold text-xs text-purple-200">{label}</span>
+        <span className="text-[10px] font-mono text-purple-400">{cost}F</span>
+      </div>
+      <div className="text-[9px] text-purple-300/60 leading-tight">{description}</div>
     </button>
   );
 }
