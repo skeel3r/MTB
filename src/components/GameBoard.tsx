@@ -23,12 +23,13 @@ export default function GameBoard({
   player, checkedRows = [], targetLanes = [], onCellClick, compact,
   selectedSteerRow, steerEnabled, onTokenSelect, onSteerTo,
 }: GameBoardProps) {
-  const cellSize = compact ? 'w-8 h-8' : 'w-9 h-9 sm:w-12 sm:h-12';
-  const labelSize = compact ? 'w-8' : 'w-9 sm:w-12';
-  const tokenSize = compact ? 'w-5 h-5' : 'w-6 h-6 sm:w-8 sm:h-8';
-  const targetDotSize = compact ? 'w-4 h-4' : 'w-4 h-4 sm:w-6 sm:h-6';
+  // Sizes
+  const spotSize = compact ? 28 : 36;
+  const rowGap = compact ? 6 : 10;
+  const cols = 5;
+  const boardWidth = cols * spotSize + (cols - 1) * 4;
+  const boardHeight = player.grid.length * (spotSize + rowGap) - rowGap;
 
-  // Find token column for a given row
   function getTokenCol(row: number): number {
     for (let c = 0; c < 5; c++) {
       if (player.grid[row][c]) return c;
@@ -36,132 +37,184 @@ export default function GameBoard({
     return -1;
   }
 
+  // Compute spot positions for SVG trail lines
+  function spotX(col: number): number {
+    return col * (spotSize + 4) + spotSize / 2;
+  }
+  function spotY(row: number): number {
+    return row * (spotSize + rowGap) + spotSize / 2;
+  }
+
+  // Build trail line connecting token positions between rows
+  const tokenPositions = player.grid.map((_, r) => ({
+    row: r,
+    col: getTokenCol(r),
+  })).filter(p => p.col >= 0);
+
   return (
     <div className="inline-block">
       <div className="text-sm font-bold mb-1 text-center text-amber-200 tracking-wide drop-shadow-md">{player.name}</div>
       <div
-        className="rounded-lg overflow-hidden p-1"
+        className="relative rounded-lg overflow-hidden"
         style={{
-          background: 'radial-gradient(ellipse at center, #1a5c2e 0%, #0f3a1c 60%, #0a2812 100%)',
+          width: boardWidth + 8,
+          height: boardHeight + 8,
+          padding: '4px',
+          background: 'linear-gradient(180deg, #0f3a1c 0%, #1a5c2e 30%, #2a6b3a 50%, #1a5c2e 70%, #0a2812 100%)',
           border: '3px solid #2a1a0a',
           boxShadow: 'inset 0 0 30px rgba(0,0,0,0.4), 2px 3px 10px rgba(0,0,0,0.6)',
         }}
       >
-        {/* Column headers */}
-        <div className="flex">
-          <div className={`${labelSize} flex-shrink-0`} />
-          {[1, 2, 3, 4, 5].map(c => (
-            <div key={c} className={`${cellSize} flex items-center justify-center text-[10px] sm:text-xs font-mono`} style={{ color: '#8aad8a' }}>
-              C{c}
-            </div>
-          ))}
-        </div>
+        {/* SVG trail path connecting tokens */}
+        <svg
+          className="absolute top-1 left-1 pointer-events-none"
+          width={boardWidth}
+          height={boardHeight}
+          style={{ zIndex: 1 }}
+        >
+          {/* Trail dust / path between token positions */}
+          {tokenPositions.length > 1 && tokenPositions.slice(0, -1).map((pos, i) => {
+            const next = tokenPositions[i + 1];
+            return (
+              <line
+                key={`trail-${i}`}
+                x1={spotX(pos.col)}
+                y1={spotY(pos.row)}
+                x2={spotX(next.col)}
+                y2={spotY(next.row)}
+                stroke="rgba(180,160,120,0.3)"
+                strokeWidth={compact ? 3 : 4}
+                strokeLinecap="round"
+                strokeDasharray="6 4"
+              />
+            );
+          })}
+          {/* Subtle center line for the trail */}
+          <line
+            x1={spotX(2)}
+            y1={0}
+            x2={spotX(2)}
+            y2={boardHeight}
+            stroke="rgba(255,255,255,0.04)"
+            strokeWidth={compact ? 14 : 20}
+            strokeLinecap="round"
+          />
+        </svg>
 
-        {player.grid.map((row, r) => {
-          const isChecked = checkedRows.includes(r);
-          const targetLane = isChecked ? targetLanes[checkedRows.indexOf(r)] : -1;
-          const tokenCol = getTokenCol(r);
-          const isSelectedRow = selectedSteerRow === r;
-          // Valid steer targets: adjacent cells to the token in the selected row
-          const validSteerTargets: number[] = [];
-          if (isSelectedRow && tokenCol >= 0) {
-            if (tokenCol > 0) validSteerTargets.push(tokenCol - 1);
-            if (tokenCol < 4) validSteerTargets.push(tokenCol + 1);
-          }
+        {/* Grid rows */}
+        <div className="relative" style={{ zIndex: 2 }}>
+          {player.grid.map((row, r) => {
+            const isChecked = checkedRows.includes(r);
+            const targetLane = isChecked ? targetLanes[checkedRows.indexOf(r)] : -1;
+            const tokenCol = getTokenCol(r);
+            const isSelectedRow = selectedSteerRow === r;
+            const validSteerTargets: number[] = [];
+            if (isSelectedRow && tokenCol >= 0) {
+              if (tokenCol > 0) validSteerTargets.push(tokenCol - 1);
+              if (tokenCol < 4) validSteerTargets.push(tokenCol + 1);
+            }
 
-          return (
-            <div key={r} className="flex">
-              {/* Row label */}
-              <div className={`${labelSize} flex items-center justify-center text-[10px] sm:text-xs font-mono ${isChecked ? 'text-yellow-400 font-bold' : ''}`} style={!isChecked ? { color: '#8aad8a' } : undefined}>
-                R{r + 1}
+            return (
+              <div
+                key={r}
+                className="flex items-center"
+                style={{
+                  gap: '4px',
+                  marginBottom: r < player.grid.length - 1 ? rowGap : 0,
+                }}
+              >
+                {row.map((hasToken, c) => {
+                  const isTarget = isChecked && c === targetLane;
+                  const isCenter = c === 2;
+                  const isValidSteerTarget = validSteerTargets.includes(c);
+                  const isSelectedToken = isSelectedRow && hasToken;
+
+                  const handleClick = () => {
+                    if (isValidSteerTarget && onSteerTo) {
+                      onSteerTo(r, c - tokenCol);
+                    } else if (hasToken && steerEnabled && onTokenSelect) {
+                      onTokenSelect(r);
+                    }
+                    onCellClick?.(r, c);
+                  };
+
+                  return (
+                    <div
+                      key={c}
+                      onClick={handleClick}
+                      className="flex items-center justify-center cursor-pointer transition-all duration-150"
+                      style={{
+                        width: spotSize,
+                        height: spotSize,
+                        borderRadius: '50%',
+                        background: hasToken
+                          ? 'none'
+                          : isValidSteerTarget
+                            ? 'radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)'
+                            : isTarget
+                              ? 'radial-gradient(circle, rgba(212,175,55,0.2) 0%, transparent 70%)'
+                              : isCenter
+                                ? 'radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%)'
+                                : 'none',
+                        border: isValidSteerTarget
+                          ? '2px dashed rgba(96,165,250,0.6)'
+                          : isSelectedToken
+                            ? '2px solid rgba(250,204,21,0.7)'
+                            : isTarget && !hasToken
+                              ? '1.5px dashed rgba(212,175,55,0.5)'
+                              : '1px solid rgba(255,255,255,0.06)',
+                        boxShadow: isValidSteerTarget
+                          ? '0 0 8px rgba(59,130,246,0.3)'
+                          : isSelectedToken
+                            ? '0 0 10px rgba(250,204,21,0.4)'
+                            : 'none',
+                      }}
+                    >
+                      {hasToken && (
+                        <div
+                          className={`rounded-full transition-transform ${isSelectedToken ? 'scale-110' : ''}`}
+                          style={{
+                            width: spotSize - (compact ? 8 : 10),
+                            height: spotSize - (compact ? 8 : 10),
+                            background: isSelectedToken
+                              ? 'radial-gradient(circle at 35% 35%, #fde68a 0%, #facc15 40%, #ca8a04 100%)'
+                              : 'radial-gradient(circle at 35% 35%, #6ee7a0 0%, #10b981 40%, #047857 100%)',
+                            border: isSelectedToken ? '2px solid #fef08a' : '2px solid #a7f3d0',
+                            boxShadow: isSelectedToken
+                              ? '0 2px 10px rgba(250,204,21,0.6), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.4)'
+                              : '0 2px 6px rgba(0,0,0,0.5), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.3)',
+                          }}
+                        />
+                      )}
+                      {isValidSteerTarget && !hasToken && (
+                        <div
+                          className="rounded-full animate-pulse"
+                          style={{
+                            width: compact ? 10 : 14,
+                            height: compact ? 10 : 14,
+                            background: 'rgba(96,165,250,0.4)',
+                            boxShadow: '0 0 8px rgba(59,130,246,0.3)',
+                          }}
+                        />
+                      )}
+                      {isTarget && !hasToken && !isValidSteerTarget && (
+                        <div
+                          className="rounded-full"
+                          style={{
+                            width: compact ? 8 : 10,
+                            height: compact ? 8 : 10,
+                            background: 'rgba(212,175,55,0.4)',
+                            boxShadow: '0 0 4px rgba(212,175,55,0.3)',
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-
-              {row.map((hasToken, c) => {
-                const isTarget = isChecked && c === targetLane;
-                const isCenter = c === 2;
-                const isValidSteerTarget = validSteerTargets.includes(c);
-                const isSelectedToken = isSelectedRow && hasToken;
-
-                const handleClick = () => {
-                  if (isValidSteerTarget && onSteerTo) {
-                    // Click on valid steer destination
-                    onSteerTo(r, c - tokenCol);
-                  } else if (hasToken && steerEnabled && onTokenSelect) {
-                    // Click on a token to select it
-                    onTokenSelect(r);
-                  }
-                  onCellClick?.(r, c);
-                };
-
-                return (
-                  <div
-                    key={c}
-                    onClick={handleClick}
-                    className={`${cellSize} flex items-center justify-center cursor-pointer transition-all duration-150`}
-                    style={{
-                      borderRadius: '4px',
-                      margin: '1px',
-                      background: isValidSteerTarget
-                        ? 'radial-gradient(circle, rgba(59,130,246,0.35) 0%, rgba(30,64,175,0.2) 100%)'
-                        : isTarget
-                          ? 'radial-gradient(circle, rgba(180,150,40,0.3) 0%, rgba(100,80,20,0.15) 100%)'
-                          : isCenter
-                            ? 'radial-gradient(circle, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.15) 100%)'
-                            : 'radial-gradient(circle, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.2) 100%)',
-                      border: isValidSteerTarget
-                        ? '2px solid rgba(96,165,250,0.7)'
-                        : isSelectedToken
-                          ? '2px solid rgba(250,204,21,0.8)'
-                          : isTarget
-                            ? '1.5px solid rgba(200,170,50,0.6)'
-                            : '1px solid rgba(0,0,0,0.25)',
-                      boxShadow: isValidSteerTarget
-                        ? '0 0 8px rgba(59,130,246,0.4), inset 0 0 6px rgba(59,130,246,0.2)'
-                        : isSelectedToken
-                          ? '0 0 10px rgba(250,204,21,0.5), inset 0 0 6px rgba(250,204,21,0.2)'
-                          : 'inset 0 1px 3px rgba(0,0,0,0.3)',
-                    }}
-                  >
-                    {hasToken && (
-                      <div
-                        className={`${tokenSize} rounded-full transition-transform ${isSelectedToken ? 'scale-110' : ''}`}
-                        style={{
-                          background: isSelectedToken
-                            ? 'radial-gradient(circle at 35% 35%, #fde68a 0%, #facc15 40%, #ca8a04 100%)'
-                            : 'radial-gradient(circle at 35% 35%, #6ee7a0 0%, #10b981 40%, #047857 100%)',
-                          border: isSelectedToken ? '2px solid #fef08a' : '2px solid #a7f3d0',
-                          boxShadow: isSelectedToken
-                            ? '0 2px 10px rgba(250,204,21,0.6), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.4)'
-                            : '0 2px 6px rgba(0,0,0,0.5), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.3)',
-                        }}
-                      />
-                    )}
-                    {isValidSteerTarget && !hasToken && (
-                      <div
-                        className="rounded-full animate-pulse"
-                        style={{
-                          width: compact ? '14px' : '18px',
-                          height: compact ? '14px' : '18px',
-                          border: '2px dashed rgba(96,165,250,0.7)',
-                          boxShadow: '0 0 8px rgba(59,130,246,0.3)',
-                        }}
-                      />
-                    )}
-                    {isTarget && !hasToken && !isValidSteerTarget && (
-                      <div
-                        className={`${targetDotSize} rounded-full`}
-                        style={{
-                          border: '2px dashed rgba(212,175,55,0.6)',
-                          boxShadow: '0 0 6px rgba(212,175,55,0.2)',
-                        }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
       {/* Steer hint */}
       {steerEnabled && selectedSteerRow === null && (
