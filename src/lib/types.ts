@@ -112,6 +112,7 @@ export interface GameState {
   techniqueDiscard: TechniqueCard[];
   penaltyDeck: PenaltyCard[];
   obstacleDeck: ProgressObstacle[];
+  obstacleDiscard: ProgressObstacle[];
   activeObstacles: ProgressObstacle[];
   trailHazards: TrailHazard[];
   currentHazards: TrailHazard[];
@@ -120,7 +121,7 @@ export interface GameState {
 
 export interface GameAction {
   type: 'pedal' | 'brake' | 'steer' | 'technique' | 'tackle' | 'pass_duel' |
-        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle';
+        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle' | 'resolve_obstacle';
   payload?: Record<string, unknown>;
 }
 

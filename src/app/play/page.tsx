@@ -171,6 +171,7 @@ export default function PlayPage() {
 
   const currentPlayer = game.players[selectedPlayer];
   const standings = getStandings(game);
+  const hasPendingObstacle = game.activeObstacles.length > 0;
 
   // ── Game Over ──
   if (game.phase === 'game_over') {
@@ -267,7 +268,7 @@ export default function PlayPage() {
         <div className="flex flex-wrap gap-3 mb-4">
           {game.players.map((player, i) => {
             const isSelected = i === selectedPlayer;
-            const canSteer = isSelected && game.phase === 'sprint' && currentPlayer.actionsRemaining >= 1 && !currentPlayer.turnEnded && !currentPlayer.crashed;
+            const canSteer = isSelected && game.phase === 'sprint' && currentPlayer.actionsRemaining >= 1 && !currentPlayer.turnEnded && !currentPlayer.crashed && !hasPendingObstacle;
 
             return (
             <div
@@ -347,15 +348,15 @@ export default function PlayPage() {
             </div>
           </div>
 
-          {/* Obstacle Deck */}
+          {/* Obstacle Deck & Pending Obstacles */}
           <div className="flex-shrink-0">
             <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Obstacles</h3>
             <div className="flex gap-3 items-start">
-              {/* Obstacle Deck (face-down draw pile) — flipping immediately resolves */}
+              {/* Obstacle Deck (face-down draw pile) */}
               {game.phase === 'sprint' && (
                 <button
                   onClick={() => doAction({ type: 'draw_obstacle' })}
-                  disabled={currentPlayer.turnEnded || currentPlayer.crashed}
+                  disabled={currentPlayer.turnEnded || currentPlayer.crashed || hasPendingObstacle}
                   className="deck-pile card-back flex flex-col items-center justify-center disabled:opacity-30 transition-transform hover:scale-105"
                   style={{ width: '90px', height: '125px' }}
                 >
@@ -366,14 +367,63 @@ export default function PlayPage() {
                     {game.obstacleDeck.length} left
                   </div>
                   <div className="text-white/40 text-[8px] mt-0.5 text-center">
-                    Free &middot; Must resolve
+                    Free action
                   </div>
                 </button>
               )}
 
-              {game.phase === 'sprint' && (
+              {/* Pending obstacle to resolve */}
+              {game.activeObstacles.map((obs, i) => {
+                const canMatch = (() => {
+                  const usedIndices = new Set<number>();
+                  const mode = obs.matchMode ?? 'all';
+                  if (mode === 'any') {
+                    return obs.symbols.some(sym =>
+                      currentPlayer.hand.some((c, ci) => c.symbol === sym && !usedIndices.has(ci) && (usedIndices.add(ci), true)),
+                    );
+                  }
+                  return obs.symbols.every(sym => {
+                    const idx = currentPlayer.hand.findIndex((c, ci) => c.symbol === sym && !usedIndices.has(ci));
+                    if (idx >= 0) { usedIndices.add(idx); return true; }
+                    return false;
+                  });
+                })();
+
+                return (
+                  <div
+                    key={i}
+                    className="obstacle-card flex flex-col items-center justify-center"
+                    style={{ width: '130px', padding: '8px' }}
+                  >
+                    <div className="flex gap-1 mb-1">
+                      {obs.symbols.map((sym, j) => (
+                        <span key={j} className="text-2xl">{SYMBOL_EMOJI[sym]}</span>
+                      ))}
+                    </div>
+                    <div className="text-xs font-bold text-center leading-tight">{obs.name}</div>
+                    <div className="text-[9px] text-red-300/70 mt-0.5 text-center">{obs.penaltyType}</div>
+                    <div className="flex gap-1.5 mt-2 w-full">
+                      <button
+                        onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i, choice: 'match' } })}
+                        disabled={!canMatch}
+                        className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Match
+                      </button>
+                      <button
+                        onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i, choice: 'take_penalty' } })}
+                        className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-red-800 hover:bg-red-700 transition-colors"
+                      >
+                        Penalty
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {game.phase === 'sprint' && game.activeObstacles.length === 0 && (
                 <div className="text-[10px] text-gray-500 self-center max-w-[140px] leading-tight">
-                  Flip an obstacle to resolve it instantly. Match symbols to beat it, or take the penalty.
+                  Flip an obstacle to challenge it. Use matching cards or take the penalty.
                 </div>
               )}
             </div>
@@ -411,26 +461,32 @@ export default function PlayPage() {
               </div>
             )}
 
+            {game.phase === 'sprint' && hasPendingObstacle && (
+              <div className="text-yellow-400 text-xs font-bold mb-2 animate-pulse">
+                Resolve the flipped obstacle before taking other actions!
+              </div>
+            )}
+
             {game.phase === 'sprint' && (
               <div className="space-y-3">
                 {/* Core action buttons */}
                 <div className="flex flex-wrap gap-2">
                   <ActionButton
-                    label="Pedal (+1 Spd)"
+                    label="Pedal (+1 Mtm)"
                     onClick={() => doAction({ type: 'pedal' })}
-                    disabled={currentPlayer.actionsRemaining < 1 || currentPlayer.cannotPedal || currentPlayer.turnEnded}
+                    disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotPedal || currentPlayer.turnEnded}
                     color="bg-blue-700 hover:bg-blue-600"
                   />
                   <ActionButton
-                    label="Brake (-1 Spd)"
+                    label="Brake (-1 Mtm)"
                     onClick={() => doAction({ type: 'brake' })}
-                    disabled={currentPlayer.actionsRemaining < 1 || currentPlayer.cannotBrake || currentPlayer.commitment === 'pro' || currentPlayer.turnEnded}
+                    disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotBrake || currentPlayer.commitment === 'pro' || currentPlayer.turnEnded}
                     color="bg-orange-700 hover:bg-orange-600"
                   />
                   <ActionButton
                     label="End Turn"
                     onClick={() => doAction({ type: 'end_turn' })}
-                    disabled={currentPlayer.turnEnded}
+                    disabled={hasPendingObstacle || currentPlayer.turnEnded}
                     color="bg-gray-600 hover:bg-gray-500"
                   />
                 </div>

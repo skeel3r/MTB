@@ -1,4 +1,4 @@
-import { GameState, GameAction } from './types';
+import { GameState } from './types';
 import { processAction } from './engine';
 
 /**
@@ -12,7 +12,7 @@ function getTokenCol(grid: boolean[][], row: number): number {
 }
 
 /**
- * Check if the AI player can match a given obstacle with their current hand.
+ * Check if the player can match a given obstacle with their current hand.
  */
 function canMatchObstacle(
   hand: { symbol: string }[],
@@ -33,6 +33,26 @@ function canMatchObstacle(
 }
 
 /**
+ * Resolve any pending obstacles. AI matches if it can, otherwise takes penalty.
+ */
+function resolveActiveObstacles(state: GameState, playerIndex: number): GameState {
+  let s = state;
+  // Resolve obstacles one at a time (each resolve removes one from activeObstacles)
+  while (s.activeObstacles.length > 0 && !s.players[playerIndex].crashed && !s.players[playerIndex].turnEnded) {
+    const obs = s.activeObstacles[0];
+    const player = s.players[playerIndex];
+    const mode = obs.matchMode ?? 'all';
+    const hasMatch = canMatchObstacle(player.hand, obs.symbols, mode);
+    const choice = hasMatch ? 'match' : 'take_penalty';
+    s = processAction(s, playerIndex, {
+      type: 'resolve_obstacle',
+      payload: { obstacleIndex: 0, choice },
+    });
+  }
+  return s;
+}
+
+/**
  * Execute one full AI turn for the given player during the sprint phase.
  * Returns the updated game state after all AI actions.
  */
@@ -40,17 +60,19 @@ export function aiPlaySprint(state: GameState, playerIndex: number): GameState {
   let s = state;
   const p = () => s.players[playerIndex];
 
-  // AI flips 1-2 obstacles (free actions)
+  // AI flips an obstacle then resolves it
   if (!p().crashed && !p().turnEnded) {
     s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
   }
   // Flip a second obstacle if hand is strong (3+ cards)
   if (!p().crashed && !p().turnEnded && p().hand.length >= 3) {
     s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
   }
 
   // Spend actions
-  let safety = 20; // prevent infinite loops
+  let safety = 20;
   while (p().actionsRemaining > 0 && !p().crashed && !p().turnEnded && safety-- > 0) {
     const player = p();
 
@@ -85,7 +107,7 @@ export function aiPlaySprint(state: GameState, playerIndex: number): GameState {
       continue;
     }
 
-    // Nothing useful to do, end turn
+    // Nothing useful to do
     break;
   }
 
@@ -101,7 +123,6 @@ export function aiPlaySprint(state: GameState, playerIndex: number): GameState {
  * Execute AI commitment phase choice.
  */
 export function aiCommit(state: GameState, playerIndex: number): GameState {
-  // AI always picks main line (safer)
   return processAction(state, playerIndex, {
     type: 'commit_line',
     payload: { line: 'main' },
