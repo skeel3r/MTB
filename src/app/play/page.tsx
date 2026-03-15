@@ -270,51 +270,34 @@ export default function PlayPage() {
             </div>
           </div>
 
-          {/* Obstacle Deck & Active Obstacles */}
+          {/* Obstacle Deck */}
           <div className="flex-shrink-0">
-            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Obstacle Zone</h3>
+            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Obstacles</h3>
             <div className="flex gap-3 items-start">
-              {/* Obstacle Deck (face-down draw pile) */}
+              {/* Obstacle Deck (face-down draw pile) — flipping immediately resolves */}
               {game.phase === 'sprint' && (
                 <button
                   onClick={() => doAction({ type: 'draw_obstacle' })}
-                  disabled={currentPlayer.turnEnded}
+                  disabled={currentPlayer.turnEnded || currentPlayer.crashed}
                   className="deck-pile card-back flex flex-col items-center justify-center disabled:opacity-30 transition-transform hover:scale-105"
                   style={{ width: '90px', height: '125px' }}
                 >
                   <div className="text-white text-xs font-bold text-center drop-shadow-md bg-black/40 rounded px-2 py-1">
-                    Draw
+                    Flip
                   </div>
                   <div className="text-white/60 text-[10px] mt-1">
                     {game.obstacleDeck.length} left
                   </div>
+                  <div className="text-white/40 text-[8px] mt-0.5 text-center">
+                    Free &middot; Must resolve
+                  </div>
                 </button>
               )}
 
-              {/* Active obstacle cards */}
-              {game.activeObstacles.map((obs, i) => (
-                <button
-                  key={i}
-                  onClick={() => game.phase === 'sprint' ? doAction({ type: 'tackle', payload: { obstacleIndex: i } }) : undefined}
-                  disabled={game.phase !== 'sprint' || currentPlayer.turnEnded}
-                  className="obstacle-card flex flex-col items-center justify-center disabled:opacity-50"
-                  style={{ width: '90px', height: '125px', padding: '8px' }}
-                >
-                  <div className="flex gap-1 mb-1">
-                    {obs.symbols.map((sym, j) => (
-                      <span key={j} className="text-2xl">{SYMBOL_EMOJI[sym]}</span>
-                    ))}
-                  </div>
-                  <div className="text-xs font-bold text-center leading-tight">{obs.name}</div>
-                  <div className="text-[9px] text-red-300/70 mt-1 text-center">{obs.penaltyType}</div>
-                  {game.phase === 'sprint' && (
-                    <div className="text-[8px] text-red-200/50 mt-auto">Tackle (free)</div>
-                  )}
-                </button>
-              ))}
-
-              {game.activeObstacles.length === 0 && game.phase === 'sprint' && (
-                <div className="text-xs text-gray-500 italic self-center">Draw obstacles from the deck</div>
+              {game.phase === 'sprint' && (
+                <div className="text-[10px] text-gray-500 self-center max-w-[140px] leading-tight">
+                  Flip an obstacle to resolve it instantly. Match symbols to beat it, or take the penalty.
+                </div>
               )}
             </div>
           </div>
@@ -448,7 +431,7 @@ export default function PlayPage() {
               hand={currentPlayer.hand}
               onPlay={game.phase === 'sprint' ? (i) => doAction({ type: 'technique', payload: { cardIndex: i } }) : undefined}
               disabled={game.phase !== 'sprint' || currentPlayer.actionsRemaining < 1 || currentPlayer.turnEnded}
-              activeObstacles={game.activeObstacles}
+              activeObstacles={[]}
             />
           </div>
 

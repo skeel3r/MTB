@@ -656,13 +656,84 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'draw_obstacle': {
-      // Free action - draw an obstacle from the deck
+      // Free action - draw an obstacle and immediately resolve it
       if (s.obstacleDeck.length === 0) {
         s.obstacleDeck = createObstacleDeck();
       }
       const drawn = s.obstacleDeck.shift()!;
-      s.activeObstacles.push(drawn);
-      s.log.push(`${player.name}: Drew obstacle "${drawn.name}" (${drawn.symbols.map(sym => sym).join(', ')})`);
+      s.log.push(`${player.name}: Flipped obstacle "${drawn.name}" (${drawn.symbols.map(sym => sym).join(', ')})`);
+
+      // Immediately resolve: check if player has matching cards
+      const matchCardIndices: number[] = [];
+      let allMatched = true;
+      const usedIndices = new Set<number>();
+      const mode = drawn.matchMode ?? 'all';
+
+      if (mode === 'any') {
+        let foundAny = false;
+        for (const sym of drawn.symbols) {
+          const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+          if (idx >= 0) {
+            matchCardIndices.push(idx);
+            usedIndices.add(idx);
+            foundAny = true;
+            break;
+          }
+        }
+        allMatched = foundAny;
+      } else {
+        for (const sym of drawn.symbols) {
+          const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+          if (idx >= 0) {
+            matchCardIndices.push(idx);
+            usedIndices.add(idx);
+          } else {
+            allMatched = false;
+            break;
+          }
+        }
+      }
+
+      const drawnProgressGain = player.commitment === 'pro' ? 2 : 1;
+
+      if (allMatched) {
+        // Match! Discard matching cards, gain progress and momentum
+        const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
+        for (const idx of sortedIndices) {
+          const matchCard = player.hand.splice(idx, 1)[0];
+          s.techniqueDiscard.push(matchCard);
+        }
+        player.progress += drawnProgressGain;
+        player.momentum++;
+        s.log.push(`${player.name}: Matched "${drawn.name}"! +${drawnProgressGain} Progress, +1 Momentum`);
+      } else {
+        // Blow-By — no matching cards, take the penalty
+        player.hazardDice++;
+        player.momentum = Math.max(0, player.momentum - 1);
+        s.log.push(`${player.name}: Blow-By on "${drawn.name}" (${drawn.penaltyType})! ${drawn.blowByText}`);
+
+        applyObstaclePenalty(player, drawn, s);
+
+        // Pro Line blow-by: extra hazard die + penalty card
+        if (player.commitment === 'pro') {
+          player.hazardDice++;
+          if (s.penaltyDeck.length > 0) {
+            player.penalties.push(s.penaltyDeck.shift()!);
+          }
+          s.log.push(`${player.name}: Pro Line Blow-By! +1 extra Hazard Die + Penalty Card`);
+        }
+      }
+
+      // Check crash: 6+ hazard dice
+      if (player.hazardDice >= 6) {
+        player.crashed = true;
+        player.turnEnded = true;
+        for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
+        if (s.penaltyDeck.length > 0) {
+          player.penalties.push(s.penaltyDeck.shift()!);
+        }
+        s.log.push(`${player.name}: CRASH! Reset to center, penalty card drawn.`);
+      }
       break;
     }
 
