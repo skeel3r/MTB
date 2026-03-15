@@ -60,9 +60,11 @@ export function initGame(playerNames: string[]): GameState {
     techniqueDiscard: [],
     penaltyDeck: createPenaltyDeck(),
     obstacleDeck: createObstacleDeck(),
+    obstacleDiscard: [],
     activeObstacles: [],
     trailHazards: createTrailHazards(),
     currentHazards: [],
+    lastHazardRolls: [],
     log: ['Game initialized. Ready to start!'],
   };
 }
@@ -338,9 +340,11 @@ function executeAlignment(state: GameState): GameState {
 // ── VII. Reckoning ──
 function executeReckoning(state: GameState): GameState {
   const s = state;
+  s.lastHazardRolls = [];
 
   for (const player of s.players) {
     if (player.hazardDice <= 0) {
+      s.lastHazardRolls.push({ playerName: player.name, rolls: [], penaltyDrawn: null });
       s.log.push(`${player.name}: No hazard dice to roll.`);
       continue;
     }
@@ -357,14 +361,17 @@ function executeReckoning(state: GameState): GameState {
 
     s.log.push(`${player.name} rolls ${diceCount} hazard dice: [${rolls.join(', ')}]`);
 
+    let penaltyDrawn: string | null = null;
     if (penalty) {
       if (s.penaltyDeck.length > 0) {
         const penaltyCard = s.penaltyDeck.shift()!;
         player.penalties.push(penaltyCard);
+        penaltyDrawn = penaltyCard.name;
         s.log.push(`${player.name}: Rolled a 6! Penalty: ${penaltyCard.name} - ${penaltyCard.description}`);
       }
     }
 
+    s.lastHazardRolls.push({ playerName: player.name, rolls, penaltyDrawn });
     player.hazardDice = 0;
   }
 
@@ -658,74 +665,103 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'draw_obstacle': {
-      // Free action - draw an obstacle and immediately resolve it
+      // Free action - flip an obstacle from the deck, must be resolved before other actions
       if (s.obstacleDeck.length === 0) {
-        s.obstacleDeck = createObstacleDeck();
+        // Reshuffle discard pile back into deck
+        if (s.obstacleDiscard.length > 0) {
+          s.obstacleDeck = shuffle([...s.obstacleDiscard]);
+          s.obstacleDiscard = [];
+          s.log.push('Obstacle discard pile reshuffled into a new deck.');
+        } else {
+          s.obstacleDeck = createObstacleDeck();
+          s.log.push('New obstacle deck created.');
+        }
       }
       const drawn = s.obstacleDeck.shift()!;
+      s.activeObstacles.push(drawn);
       s.log.push(`${player.name}: Flipped obstacle "${drawn.name}" (${drawn.symbols.map(sym => sym).join(', ')})`);
+      break;
+    }
 
-      // Immediately resolve: check if player has matching cards
-      const matchCardIndices: number[] = [];
-      let allMatched = true;
-      const usedIndices = new Set<number>();
-      const mode = drawn.matchMode ?? 'all';
+    case 'resolve_obstacle': {
+      // Resolve a pending obstacle: 'match' to use cards, 'take_penalty' to accept blow-by
+      const obstacleIndex = (action.payload?.obstacleIndex as number) ?? 0;
+      if (obstacleIndex >= s.activeObstacles.length) break;
+      const choice = (action.payload?.choice as string) ?? 'take_penalty';
+      const obstacle = s.activeObstacles[obstacleIndex];
 
-      if (mode === 'any') {
-        let foundAny = false;
-        for (const sym of drawn.symbols) {
-          const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-          if (idx >= 0) {
-            matchCardIndices.push(idx);
-            usedIndices.add(idx);
-            foundAny = true;
-            break;
+      if (choice === 'match') {
+        // Verify the player actually has matching cards
+        const matchCardIndices: number[] = [];
+        let allMatched = true;
+        const usedIndices = new Set<number>();
+        const mode = obstacle.matchMode ?? 'all';
+
+        if (mode === 'any') {
+          let foundAny = false;
+          for (const sym of obstacle.symbols) {
+            const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+            if (idx >= 0) {
+              matchCardIndices.push(idx);
+              usedIndices.add(idx);
+              foundAny = true;
+              break;
+            }
+          }
+          allMatched = foundAny;
+        } else {
+          for (const sym of obstacle.symbols) {
+            const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+            if (idx >= 0) {
+              matchCardIndices.push(idx);
+              usedIndices.add(idx);
+            } else {
+              allMatched = false;
+              break;
+            }
           }
         }
-        allMatched = foundAny;
-      } else {
-        for (const sym of drawn.symbols) {
-          const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-          if (idx >= 0) {
-            matchCardIndices.push(idx);
-            usedIndices.add(idx);
-          } else {
-            allMatched = false;
-            break;
+
+        if (allMatched) {
+          const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
+          for (const idx of sortedIndices) {
+            const matchCard = player.hand.splice(idx, 1)[0];
+            s.techniqueDiscard.push(matchCard);
           }
+          const resolveProgressGain = player.commitment === 'pro' ? 2 : 1;
+          player.progress += resolveProgressGain;
+          player.momentum++;
+          player.obstaclesCleared++;
+          s.log.push(`${player.name}: Matched "${obstacle.name}"! +${resolveProgressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
+        } else {
+          // Player tried to match but can't — shouldn't happen if UI is correct, fall through to penalty
+          s.log.push(`${player.name}: Cannot match "${obstacle.name}" — taking penalty instead.`);
+        }
+
+        if (allMatched) {
+          s.activeObstacles.splice(obstacleIndex, 1);
+          s.obstacleDiscard.push(obstacle);
+          break;
         }
       }
 
-      const drawnProgressGain = player.commitment === 'pro' ? 2 : 1;
+      // take_penalty (or failed match attempt)
+      player.hazardDice++;
+      player.momentum = Math.max(0, player.momentum - 1);
+      s.log.push(`${player.name}: Blow-By on "${obstacle.name}" (${obstacle.penaltyType})! ${obstacle.blowByText}`);
 
-      if (allMatched) {
-        // Match! Discard matching cards, gain progress and momentum
-        const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
-        for (const idx of sortedIndices) {
-          const matchCard = player.hand.splice(idx, 1)[0];
-          s.techniqueDiscard.push(matchCard);
-        }
-        player.progress += drawnProgressGain;
-        player.momentum++;
-        player.obstaclesCleared++;
-        s.log.push(`${player.name}: Matched "${drawn.name}"! +${drawnProgressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
-      } else {
-        // Blow-By — no matching cards, take the penalty
+      applyObstaclePenalty(player, obstacle, s);
+
+      if (player.commitment === 'pro') {
         player.hazardDice++;
-        player.momentum = Math.max(0, player.momentum - 1);
-        s.log.push(`${player.name}: Blow-By on "${drawn.name}" (${drawn.penaltyType})! ${drawn.blowByText}`);
-
-        applyObstaclePenalty(player, drawn, s);
-
-        // Pro Line blow-by: extra hazard die + penalty card
-        if (player.commitment === 'pro') {
-          player.hazardDice++;
-          if (s.penaltyDeck.length > 0) {
-            player.penalties.push(s.penaltyDeck.shift()!);
-          }
-          s.log.push(`${player.name}: Pro Line Blow-By! +1 extra Hazard Die + Penalty Card`);
+        if (s.penaltyDeck.length > 0) {
+          player.penalties.push(s.penaltyDeck.shift()!);
         }
+        s.log.push(`${player.name}: Pro Line Blow-By! +1 extra Hazard Die + Penalty Card`);
       }
+
+      s.activeObstacles.splice(obstacleIndex, 1);
+      s.obstacleDiscard.push(obstacle);
 
       // Check crash: 6+ hazard dice
       if (player.hazardDice >= 6) {
