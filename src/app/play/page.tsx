@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, GameAction } from '@/lib/types';
 import { initGame, advancePhase, processAction, getStandings } from '@/lib/engine';
 import { SYMBOL_EMOJI, SYMBOL_COLORS, UPGRADES } from '@/lib/cards';
+import { aiPlaySprint, aiCommit } from '@/lib/ai-player';
 import GameBoard, { PlayerStats, HandDisplay, TrailCardDisplay } from '@/components/GameBoard';
 import GameLog from '@/components/GameLog';
 
@@ -23,8 +24,10 @@ const PHASE_LABELS: Record<string, string> = {
 export default function PlayPage() {
   const [game, setGame] = useState<GameState | null>(null);
   const [playerNames, setPlayerNames] = useState(['Rider 1', 'Rider 2']);
+  const [isAI, setIsAI] = useState([false, true]); // second player is AI by default
   const [selectedPlayer, setSelectedPlayer] = useState(0);
   const [selectedSteerRow, setSelectedSteerRow] = useState<number | null>(null);
+  const aiProcessingRef = useRef(false);
 
   const startGame = useCallback(() => {
     const names = playerNames.filter(n => n.trim());
@@ -43,6 +46,57 @@ export default function PlayPage() {
     setGame(processAction(game, playerIndex ?? selectedPlayer, action));
   }, [game, selectedPlayer]);
 
+  // ── AI auto-play ──
+  useEffect(() => {
+    if (!game || aiProcessingRef.current) return;
+
+    // AI commitment: auto-commit for AI players during commitment phase
+    if (game.phase === 'commitment') {
+      let s = game;
+      let changed = false;
+      for (let i = 0; i < s.players.length; i++) {
+        if (isAI[i] && s.players[i].commitment === 'main') {
+          // Only commit if they haven't already been committed this round
+          // The commitment phase expects all players to commit
+          s = aiCommit(s, i);
+          changed = true;
+        }
+      }
+      if (changed) {
+        setGame(s);
+      }
+      return;
+    }
+
+    // AI sprint: auto-play for AI players who haven't ended their turn
+    if (game.phase === 'sprint') {
+      const aiPlayerToPlay = game.players.findIndex(
+        (p, i) => isAI[i] && !p.turnEnded && !p.crashed,
+      );
+      if (aiPlayerToPlay >= 0) {
+        aiProcessingRef.current = true;
+        // Small delay so the human can see the AI acting
+        const timer = setTimeout(() => {
+          setGame(prev => {
+            if (!prev) return prev;
+            return aiPlaySprint(prev, aiPlayerToPlay);
+          });
+          aiProcessingRef.current = false;
+        }, 600);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [game, isAI]);
+
+  // Auto-select the first human player
+  useEffect(() => {
+    if (!game) return;
+    const humanIndex = game.players.findIndex((_, i) => !isAI[i]);
+    if (humanIndex >= 0 && isAI[selectedPlayer]) {
+      setSelectedPlayer(humanIndex);
+    }
+  }, [game, isAI, selectedPlayer]);
+
   // ── Setup Screen ──
   if (!game) {
     return (
@@ -54,7 +108,7 @@ export default function PlayPage() {
           <div className="trail-card p-6 mb-6">
             <div className="space-y-3 mb-6">
               {playerNames.map((name, i) => (
-                <div key={i} className="flex gap-2">
+                <div key={i} className="flex gap-2 items-center">
                   <input
                     value={name}
                     onChange={e => {
@@ -65,9 +119,26 @@ export default function PlayPage() {
                     className="flex-1 bg-black/30 border border-gray-600 rounded px-3 py-2 text-white"
                     placeholder={`Player ${i + 1}`}
                   />
+                  <button
+                    onClick={() => {
+                      const a = [...isAI];
+                      a[i] = !a[i];
+                      setIsAI(a);
+                    }}
+                    className={`px-3 py-2 rounded text-xs font-bold transition-colors ${
+                      isAI[i]
+                        ? 'bg-cyan-700 hover:bg-cyan-600 text-cyan-100 border border-cyan-500'
+                        : 'bg-black/20 hover:bg-black/30 text-gray-400 border border-gray-600'
+                    }`}
+                  >
+                    {isAI[i] ? 'AI' : 'Human'}
+                  </button>
                   {playerNames.length > 1 && (
                     <button
-                      onClick={() => setPlayerNames(playerNames.filter((_, j) => j !== i))}
+                      onClick={() => {
+                        setPlayerNames(playerNames.filter((_, j) => j !== i));
+                        setIsAI(isAI.filter((_, j) => j !== i));
+                      }}
                       className="px-3 py-2 bg-red-900 rounded hover:bg-red-800"
                     >
                       X
@@ -79,7 +150,7 @@ export default function PlayPage() {
 
             {playerNames.length < 6 && (
               <button
-                onClick={() => setPlayerNames([...playerNames, `Rider ${playerNames.length + 1}`])}
+                onClick={() => { setPlayerNames([...playerNames, `Rider ${playerNames.length + 1}`]); setIsAI([...isAI, false]); }}
                 className="w-full py-2 mb-4 bg-black/20 rounded hover:bg-black/30 border border-gray-600"
               >
                 + Add Player
@@ -118,11 +189,12 @@ export default function PlayPage() {
                 <tr className="text-gray-400 border-b border-gray-700">
                   <th className="py-1 text-left">#</th>
                   <th className="text-left">Name</th>
+                  <th>Obs</th>
                   <th>Prog</th>
                   <th className="hidden sm:table-cell">Perfect</th>
                   <th>Pen</th>
                   <th>Flow</th>
-                  <th>Mom</th>
+                  <th>Mtm</th>
                 </tr>
               </thead>
               <tbody>
@@ -130,6 +202,7 @@ export default function PlayPage() {
                   <tr key={s.name} className={s.rank === 1 ? 'text-emerald-400 font-bold' : ''}>
                     <td className="py-1">{s.rank}</td>
                     <td>{s.name}</td>
+                    <td className="text-center">{s.obstaclesCleared}</td>
                     <td className="text-center">{s.progress}</td>
                     <td className="text-center hidden sm:table-cell">{s.perfectMatches}</td>
                     <td className="text-center">{s.penalties}</td>
@@ -226,7 +299,7 @@ export default function PlayPage() {
               {/* Mini stats under each board */}
               <div className="grid grid-cols-4 gap-1 mt-1 text-center text-[10px]">
                 <div><span className="text-green-400 font-bold">{player.progress}</span> <span className="text-gray-500">Prog</span></div>
-                <div><span className="text-blue-400 font-bold">{player.momentum}</span> <span className="text-gray-500">Spd</span></div>
+                <div><span className="text-blue-400 font-bold">{player.momentum}</span> <span className="text-gray-500">Mtm</span></div>
                 <div><span className="text-purple-400 font-bold">{player.flow}</span> <span className="text-gray-500">Flow</span></div>
                 <div><span className="text-red-400 font-bold">{player.hazardDice}</span> <span className="text-gray-500">Haz</span></div>
               </div>
@@ -240,7 +313,11 @@ export default function PlayPage() {
             {standings.map(s => (
               <div key={s.name} className="flex justify-between text-xs py-0.5 gap-3">
                 <span>{s.rank}. {s.name}</span>
-                <span className="text-green-400 font-mono">{s.progress}</span>
+                <span className="font-mono">
+                  <span className="text-cyan-400">{s.obstaclesCleared}</span>
+                  <span className="text-gray-600 mx-0.5">/</span>
+                  <span className="text-green-400">{s.progress}</span>
+                </span>
               </div>
             ))}
           </div>

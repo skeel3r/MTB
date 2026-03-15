@@ -64,6 +64,8 @@ export interface PlayerState {
   commitment: 'main' | 'pro';
   /** Track perfect matches for tiebreaking */
   perfectMatches: number;
+  /** Number of obstacles successfully cleared */
+  obstaclesCleared: number;
   /** Whether player has crashed this turn */
   crashed: boolean;
   /** Whether turn has ended early */

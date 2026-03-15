@@ -27,6 +27,7 @@ export function createPlayer(id: string, name: string): PlayerState {
     actionsRemaining: 5,
     commitment: 'main',
     perfectMatches: 0,
+    obstaclesCleared: 0,
     crashed: false,
     turnEnded: false,
     cannotPedal: false,
@@ -560,7 +561,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         }
         player.progress += progressGain;
         player.momentum++;
-        s.log.push(`${player.name}: Matched "${obstacle.name}"! +${progressGain} Progress, +1 Momentum`);
+        player.obstaclesCleared++;
+        s.log.push(`${player.name}: Matched "${obstacle.name}"! +${progressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
       } else {
         // Blow-By — apply the obstacle's specific penalty
         player.hazardDice++;
@@ -705,7 +707,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         }
         player.progress += drawnProgressGain;
         player.momentum++;
-        s.log.push(`${player.name}: Matched "${drawn.name}"! +${drawnProgressGain} Progress, +1 Momentum`);
+        player.obstaclesCleared++;
+        s.log.push(`${player.name}: Matched "${drawn.name}"! +${drawnProgressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
       } else {
         // Blow-By — no matching cards, take the penalty
         player.hazardDice++;
@@ -853,6 +856,8 @@ export function getWinner(state: GameState): PlayerState | null {
 export function getStandings(state: GameState) {
   return [...state.players]
     .sort((a, b) => {
+      // Primary: most obstacles cleared wins
+      if (b.obstaclesCleared !== a.obstaclesCleared) return b.obstaclesCleared - a.obstaclesCleared;
       if (b.progress !== a.progress) return b.progress - a.progress;
       if (b.perfectMatches !== a.perfectMatches) return b.perfectMatches - a.perfectMatches;
       if (a.penalties.length !== b.penalties.length) return a.penalties.length - b.penalties.length;
@@ -863,6 +868,7 @@ export function getStandings(state: GameState) {
       rank: i + 1,
       name: p.name,
       progress: p.progress,
+      obstaclesCleared: p.obstaclesCleared,
       perfectMatches: p.perfectMatches,
       penalties: p.penalties.length,
       flow: p.flow,
