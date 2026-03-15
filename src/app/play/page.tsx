@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { GameState, GameAction } from '@/lib/types';
 import { initGame, advancePhase, processAction, getStandings } from '@/lib/engine';
-import { SYMBOL_EMOJI, SYMBOL_COLORS } from '@/lib/cards';
+import { SYMBOL_EMOJI, SYMBOL_COLORS, UPGRADES } from '@/lib/cards';
 import GameBoard, { PlayerStats, HandDisplay } from '@/components/GameBoard';
 import GameLog from '@/components/GameLog';
 
@@ -37,9 +37,9 @@ export default function PlayPage() {
     setGame(advancePhase(game));
   }, [game]);
 
-  const doAction = useCallback((action: GameAction) => {
+  const doAction = useCallback((action: GameAction, playerIndex?: number) => {
     if (!game) return;
-    setGame(processAction(game, selectedPlayer, action));
+    setGame(processAction(game, playerIndex ?? selectedPlayer, action));
   }, [game, selectedPlayer]);
 
   // ── Setup Screen ──
@@ -296,6 +296,40 @@ export default function PlayPage() {
           {game.phase === 'alignment' && 'Grid checked against trail card targets.'}
           {game.phase === 'reckoning' && 'Hazard dice rolled.'}
           {game.phase === 'stage_break' && 'Stage break! Regroup, Flow, Repair, Shop.'}
+        </div>
+      )}
+
+      {/* Upgrade Shop during Stage Break */}
+      {game.phase === 'stage_break' && (
+        <div className="mt-4 bg-gray-800 rounded-lg p-4">
+          <h3 className="text-sm font-bold mb-3">Upgrade Shop</h3>
+          {game.players.map((player, pi) => (
+            <div key={player.id} className="mb-4">
+              <div className="text-xs text-gray-400 mb-2">{player.name} — Flow: {player.flow}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {UPGRADES.map(upgrade => {
+                  const owned = player.upgrades.some(u => u.id === upgrade.id);
+                  const canAfford = player.flow >= upgrade.flowCost;
+                  return (
+                    <button
+                      key={upgrade.id}
+                      onClick={() => doAction({ type: 'buy_upgrade', payload: { upgradeId: upgrade.id } }, pi)}
+                      disabled={owned || !canAfford}
+                      className={`text-left p-2 rounded border text-xs transition-colors ${
+                        owned ? 'border-emerald-500 bg-emerald-900/30 opacity-60' :
+                        canAfford ? 'border-gray-600 hover:border-yellow-400 bg-gray-700' :
+                        'border-gray-700 bg-gray-800 opacity-40'
+                      }`}
+                    >
+                      <div className="font-bold">{upgrade.name} <span className="text-yellow-400">({upgrade.flowCost} Flow)</span></div>
+                      <div className="text-gray-400">{upgrade.description}</div>
+                      {owned && <div className="text-emerald-400 text-xs mt-1">Owned</div>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

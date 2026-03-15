@@ -11,6 +11,14 @@ export interface ProgressObstacle {
   blowByText: string;
 }
 
+// ── Upgrades (Shop) ──
+export interface Upgrade {
+  id: string;
+  name: string;
+  flowCost: number;
+  description: string;
+}
+
 // ── Card definitions ──
 export interface TechniqueCard {
   id: string;
@@ -60,6 +68,8 @@ export interface PlayerState {
   crashed: boolean;
   /** Whether turn has ended early */
   turnEnded: boolean;
+  /** Purchased upgrades */
+  upgrades: Upgrade[];
   /** Flags for symbol penalties */
   cannotPedal: boolean;
   cannotBrake: boolean;
@@ -80,6 +90,7 @@ export type GamePhase =
 
 export interface TrailHazard {
   id: string;
+  name: string;
   description: string;
   /** Which row to push, and direction (-1 left, +1 right) */
   targetRow: number;
@@ -105,7 +116,7 @@ export interface GameState {
 
 export interface GameAction {
   type: 'pedal' | 'brake' | 'steer' | 'technique' | 'tackle' | 'pass_duel' |
-        'commit_line' | 'roll_hazard' | 'flow_spend' | 'next_phase' | 'end_turn';
+        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn';
   payload?: Record<string, unknown>;
 }
 

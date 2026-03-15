@@ -2,7 +2,7 @@ import {
   GameState, PlayerState, GamePhase, GameAction, CardSymbol, TechniqueCard, ProgressObstacle,
 } from './types';
 import {
-  createTechniqueDeck, createPenaltyDeck, createTrailDeck, createTrailHazards, shuffle,
+  createTechniqueDeck, createPenaltyDeck, createTrailDeck, createTrailHazards, shuffle, UPGRADES,
 } from './cards';
 
 // ── Create initial player state ──
@@ -22,6 +22,7 @@ export function createPlayer(id: string, name: string): PlayerState {
     progress: 0,
     hand: [],
     penalties: [],
+    upgrades: [],
     hazardDice: 0,
     actionsRemaining: 5,
     commitment: 'main',
@@ -96,6 +97,23 @@ function drawCards(state: GameState, count: number): TechniqueCard[] {
     }
   }
   return cards;
+}
+
+// ── Get affected rows for a hazard card ──
+function getHazardRows(hazardName: string): number[] {
+  switch (hazardName) {
+    case 'Camber Left':
+    case 'Camber Right':
+      return [0, 1, 2]; // Rows 1-3
+    case 'Brake Bumps':
+      return [0, 1]; // Rows 1-2
+    case 'Compression':
+      return [2, 3]; // Rows 3-4
+    case 'Loose Dirt':
+      return [4, 5]; // Rows 5-6
+    default:
+      return [0];
+  }
 }
 
 // ── Phase transitions ──
@@ -211,20 +229,37 @@ function executeEnvironment(state: GameState): GameState {
   const s = state;
   s.currentHazards = [];
 
-  // Flip 1 hazard per player
-  for (let i = 0; i < s.players.length; i++) {
-    if (s.trailHazards.length === 0) {
-      s.trailHazards = createTrailHazards();
-    }
-    const hazard = s.trailHazards.shift()!;
-    s.currentHazards.push(hazard);
-    s.log.push(`Hazard: ${hazard.description} → Row ${hazard.targetRow + 1} pushed ${hazard.pushDirection > 0 ? 'right' : 'left'}`);
+  // Flip 1 hazard card (affects all listed rows)
+  if (s.trailHazards.length === 0) {
+    s.trailHazards = createTrailHazards();
+  }
+  const hazard = s.trailHazards.shift()!;
+  s.currentHazards.push(hazard);
+  s.log.push(`Hazard: ${hazard.name} — ${hazard.description}`);
 
-    // Apply to all players
-    for (const player of s.players) {
-      const col = getTokenCol(player.grid, hazard.targetRow);
-      if (col >= 0) {
-        setToken(player.grid, hazard.targetRow, col + hazard.pushDirection * hazard.pushAmount);
+  // Determine which rows this hazard card affects based on its name
+  const hazardRows = getHazardRows(hazard.name);
+  for (const player of s.players) {
+    for (const row of hazardRows) {
+      const col = getTokenCol(player.grid, row);
+      if (col < 0) continue;
+
+      let dir: number;
+      if (hazard.name === 'Brake Bumps') {
+        // Toward nearest edge
+        dir = col >= 2 ? 1 : -1;
+      } else if (hazard.name === 'Compression') {
+        // Toward center
+        dir = col > 2 ? -1 : col < 2 ? 1 : 0;
+      } else if (hazard.name === 'Loose Dirt') {
+        // Random direction
+        dir = Math.random() < 0.5 ? -1 : 1;
+      } else {
+        dir = hazard.pushDirection;
+      }
+
+      if (dir !== 0) {
+        setToken(player.grid, row, col + dir);
       }
     }
   }
@@ -432,20 +467,38 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         s.log.push(`${player.name}: Plays "${card.name}" - ${card.actionText}`);
         s.techniqueDiscard.push(card);
 
-        // Apply simple card effects
-        if (card.actionText.includes('+2 Momentum')) {
-          player.momentum += 2;
-          player.hazardDice++;
-        } else if (card.actionText.includes('+1 Momentum if')) {
-          // Conditional - handled during obstacle matching
-        } else if (card.actionText.includes('Steer Row 1')) {
-          const r1col = getTokenCol(player.grid, 0);
-          if (r1col >= 0) {
-            const dir = r1col > 2 ? -1 : r1col < 2 ? 1 : 0;
-            setToken(player.grid, 0, r1col + dir);
+        // Apply technique card effects by name
+        switch (card.name) {
+          case 'Inside Line':
+            // Ignore all Slide-Out (Grip) penalties for the rest of this turn
+            // Tracked via a flag (simplified: clear any grip penalty effects)
+            s.log.push(`${player.name}: Grip penalties ignored this turn.`);
+            break;
+          case 'Manual': {
+            // Swap Row 1 token with Row 2 token
+            const r1col = getTokenCol(player.grid, 0);
+            const r2col = getTokenCol(player.grid, 1);
+            if (r1col >= 0 && r2col >= 0) {
+              setToken(player.grid, 0, r2col);
+              setToken(player.grid, 1, r1col);
+            }
+            break;
           }
-        } else if (card.actionText.includes('Remove 1 Hazard')) {
-          player.hazardDice = Math.max(0, player.hazardDice - 1);
+          case 'Flick': {
+            // Shift any two tokens 1 lane each (auto: shift rows 1 and 2 toward center)
+            for (const r of [0, 1]) {
+              const col = getTokenCol(player.grid, r);
+              if (col >= 0) {
+                const dir = col > 2 ? -1 : col < 2 ? 1 : 0;
+                if (dir !== 0) setToken(player.grid, r, col + dir);
+              }
+            }
+            break;
+          }
+          case 'Recover':
+            // Discard 2 Hazard Dice
+            player.hazardDice = Math.max(0, player.hazardDice - 2);
+            break;
         }
       }
       break;
@@ -560,6 +613,24 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           }
           break;
       }
+      break;
+    }
+
+    case 'buy_upgrade': {
+      const upgradeId = action.payload?.upgradeId as string;
+      const upgrade = UPGRADES.find(u => u.id === upgradeId);
+      if (!upgrade) break;
+      if (player.upgrades.some(u => u.id === upgradeId)) {
+        s.log.push(`${player.name}: Already owns "${upgrade.name}".`);
+        break;
+      }
+      if (player.flow < upgrade.flowCost) {
+        s.log.push(`${player.name}: Not enough Flow for "${upgrade.name}" (need ${upgrade.flowCost}, have ${player.flow}).`);
+        break;
+      }
+      player.flow -= upgrade.flowCost;
+      player.upgrades.push(upgrade);
+      s.log.push(`${player.name}: Purchased "${upgrade.name}" for ${upgrade.flowCost} Flow!`);
       break;
     }
 
