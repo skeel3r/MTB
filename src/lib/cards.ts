@@ -100,8 +100,8 @@ export const OBSTACLE_DEFINITIONS: ProgressObstacle[] = [
   { id: 'obs-6',  name: 'Rapid Berms',     symbols: ['agility'],           penaltyType: 'Whiplash',    blowByText: 'Shift Row 2 and Row 3 one lane Right.' },
   { id: 'obs-7',  name: 'Log Skinny',      symbols: ['balance'],           penaltyType: 'Stall',       blowByText: 'Cannot Pedal or use Momentum this turn.' },
   { id: 'obs-8',  name: 'Granite Slab',    symbols: ['balance'],           penaltyType: 'Locked',      blowByText: 'Your Row 1 token cannot move next turn.' },
-  { id: 'obs-9',  name: 'Rooty Drop',      symbols: ['grip', 'air'],       penaltyType: 'Wipeout',     blowByText: 'Take 2 Hazard Dice and end turn immediately.' },
-  { id: 'obs-10', name: 'Slippery Berm',   symbols: ['grip', 'agility'],   penaltyType: 'Wash Out',    blowByText: 'Shift Row 1 and Row 2 three lanes.' },
+  { id: 'obs-9',  name: 'Rooty Drop',      symbols: ['grip', 'air'],       matchMode: 'any', penaltyType: 'Wipeout',     blowByText: 'Take 2 Hazard Dice and end turn immediately.' },
+  { id: 'obs-10', name: 'Slippery Berm',   symbols: ['grip', 'agility'],   matchMode: 'any', penaltyType: 'Wash Out',    blowByText: 'Shift Row 1 and Row 2 three lanes.' },
 ];
 
 /** Create a shuffled obstacle deck (3 copies of each obstacle = 30 total) */

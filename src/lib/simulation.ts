@@ -41,11 +41,18 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       } else if (s.activeObstacles.length > 0) {
         const obstacle = s.activeObstacles[0];
         const usedIndices = new Set<number>();
-        const hasMatch = obstacle.symbols.every(sym => {
-          const idx = p.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-          if (idx >= 0) { usedIndices.add(idx); return true; }
-          return false;
-        });
+        const mode = obstacle.matchMode ?? 'all';
+        const hasMatch = mode === 'any'
+          ? obstacle.symbols.some(sym => {
+              const idx = p.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+              if (idx >= 0) { usedIndices.add(idx); return true; }
+              return false;
+            })
+          : obstacle.symbols.every(sym => {
+              const idx = p.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+              if (idx >= 0) { usedIndices.add(idx); return true; }
+              return false;
+            });
         if (hasMatch) {
           s = processAction(s, playerIndex, { type: 'tackle', payload: { obstacleIndex: 0 } });
         } else {
