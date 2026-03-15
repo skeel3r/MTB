@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { GameState, GameAction } from '@/lib/types';
 import { initGame, advancePhase, processAction, getStandings } from '@/lib/engine';
-import { SYMBOL_EMOJI, SYMBOL_COLORS } from '@/lib/cards';
+import { SYMBOL_EMOJI, SYMBOL_COLORS, UPGRADES } from '@/lib/cards';
 import GameBoard, { PlayerStats, HandDisplay } from '@/components/GameBoard';
 import GameLog from '@/components/GameLog';
 
@@ -37,9 +37,9 @@ export default function PlayPage() {
     setGame(advancePhase(game));
   }, [game]);
 
-  const doAction = useCallback((action: GameAction) => {
+  const doAction = useCallback((action: GameAction, playerIndex?: number) => {
     if (!game) return;
-    setGame(processAction(game, selectedPlayer, action));
+    setGame(processAction(game, playerIndex ?? selectedPlayer, action));
   }, [game, selectedPlayer]);
 
   // ── Setup Screen ──
@@ -239,20 +239,24 @@ export default function PlayPage() {
           </div>
 
           {/* Obstacles */}
-          {game.activeTrailCard && game.activeTrailCard.obstacleSymbols.length > 0 && (
+          {game.activeTrailCard && game.activeTrailCard.obstacles.length > 0 && (
             <div>
               <h3 className="text-sm font-bold mb-2">Obstacles (Free Action)</h3>
               <div className="flex flex-wrap gap-2">
-                {game.activeTrailCard.obstacleSymbols.map((sym, i) => (
+                {game.activeTrailCard.obstacles.map((obs, i) => (
                   <button
                     key={i}
                     onClick={() => doAction({ type: 'tackle', payload: { obstacleIndex: i } })}
                     disabled={currentPlayer.turnEnded}
                     className="px-3 py-2 rounded-lg border-2 hover:border-white disabled:opacity-30 transition-colors"
-                    style={{ borderColor: SYMBOL_COLORS[sym], backgroundColor: SYMBOL_COLORS[sym] + '20' }}
+                    style={{ borderColor: SYMBOL_COLORS[obs.symbols[0]], backgroundColor: SYMBOL_COLORS[obs.symbols[0]] + '20' }}
                   >
-                    <span className="text-lg">{SYMBOL_EMOJI[sym]}</span>
-                    <div className="text-xs capitalize">{sym}</div>
+                    <div className="flex gap-1 justify-center">
+                      {obs.symbols.map((sym, j) => (
+                        <span key={j} className="text-lg">{SYMBOL_EMOJI[sym]}</span>
+                      ))}
+                    </div>
+                    <div className="text-xs font-medium">{obs.name}</div>
                   </button>
                 ))}
               </div>
@@ -292,6 +296,40 @@ export default function PlayPage() {
           {game.phase === 'alignment' && 'Grid checked against trail card targets.'}
           {game.phase === 'reckoning' && 'Hazard dice rolled.'}
           {game.phase === 'stage_break' && 'Stage break! Regroup, Flow, Repair, Shop.'}
+        </div>
+      )}
+
+      {/* Upgrade Shop during Stage Break */}
+      {game.phase === 'stage_break' && (
+        <div className="mt-4 bg-gray-800 rounded-lg p-4">
+          <h3 className="text-sm font-bold mb-3">Upgrade Shop</h3>
+          {game.players.map((player, pi) => (
+            <div key={player.id} className="mb-4">
+              <div className="text-xs text-gray-400 mb-2">{player.name} — Flow: {player.flow}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {UPGRADES.map(upgrade => {
+                  const owned = player.upgrades.some(u => u.id === upgrade.id);
+                  const canAfford = player.flow >= upgrade.flowCost;
+                  return (
+                    <button
+                      key={upgrade.id}
+                      onClick={() => doAction({ type: 'buy_upgrade', payload: { upgradeId: upgrade.id } }, pi)}
+                      disabled={owned || !canAfford}
+                      className={`text-left p-2 rounded border text-xs transition-colors ${
+                        owned ? 'border-emerald-500 bg-emerald-900/30 opacity-60' :
+                        canAfford ? 'border-gray-600 hover:border-yellow-400 bg-gray-700' :
+                        'border-gray-700 bg-gray-800 opacity-40'
+                      }`}
+                    >
+                      <div className="font-bold">{upgrade.name} <span className="text-yellow-400">({upgrade.flowCost} Flow)</span></div>
+                      <div className="text-gray-400">{upgrade.description}</div>
+                      {owned && <div className="text-emerald-400 text-xs mt-1">Owned</div>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

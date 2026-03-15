@@ -1,6 +1,24 @@
 // ── Symbol types used on cards and obstacles ──
 export type CardSymbol = 'grip' | 'air' | 'agility' | 'balance';
 
+// ── Progress Obstacles ──
+export interface ProgressObstacle {
+  id: string;
+  name: string;
+  /** Symbols required to match (dual-symbol obstacles need both) */
+  symbols: CardSymbol[];
+  penaltyType: string;
+  blowByText: string;
+}
+
+// ── Upgrades (Shop) ──
+export interface Upgrade {
+  id: string;
+  name: string;
+  flowCost: number;
+  description: string;
+}
+
 // ── Card definitions ──
 export interface TechniqueCard {
   id: string;
@@ -26,9 +44,8 @@ export interface MainTrailCard {
   checkedRows: number[];
   /** Target lane for each checked row (0-4, where 2 is center) */
   targetLanes: number[];
-  /** Number of obstacles on this trail section */
-  obstacleCount: number;
-  obstacleSymbols: CardSymbol[];
+  /** Obstacles on this trail section */
+  obstacles: ProgressObstacle[];
 }
 
 // ── Player state ──
@@ -51,6 +68,8 @@ export interface PlayerState {
   crashed: boolean;
   /** Whether turn has ended early */
   turnEnded: boolean;
+  /** Purchased upgrades */
+  upgrades: Upgrade[];
   /** Flags for symbol penalties */
   cannotPedal: boolean;
   cannotBrake: boolean;
@@ -71,6 +90,7 @@ export type GamePhase =
 
 export interface TrailHazard {
   id: string;
+  name: string;
   description: string;
   /** Which row to push, and direction (-1 left, +1 right) */
   targetRow: number;
@@ -96,7 +116,7 @@ export interface GameState {
 
 export interface GameAction {
   type: 'pedal' | 'brake' | 'steer' | 'technique' | 'tackle' | 'pass_duel' |
-        'commit_line' | 'roll_hazard' | 'flow_spend' | 'next_phase' | 'end_turn';
+        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn';
   payload?: Record<string, unknown>;
 }
 
