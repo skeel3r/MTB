@@ -3,103 +3,118 @@ import { initGame, advancePhase, processAction, getStandings } from './engine';
 
 type Strategy = SimulationConfig['strategy'];
 
+function canMatchObstacle(
+  hand: { symbol: string }[],
+  symbols: string[],
+  matchMode: 'all' | 'any',
+): boolean {
+  const usedIndices = new Set<number>();
+  if (matchMode === 'any') {
+    return symbols.some(sym =>
+      hand.some((c, i) => c.symbol === sym && !usedIndices.has(i) && (usedIndices.add(i), true)),
+    );
+  }
+  return symbols.every(sym => {
+    const idx = hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+    if (idx >= 0) { usedIndices.add(idx); return true; }
+    return false;
+  });
+}
+
+function resolveActiveObstacles(state: GameState, playerIndex: number): GameState {
+  let s = state;
+  while (s.activeObstacles.length > 0 && !s.players[playerIndex].crashed && !s.players[playerIndex].turnEnded) {
+    const obs = s.activeObstacles[0];
+    const player = s.players[playerIndex];
+    const mode = obs.matchMode ?? 'all';
+    const hasMatch = canMatchObstacle(player.hand, obs.symbols, mode);
+    s = processAction(s, playerIndex, {
+      type: 'resolve_obstacle',
+      payload: { obstacleIndex: 0, choice: hasMatch ? 'match' : 'take_penalty' },
+    });
+  }
+  return s;
+}
+
 function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): GameState {
   let s = { ...state };
+  const p = () => s.players[playerIndex];
 
-  // Commit to line
-  if (strategy === 'aggressive') {
-    s = processAction(s, playerIndex, { type: 'commit_line', payload: { line: 'pro' } });
-  } else {
-    s = processAction(s, playerIndex, { type: 'commit_line', payload: { line: 'main' } });
-  }
-
-  // Sprint phase actions
-  let actions = 5;
-  const p = s.players[playerIndex];
-
-  // AI draws 1-2 obstacles at the start of its turn
-  s = processAction(s, playerIndex, { type: 'draw_obstacle' });
-  if (strategy === 'aggressive') {
+  // Flip and resolve 1-2 obstacles (free actions)
+  if (!p().crashed && !p().turnEnded) {
     s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
+  }
+  if (strategy === 'aggressive' && !p().crashed && !p().turnEnded) {
+    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
   }
 
-  while (actions > 0 && !p.crashed && !p.turnEnded) {
+  // Spend actions
+  let safety = 20;
+  while (p().actionsRemaining > 0 && !p().crashed && !p().turnEnded && safety-- > 0) {
+    const player = p();
+
     if (strategy === 'aggressive') {
-      if (actions > 2 && p.momentum < 5) {
+      if (player.momentum < 5 && !player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
-        actions--;
-      } else if (s.activeObstacles.length > 0) {
-        s = processAction(s, playerIndex, { type: 'tackle', payload: { obstacleIndex: 0 } });
+      } else if (player.hand.length > 0) {
+        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
+      } else if (!player.cannotPedal) {
+        s = processAction(s, playerIndex, { type: 'pedal' });
       } else {
-        s = processAction(s, playerIndex, { type: 'pedal' });
-        actions--;
+        break;
       }
     } else if (strategy === 'conservative') {
-      if (p.momentum > 3 && actions > 0) {
+      if (player.momentum > 3) {
         s = processAction(s, playerIndex, { type: 'brake' });
-        actions--;
-      } else if (s.activeObstacles.length > 0) {
-        const obstacle = s.activeObstacles[0];
-        const usedIndices = new Set<number>();
-        const mode = obstacle.matchMode ?? 'all';
-        const hasMatch = mode === 'any'
-          ? obstacle.symbols.some(sym => {
-              const idx = p.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-              if (idx >= 0) { usedIndices.add(idx); return true; }
-              return false;
-            })
-          : obstacle.symbols.every(sym => {
-              const idx = p.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-              if (idx >= 0) { usedIndices.add(idx); return true; }
-              return false;
-            });
-        if (hasMatch) {
-          s = processAction(s, playerIndex, { type: 'tackle', payload: { obstacleIndex: 0 } });
-        } else {
-          for (let r = 0; r < 6; r++) {
-            const col = getTokenCol(p.grid, r);
-            if (col >= 0 && col !== 2 && actions > 0) {
-              const dir = col > 2 ? -1 : 1;
-              s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
-              actions--;
-              break;
-            }
-          }
-          if (actions > 0) {
-            s = processAction(s, playerIndex, { type: 'pedal' });
-            actions--;
+      } else {
+        // Steer toward center
+        let steered = false;
+        for (let r = 0; r < 6; r++) {
+          const col = getTokenCol(player.grid, r);
+          if (col >= 0 && col !== 2) {
+            const dir = col > 2 ? -1 : 1;
+            s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
+            steered = true;
+            break;
           }
         }
-      } else if (actions > 0) {
-        s = processAction(s, playerIndex, { type: 'pedal' });
-        actions--;
+        if (!steered && !player.cannotPedal) {
+          s = processAction(s, playerIndex, { type: 'pedal' });
+        } else if (!steered) {
+          break;
+        }
       }
     } else {
-      if (s.activeObstacles.length > 0) {
-        s = processAction(s, playerIndex, { type: 'tackle', payload: { obstacleIndex: 0 } });
-      } else if (actions > 0) {
-        if (p.momentum < 4) {
-          s = processAction(s, playerIndex, { type: 'pedal' });
-        } else {
-          for (let r = 0; r < 6; r++) {
-            const col = getTokenCol(p.grid, r);
-            if (col >= 0 && col !== 2) {
-              const dir = col > 2 ? -1 : 1;
-              s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
-              break;
-            }
-          }
+      // Balanced
+      let steered = false;
+      for (let r = 0; r < 6; r++) {
+        const col = getTokenCol(player.grid, r);
+        if (col >= 0 && col !== 2) {
+          const dir = col > 2 ? -1 : 1;
+          s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
+          steered = true;
+          break;
         }
-        actions--;
       }
-    }
+      if (steered) continue;
 
-    if (s.activeObstacles.length === 0 && actions <= 1) {
-      break;
+      if (player.momentum < 4 && !player.cannotPedal) {
+        s = processAction(s, playerIndex, { type: 'pedal' });
+      } else if (player.hand.length > 0) {
+        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
+      } else if (!player.cannotPedal) {
+        s = processAction(s, playerIndex, { type: 'pedal' });
+      } else {
+        break;
+      }
     }
   }
 
-  s = processAction(s, playerIndex, { type: 'end_turn' });
+  if (!p().turnEnded) {
+    s = processAction(s, playerIndex, { type: 'end_turn' });
+  }
   return s;
 }
 
@@ -382,5 +397,193 @@ export function computeBalanceSummary(
     trailCardDifficulty,
     warnings,
     playerAverages,
+  };
+}
+
+// ── Monte Carlo Analysis ──
+
+export interface MonteCarloResult {
+  totalGames: number;
+  /** Win rate by seat position (Player 1, Player 2, etc.) */
+  seatWinRates: { seat: string; wins: number; rate: number }[];
+  /** Win rate by strategy */
+  strategyWinRates: { strategy: string; wins: number; rate: number; games: number }[];
+  /** Convergence data: running win% for Player 1 sampled every N games */
+  convergenceData: { games: number; p1WinRate: number }[];
+  /** Confidence interval for P1 win rate (95%) */
+  p1Confidence: { lower: number; upper: number; mean: number };
+  /** Score distributions */
+  scoreDistribution: {
+    winnerAvg: number;
+    winnerStdDev: number;
+    loserAvg: number;
+    loserStdDev: number;
+  };
+  /** Obstacle match rate observed across all games */
+  obstacleMatchRate: number;
+  /** Snowball metric: correlation between round-5 lead and final win */
+  snowballCorrelation: number;
+  /** Strategy dominance check */
+  strategyDominance: string;
+  /** Fairness verdict */
+  fairnessVerdict: string;
+}
+
+/** Run a Monte Carlo convergence test across many games and strategies */
+export function runMonteCarlo(
+  playerCount: number,
+  totalGames: number,
+  onProgress?: (done: number, total: number) => void,
+): MonteCarloResult {
+  const strategies: Strategy[] = ['aggressive', 'balanced', 'conservative'];
+  const gamesPerStrategy = Math.ceil(totalGames / strategies.length);
+
+  const seatWins: Record<string, number> = {};
+  const strategyData: Record<string, { wins: number; games: number }> = {};
+  const convergencePoints: { games: number; p1WinRate: number }[] = [];
+  const winnerScores: number[] = [];
+  const loserScores: number[] = [];
+
+  // For snowball tracking
+  const earlyLeadWins: { hadLead: boolean; won: boolean }[] = [];
+
+  let totalObstaclesCleared = 0;
+  let totalObstaclesFlipped = 0;
+  let gamesDone = 0;
+  let p1Wins = 0;
+
+  for (const strategy of strategies) {
+    if (!strategyData[strategy]) {
+      strategyData[strategy] = { wins: 0, games: 0 };
+    }
+
+    for (let g = 0; g < gamesPerStrategy; g++) {
+      const config: SimulationConfig = { playerCount, gamesCount: 1, strategy };
+      const { result, roundSnapshots } = runSingleGame(config, gamesDone + 1);
+
+      // Track wins by seat
+      seatWins[result.winner] = (seatWins[result.winner] || 0) + 1;
+      strategyData[strategy].wins += (result.winner === 'Player 1') ? 1 : 0;
+      strategyData[strategy].games++;
+
+      if (result.winner === 'Player 1') p1Wins++;
+
+      // Score distributions
+      winnerScores.push(result.finalStandings[0].progress);
+      if (result.finalStandings.length > 1) {
+        loserScores.push(result.finalStandings[result.finalStandings.length - 1].progress);
+      }
+
+      // Estimate obstacle match rate from progress vs penalties
+      for (const s of result.finalStandings) {
+        totalObstaclesCleared += s.progress; // rough proxy
+        totalObstaclesFlipped += s.progress + s.penalties; // cleared + blown by
+      }
+
+      // Snowball: check if leader at round 5 also won
+      if (roundSnapshots.length >= 5) {
+        const r5 = roundSnapshots[4];
+        const maxProg = Math.max(...r5.players.map(p => p.progress));
+        const leader = r5.players.find(p => p.progress === maxProg);
+        if (leader) {
+          earlyLeadWins.push({
+            hadLead: leader.name === result.winner,
+            won: true,
+          });
+        }
+      }
+
+      gamesDone++;
+
+      // Convergence sampling
+      if (gamesDone % Math.max(1, Math.floor(totalGames / 50)) === 0 || gamesDone === 1) {
+        convergencePoints.push({
+          games: gamesDone,
+          p1WinRate: p1Wins / gamesDone,
+        });
+      }
+
+      if (onProgress) onProgress(gamesDone, totalGames);
+    }
+  }
+
+  // Final convergence point
+  if (convergencePoints.length === 0 || convergencePoints[convergencePoints.length - 1].games !== gamesDone) {
+    convergencePoints.push({ games: gamesDone, p1WinRate: p1Wins / gamesDone });
+  }
+
+  // Seat win rates
+  const seatWinRates = Array.from({ length: playerCount }, (_, i) => {
+    const seat = `Player ${i + 1}`;
+    const wins = seatWins[seat] || 0;
+    return { seat, wins, rate: wins / gamesDone };
+  });
+
+  // Strategy win rates
+  const strategyWinRates = strategies.map(s => ({
+    strategy: s,
+    wins: strategyData[s].wins,
+    rate: strategyData[s].games > 0 ? strategyData[s].wins / strategyData[s].games : 0,
+    games: strategyData[s].games,
+  }));
+
+  // 95% confidence interval for P1 win rate (Wilson score)
+  const p1Rate = p1Wins / gamesDone;
+  const z = 1.96;
+  const n = gamesDone;
+  const denominator = 1 + z * z / n;
+  const centre = p1Rate + z * z / (2 * n);
+  const spread = z * Math.sqrt((p1Rate * (1 - p1Rate) + z * z / (4 * n)) / n);
+  const p1Confidence = {
+    lower: Math.max(0, (centre - spread) / denominator),
+    upper: Math.min(1, (centre + spread) / denominator),
+    mean: p1Rate,
+  };
+
+  // Score distributions
+  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const stdDev = (arr: number[], mean: number) =>
+    arr.length > 1 ? Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / (arr.length - 1)) : 0;
+  const wAvg = avg(winnerScores);
+  const lAvg = avg(loserScores);
+
+  // Snowball correlation
+  const snowballRate = earlyLeadWins.length > 0
+    ? earlyLeadWins.filter(e => e.hadLead).length / earlyLeadWins.length
+    : 0;
+
+  // Strategy dominance
+  const bestStrat = strategyWinRates.reduce((a, b) => a.rate > b.rate ? a : b);
+  const worstStrat = strategyWinRates.reduce((a, b) => a.rate < b.rate ? a : b);
+  const dominanceGap = bestStrat.rate - worstStrat.rate;
+  const strategyDominance = dominanceGap > 0.15
+    ? `${bestStrat.strategy} dominates (${(bestStrat.rate * 100).toFixed(1)}% vs ${(worstStrat.rate * 100).toFixed(1)}%)`
+    : 'No dominant strategy detected — balanced.';
+
+  // Fairness verdict
+  const expectedRate = 1 / playerCount;
+  const maxDeviation = Math.max(...seatWinRates.map(s => Math.abs(s.rate - expectedRate)));
+  const fairnessVerdict = maxDeviation < 0.05
+    ? 'Excellent fairness — seat positions are well balanced.'
+    : maxDeviation < 0.10
+      ? 'Acceptable fairness — minor seat advantage detected.'
+      : `Fairness concern — seat deviation of ${(maxDeviation * 100).toFixed(1)}% (expected ${(expectedRate * 100).toFixed(0)}%).`;
+
+  return {
+    totalGames: gamesDone,
+    seatWinRates,
+    strategyWinRates,
+    convergenceData: convergencePoints,
+    p1Confidence,
+    scoreDistribution: {
+      winnerAvg: wAvg,
+      winnerStdDev: stdDev(winnerScores, wAvg),
+      loserAvg: lAvg,
+      loserStdDev: stdDev(loserScores, lAvg),
+    },
+    obstacleMatchRate: totalObstaclesFlipped > 0 ? totalObstaclesCleared / totalObstaclesFlipped : 0,
+    snowballCorrelation: snowballRate,
+    strategyDominance,
+    fairnessVerdict,
   };
 }

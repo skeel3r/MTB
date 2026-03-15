@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { SimulationConfig, SimulationResult } from '@/lib/types';
-import { runSingleGame, RoundSnapshot, BalanceSummary, computeBalanceSummary } from '@/lib/simulation';
+import { runSingleGame, RoundSnapshot, BalanceSummary, computeBalanceSummary, runMonteCarlo, MonteCarloResult } from '@/lib/simulation';
 
 export default function SimulatePage() {
   const [config, setConfig] = useState<SimulationConfig>({
@@ -16,7 +16,12 @@ export default function SimulatePage() {
   const [currentGame, setCurrentGame] = useState(0);
   const [liveSnapshot, setLiveSnapshot] = useState<RoundSnapshot[] | null>(null);
   const [balance, setBalance] = useState<BalanceSummary | null>(null);
+  const [mcResult, setMcResult] = useState<MonteCarloResult | null>(null);
+  const [mcRunning, setMcRunning] = useState(false);
+  const [mcProgress, setMcProgress] = useState(0);
+  const [mcGames, setMcGames] = useState(300);
   const cancelRef = useRef(false);
+  const mcCancelRef = useRef(false);
 
   const run = useCallback(() => {
     setRunning(true);
@@ -60,6 +65,47 @@ export default function SimulatePage() {
   const stop = useCallback(() => {
     cancelRef.current = true;
   }, []);
+
+  const runMC = useCallback(() => {
+    setMcRunning(true);
+    setMcResult(null);
+    setMcProgress(0);
+    mcCancelRef.current = false;
+
+    // Run in batches to keep UI responsive
+    let done = 0;
+    const total = mcGames;
+    const batchSize = 10;
+    const playerCount = config.playerCount;
+
+    // We run the full MC in chunks via setTimeout
+    const partialResults: { result: ReturnType<typeof runSingleGame>['result']; snapshots: RoundSnapshot[] }[] = [];
+
+    const runBatch = () => {
+      if (mcCancelRef.current || done >= total) {
+        // Compute final result
+        const result = runMonteCarlo(playerCount, total);
+        setMcResult(result);
+        setMcRunning(false);
+        return;
+      }
+      // Just update progress; the actual computation happens in runMonteCarlo at the end
+      done += batchSize;
+      if (done > total) done = total;
+      setMcProgress(done);
+      setTimeout(runBatch, 0);
+    };
+
+    // Since runMonteCarlo is synchronous, run it in one shot after a yield
+    setTimeout(() => {
+      const result = runMonteCarlo(playerCount, total, (d, t) => {
+        // Can't update state from sync loop, but we capture final
+      });
+      setMcResult(result);
+      setMcProgress(total);
+      setMcRunning(false);
+    }, 50);
+  }, [mcGames, config.playerCount]);
 
   return (
     <div className="min-h-screen game-table text-white p-4 sm:p-8">
@@ -350,6 +396,141 @@ export default function SimulatePage() {
             </details>
           </div>
         )}
+        {/* ═══ Monte Carlo Section ═══ */}
+        <div className="mt-10 pt-8 border-t-2 border-gray-700">
+          <h2 className="text-xl sm:text-2xl font-bold mb-1">Monte Carlo Analysis</h2>
+          <p className="text-emerald-300/60 mb-4 text-sm">
+            Run hundreds of games across all strategies to test fairness, balance, and convergence.
+          </p>
+
+          <div className="flex gap-3 items-end mb-6">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Total Games</label>
+              <select
+                value={mcGames}
+                onChange={e => setMcGames(+e.target.value)}
+                className="bg-black/30 border border-gray-600 rounded px-3 py-2 text-white"
+              >
+                {[100, 300, 500, 1000, 2000].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <button
+              onClick={runMC}
+              disabled={mcRunning}
+              className="px-6 py-2.5 bg-cyan-700 rounded-lg font-bold hover:bg-cyan-600 disabled:opacity-50 transition-colors border border-cyan-500"
+            >
+              {mcRunning ? 'Running...' : 'Run Monte Carlo'}
+            </button>
+          </div>
+
+          {mcResult && (
+            <div className="space-y-6">
+              {/* Verdicts */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={`rounded-lg p-4 border-2 ${mcResult.fairnessVerdict.includes('Excellent') ? 'border-emerald-600 bg-emerald-900/20' : mcResult.fairnessVerdict.includes('Acceptable') ? 'border-yellow-600 bg-yellow-900/20' : 'border-red-600 bg-red-900/20'}`}>
+                  <div className="font-bold text-sm mb-1">Fairness</div>
+                  <div className="text-xs">{mcResult.fairnessVerdict}</div>
+                </div>
+                <div className={`rounded-lg p-4 border-2 ${mcResult.strategyDominance.includes('balanced') ? 'border-emerald-600 bg-emerald-900/20' : 'border-yellow-600 bg-yellow-900/20'}`}>
+                  <div className="font-bold text-sm mb-1">Strategy Balance</div>
+                  <div className="text-xs">{mcResult.strategyDominance}</div>
+                </div>
+              </div>
+
+              {/* Key Monte Carlo Metrics */}
+              <div className="trail-card p-4">
+                <h3 className="font-bold text-lg mb-3">Monte Carlo Results ({mcResult.totalGames} games)</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <MetricCard label="P1 Win Rate" value={`${(mcResult.p1Confidence.mean * 100).toFixed(1)}%`} color={Math.abs(mcResult.p1Confidence.mean - 1/config.playerCount) > 0.1 ? 'text-red-400' : 'text-emerald-400'} />
+                  <MetricCard label="95% CI" value={`${(mcResult.p1Confidence.lower * 100).toFixed(1)}-${(mcResult.p1Confidence.upper * 100).toFixed(1)}%`} color="text-cyan-400" />
+                  <MetricCard label="Snowball Rate" value={`${(mcResult.snowballCorrelation * 100).toFixed(0)}%`} color={mcResult.snowballCorrelation > 0.6 ? 'text-red-400' : 'text-emerald-400'} />
+                  <MetricCard label="Obstacle Match" value={`${(mcResult.obstacleMatchRate * 100).toFixed(0)}%`} color="text-blue-400" />
+                  <MetricCard label="Winner Avg Score" value={mcResult.scoreDistribution.winnerAvg.toFixed(1)} color="text-emerald-400" />
+                  <MetricCard label="Winner Std Dev" value={mcResult.scoreDistribution.winnerStdDev.toFixed(1)} color="text-gray-300" />
+                  <MetricCard label="Loser Avg Score" value={mcResult.scoreDistribution.loserAvg.toFixed(1)} color="text-red-400" />
+                  <MetricCard label="Loser Std Dev" value={mcResult.scoreDistribution.loserStdDev.toFixed(1)} color="text-gray-300" />
+                </div>
+              </div>
+
+              {/* Seat Win Rates */}
+              <div className="trail-card p-4">
+                <h3 className="font-bold text-sm mb-3">Win Rate by Seat Position</h3>
+                <div className="space-y-2">
+                  {mcResult.seatWinRates.map(s => (
+                    <div key={s.seat} className="flex items-center gap-3">
+                      <span className="w-20 text-xs">{s.seat}</span>
+                      <div className="flex-1 bg-black/30 rounded-full h-4 overflow-hidden">
+                        <div
+                          className="bg-cyan-600 h-full rounded-full transition-all"
+                          style={{ width: `${s.rate * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs w-24 text-right font-mono">
+                        {s.wins} ({(s.rate * 100).toFixed(1)}%)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-2">
+                  Expected: {(100 / config.playerCount).toFixed(1)}% per seat
+                </div>
+              </div>
+
+              {/* Strategy Win Rates */}
+              <div className="trail-card p-4">
+                <h3 className="font-bold text-sm mb-3">Win Rate by Strategy (P1)</h3>
+                <div className="space-y-2">
+                  {mcResult.strategyWinRates.map(s => (
+                    <div key={s.strategy} className="flex items-center gap-3">
+                      <span className="w-24 text-xs capitalize">{s.strategy}</span>
+                      <div className="flex-1 bg-black/30 rounded-full h-4 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            s.strategy === 'aggressive' ? 'bg-red-600' :
+                            s.strategy === 'conservative' ? 'bg-blue-600' : 'bg-emerald-600'
+                          }`}
+                          style={{ width: `${s.rate * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs w-28 text-right font-mono">
+                        {s.wins}/{s.games} ({(s.rate * 100).toFixed(1)}%)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Convergence Chart */}
+              {mcResult.convergenceData.length > 1 && (
+                <div className="trail-card p-4">
+                  <h3 className="font-bold text-sm mb-3">P1 Win Rate Convergence</h3>
+                  <div className="flex items-end gap-px h-32">
+                    {mcResult.convergenceData.map((pt, i) => {
+                      const expectedRate = 1 / config.playerCount;
+                      const deviation = Math.abs(pt.p1WinRate - expectedRate);
+                      const barColor = deviation < 0.05 ? 'bg-emerald-500' : deviation < 0.1 ? 'bg-yellow-500' : 'bg-red-500';
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center justify-end">
+                          <div
+                            className={`w-full ${barColor} rounded-t-sm min-h-[2px]`}
+                            style={{ height: `${Math.min(pt.p1WinRate * 200, 100)}%` }}
+                          />
+                          {i % Math.max(1, Math.floor(mcResult.convergenceData.length / 8)) === 0 && (
+                            <div className="text-[7px] text-gray-500 mt-0.5">{pt.games}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between text-[9px] text-gray-500 mt-1">
+                    <span>Games played</span>
+                    <span>Expected: {(100 / config.playerCount).toFixed(0)}%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
