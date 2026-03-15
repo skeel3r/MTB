@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { GameState, GameAction } from '@/lib/types';
 import { initGame, advancePhase, processAction, getStandings } from '@/lib/engine';
 import { SYMBOL_EMOJI, SYMBOL_COLORS, UPGRADES } from '@/lib/cards';
-import GameBoard, { PlayerStats, HandDisplay } from '@/components/GameBoard';
+import GameBoard, { PlayerStats, HandDisplay, TrailCardDisplay } from '@/components/GameBoard';
 import GameLog from '@/components/GameLog';
 
 const PHASE_LABELS: Record<string, string> = {
@@ -165,17 +165,6 @@ export default function PlayPage() {
             </span>
           </div>
           <div className="flex gap-2 items-center">
-            {game.activeTrailCard && (
-              <div className="trail-card px-2 py-1 text-xs">
-                <span className="font-bold">{game.activeTrailCard.name}</span>{' '}
-                <span className="text-yellow-400">(Lim:{game.activeTrailCard.speedLimit})</span>
-              </div>
-            )}
-            {game.queuedTrailCard && (
-              <div className="trail-card px-2 py-1 text-xs opacity-60 hidden sm:block">
-                Next: {game.queuedTrailCard.name}
-              </div>
-            )}
             {/* Phase advance / next phase */}
             {game.phase !== 'sprint' && (game.phase as string) !== 'game_over' && (
               <button
@@ -239,8 +228,29 @@ export default function PlayPage() {
           </div>
         </div>
 
-        {/* ═══ MIDDLE ZONE: Table center - Decks, Obstacles, Actions ═══ */}
+        {/* ═══ MIDDLE ZONE: Table center - Trail Cards, Decks, Obstacles, Actions ═══ */}
         <div className="flex flex-wrap gap-4 mb-4">
+
+          {/* Trail Cards */}
+          <div className="flex-shrink-0">
+            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Trail</h3>
+            <div className="flex gap-3 items-start">
+              <TrailCardDisplay card={game.activeTrailCard} label="Active" />
+              <TrailCardDisplay card={game.queuedTrailCard} label="Next" />
+              {/* Trail deck count */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Deck</div>
+                <div
+                  className="card-back deck-pile flex items-center justify-center"
+                  style={{ width: '80px', height: '115px' }}
+                >
+                  <div className="text-white/80 text-xs font-bold bg-black/40 rounded px-2 py-1">
+                    {game.trailDeck.length}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Obstacle Deck & Active Obstacles */}
           <div className="flex-shrink-0">

@@ -1,6 +1,6 @@
 'use client';
 
-import { PlayerState, ProgressObstacle, CardSymbol } from '@/lib/types';
+import { PlayerState, ProgressObstacle, CardSymbol, MainTrailCard } from '@/lib/types';
 import { SYMBOL_COLORS, SYMBOL_EMOJI } from '@/lib/cards';
 
 interface GameBoardProps {
@@ -131,6 +131,210 @@ function StatRow({ label, value, color }: { label: string; value: number | strin
     <div className="flex justify-between">
       <span style={{ color: '#b8a080' }}>{label}</span>
       <span className={`font-mono font-bold ${color}`}>{value}</span>
+    </div>
+  );
+}
+
+// ── Trail Card Display ──
+export function TrailCardDisplay({
+  card,
+  label,
+  faceDown,
+}: {
+  card: MainTrailCard | null;
+  label?: string;
+  faceDown?: boolean;
+}) {
+  if (faceDown || !card) {
+    return (
+      <div
+        className="card-back flex items-center justify-center"
+        style={{ width: '140px', height: '200px' }}
+      >
+        {label && (
+          <div className="text-white/60 text-xs font-bold bg-black/40 rounded px-2 py-1">{label}</div>
+        )}
+      </div>
+    );
+  }
+
+  // Map lane index to column label
+  const colLabel = (lane: number) => `C${lane + 1}`;
+
+  // Build row data: for each of rows 0-4, check if this row is checked and what its target lane is
+  const rowData: { row: number; isChecked: boolean; targetLane: number }[] = [];
+  for (let r = 0; r < 5; r++) {
+    const checkIdx = card.checkedRows.indexOf(r);
+    rowData.push({
+      row: r,
+      isChecked: checkIdx >= 0,
+      targetLane: checkIdx >= 0 ? card.targetLanes[checkIdx] : -1,
+    });
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {label && (
+        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{label}</div>
+      )}
+      <div
+        className="relative overflow-hidden"
+        style={{
+          width: '140px',
+          height: '200px',
+          borderRadius: '12px',
+          border: '4px solid',
+          borderImage: 'linear-gradient(145deg, #6a3093, #a044ff, #3a0d6e) 1',
+          boxShadow: '0 4px 16px rgba(100,50,180,0.4), inset 0 0 0 2px rgba(60,140,255,0.5)',
+        }}
+      >
+        {/* Inner dashed border */}
+        <div
+          className="absolute inset-1 rounded-lg pointer-events-none z-10"
+          style={{
+            border: '2px dashed rgba(80,180,255,0.5)',
+          }}
+        />
+
+        {/* Forest trail background */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `
+              linear-gradient(180deg,
+                rgba(20,80,40,0.95) 0%,
+                rgba(40,100,50,0.85) 15%,
+                rgba(80,130,60,0.7) 30%,
+                rgba(140,120,70,0.8) 50%,
+                rgba(120,90,50,0.9) 65%,
+                rgba(80,60,30,0.95) 80%,
+                rgba(50,35,15,1) 100%
+              )`,
+          }}
+        />
+        {/* Tree silhouettes at top */}
+        <div
+          className="absolute inset-x-0 top-0 h-16 pointer-events-none"
+          style={{
+            background: `
+              linear-gradient(180deg, rgba(10,40,15,0.9) 0%, transparent 100%)`,
+          }}
+        />
+        {/* Trail path line through middle */}
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            top: '40%',
+            left: '15%',
+            right: '15%',
+            height: '3px',
+            background: 'linear-gradient(90deg, transparent, rgba(200,180,140,0.6), rgba(200,180,140,0.4), transparent)',
+            borderRadius: '2px',
+            transform: 'rotate(-5deg)',
+          }}
+        />
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            top: '55%',
+            left: '10%',
+            right: '20%',
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent, rgba(180,160,120,0.4), rgba(180,160,120,0.3), transparent)',
+            borderRadius: '2px',
+            transform: 'rotate(3deg)',
+          }}
+        />
+
+        {/* Speed limit badge - top left */}
+        <div
+          className="absolute top-3 left-3 z-20 flex items-center gap-1"
+          style={{
+            background: 'rgba(0,100,200,0.9)',
+            borderRadius: '6px',
+            padding: '3px 8px 3px 6px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(100,180,255,0.5)',
+          }}
+        >
+          {/* Mountain/chevron icon */}
+          <svg width="18" height="14" viewBox="0 0 18 14" className="flex-shrink-0">
+            <path d="M2 12 L9 3 L16 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M6 12 L9 7 L12 12" fill="none" stroke="rgba(100,200,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="text-white font-bold text-lg leading-none">{card.speedLimit}</span>
+        </div>
+
+        {/* Row check indicators - right side */}
+        <div className="absolute right-3 top-8 bottom-6 z-20 flex flex-col justify-between items-center" style={{ width: '28px' }}>
+          {rowData.map(({ row, isChecked, targetLane }) => (
+            <div key={row} className="relative flex items-center">
+              {isChecked ? (
+                <div
+                  className="flex items-center justify-center rounded-full font-bold text-white text-xs"
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    background: 'radial-gradient(circle at 40% 35%, #4dd9f5, #00b4d8 60%, #0077b6)',
+                    boxShadow: '0 2px 8px rgba(0,180,220,0.6), inset 0 1px 2px rgba(255,255,255,0.4)',
+                    border: '1.5px solid rgba(200,240,255,0.6)',
+                  }}
+                >
+                  {colLabel(targetLane)}
+                </div>
+              ) : (
+                <div
+                  className="rounded-full"
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    background: 'rgba(255,255,255,0.15)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                  }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Connecting line between checked rows */}
+        <svg className="absolute right-3 top-8 z-10 pointer-events-none" style={{ width: '28px', bottom: '24px', height: 'calc(100% - 56px)' }}>
+          {(() => {
+            const checkedPositions = rowData
+              .map((rd, i) => ({ ...rd, yPct: i / 4 }))
+              .filter(rd => rd.isChecked);
+            if (checkedPositions.length < 2) return null;
+            return checkedPositions.slice(0, -1).map((pos, i) => {
+              const next = checkedPositions[i + 1];
+              return (
+                <line
+                  key={i}
+                  x1="14"
+                  y1={`${pos.yPct * 100}%`}
+                  x2="14"
+                  y2={`${next.yPct * 100}%`}
+                  stroke="rgba(80,200,240,0.5)"
+                  strokeWidth="2"
+                  strokeDasharray="4 3"
+                />
+              );
+            });
+          })()}
+        </svg>
+
+        {/* Card name banner at bottom */}
+        <div
+          className="absolute bottom-0 inset-x-0 z-20 text-center py-1.5 px-2"
+          style={{
+            background: 'linear-gradient(0deg, rgba(0,0,0,0.85), rgba(0,0,0,0.5))',
+          }}
+        >
+          <div className="text-white font-bold text-xs tracking-wide drop-shadow-md">{card.name}</div>
+          <div className="text-[9px] text-cyan-300/70">
+            {card.checkedRows.length} row{card.checkedRows.length !== 1 ? 's' : ''} checked
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
