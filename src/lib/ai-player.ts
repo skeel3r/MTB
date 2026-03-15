@@ -53,6 +53,41 @@ function resolveActiveObstacles(state: GameState, playerIndex: number): GameStat
 }
 
 /**
+ * Trail Read: Try to reuse revealed obstacles that the player can match.
+ * Returns updated state and the number of obstacles reused.
+ */
+function tryReuseRevealedObstacles(state: GameState, playerIndex: number, maxReuse: number): { state: GameState; reused: number } {
+  let s = state;
+  let reused = 0;
+  const p = () => s.players[playerIndex];
+
+  // Don't reuse if player already drew fresh
+  if (p().drewFreshObstacle) return { state: s, reused: 0 };
+
+  for (let attempt = 0; attempt < maxReuse && !p().crashed && !p().turnEnded; attempt++) {
+    // Find a revealed obstacle the player can match
+    const revealed = s.roundRevealedObstacles;
+    let bestIdx = -1;
+    for (let i = 0; i < revealed.length; i++) {
+      const obs = revealed[i];
+      const mode = obs.matchMode ?? 'all';
+      if (canMatchObstacle(p().hand, obs.symbols, mode)) {
+        bestIdx = i;
+        break;
+      }
+    }
+    if (bestIdx < 0) break;
+
+    // Reuse the revealed obstacle
+    s = processAction(s, playerIndex, { type: 'reuse_obstacle', payload: { revealedIndex: bestIdx } });
+    s = resolveActiveObstacles(s, playerIndex);
+    reused++;
+  }
+
+  return { state: s, reused };
+}
+
+/**
  * Execute one full AI turn for the given player during the sprint phase.
  * Returns the updated game state after all AI actions.
  */
@@ -60,13 +95,18 @@ export function aiPlaySprint(state: GameState, playerIndex: number): GameState {
   let s = state;
   const p = () => s.players[playerIndex];
 
-  // AI flips an obstacle then resolves it
-  if (!p().crashed && !p().turnEnded) {
-    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
-    s = resolveActiveObstacles(s, playerIndex);
-  }
-  // Flip a second obstacle if hand is strong (3+ cards)
-  if (!p().crashed && !p().turnEnded && p().hand.length >= 3) {
+  // Trail Read: first try to reuse revealed obstacles from players ahead
+  // AI will reuse up to 2 obstacles it can match before drawing fresh
+  const { state: afterReuse, reused } = tryReuseRevealedObstacles(s, playerIndex, 2);
+  s = afterReuse;
+
+  // Draw fresh obstacles if we haven't tackled enough yet
+  const targetObstacles = 2; // AI wants to tackle up to 2 obstacles total
+  const freshNeeded = Math.max(0, (p().hand.length >= 3 ? targetObstacles : 1) - reused);
+
+  for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
+    // Skip second fresh draw if hand is too small
+    if (i > 0 && p().hand.length < 3) break;
     s = processAction(s, playerIndex, { type: 'draw_obstacle' });
     s = resolveActiveObstacles(s, playerIndex);
   }

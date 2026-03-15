@@ -72,6 +72,16 @@ Each player draws technique cards from the deck:
 
 Players take turns in **standings order** — the player with the **highest progress (leader) goes first**. Each player gets **5 Actions** per turn.
 
+#### Trail Read (Key Mechanic)
+
+The leader draws obstacles **blind** from the deck. But every player behind them can **see** what the leader faced. This creates a stacking information advantage for trailing players:
+
+- **Reuse a Revealed Obstacle**: Instead of drawing blind, a trailing player can choose to tackle an obstacle that a player ahead already revealed. Since they know exactly what symbols it requires, they can check their hand first — a major advantage.
+- **Draw Fresh**: The player can instead draw a new obstacle from the deck (blind, like the leader). **However, once you draw fresh, you can no longer reuse revealed obstacles for the rest of your turn.**
+- **Stacking Advantage**: The further back you are in standings, the more revealed obstacles you can see. Player 4 can see obstacles from Players 1, 2, and 3.
+
+This makes going first a **disadvantage** — the leader blazes the trail blind while trailing players read the terrain.
+
 #### Actions (cost 1 Action each unless noted):
 
 | Action | Effect | Cost |
@@ -86,7 +96,8 @@ Players take turns in **standings order** — the player with the **highest prog
 
 | Action | Effect |
 |--------|--------|
-| **Draw Obstacle** | Flip the top obstacle card face-up |
+| **Draw Obstacle** | Flip the top obstacle card face-up (locks you out of revealed pool) |
+| **Reuse Obstacle** | Tackle a revealed obstacle from a player ahead (only before drawing fresh) |
 | **Resolve Obstacle** | Match it with hand cards or take the blow-by penalty |
 
 #### Flow Actions (spend Flow resource):
@@ -122,9 +133,10 @@ Each player rolls their accumulated **Hazard Dice** (max 5 rolled at once):
 
 After rounds 3, 6, 9, and 12:
 
-1. The **leader** gains +1 Flow.
-2. Players may **purchase Upgrades** from the shop using Flow.
-3. Each player may **repair 1 Penalty Card** (remove it) by spending 2 Flow.
+1. **Last place** draws 2 extra cards (Regroup).
+2. **Last place** gains +1 Flow (catch-up bonus).
+3. Each player may **repair 1 Penalty Card** (discard it).
+4. Players may **purchase Upgrades** from the shop using Flow.
 
 ---
 

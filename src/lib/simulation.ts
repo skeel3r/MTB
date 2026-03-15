@@ -37,16 +37,51 @@ function resolveActiveObstacles(state: GameState, playerIndex: number): GameStat
   return s;
 }
 
+/**
+ * Trail Read: try to reuse revealed obstacles the player can match.
+ * Returns updated state and number reused.
+ */
+function tryReuseRevealed(state: GameState, playerIndex: number, maxReuse: number): { state: GameState; reused: number } {
+  let s = state;
+  let reused = 0;
+  const p = () => s.players[playerIndex];
+
+  if (p().drewFreshObstacle) return { state: s, reused: 0 };
+
+  for (let attempt = 0; attempt < maxReuse && !p().crashed && !p().turnEnded; attempt++) {
+    const revealed = s.roundRevealedObstacles;
+    let bestIdx = -1;
+    for (let i = 0; i < revealed.length; i++) {
+      const obs = revealed[i];
+      const mode = obs.matchMode ?? 'all';
+      if (canMatchObstacle(p().hand, obs.symbols, mode)) {
+        bestIdx = i;
+        break;
+      }
+    }
+    if (bestIdx < 0) break;
+
+    s = processAction(s, playerIndex, { type: 'reuse_obstacle', payload: { revealedIndex: bestIdx } });
+    s = resolveActiveObstacles(s, playerIndex);
+    reused++;
+  }
+
+  return { state: s, reused };
+}
+
 function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): GameState {
   let s = { ...state };
   const p = () => s.players[playerIndex];
 
-  // Flip and resolve 1-2 obstacles (free actions)
-  if (!p().crashed && !p().turnEnded) {
-    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
-    s = resolveActiveObstacles(s, playerIndex);
-  }
-  if (strategy === 'aggressive' && !p().crashed && !p().turnEnded) {
+  // Trail Read: first try to reuse revealed obstacles from players ahead
+  const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, 2);
+  s = afterReuse;
+
+  // Determine how many fresh obstacles to draw
+  const targetObstacles = strategy === 'aggressive' ? 2 : 1;
+  const freshNeeded = Math.max(0, targetObstacles - reused);
+
+  for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
     s = processAction(s, playerIndex, { type: 'draw_obstacle' });
     s = resolveActiveObstacles(s, playerIndex);
   }

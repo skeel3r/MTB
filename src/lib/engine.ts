@@ -36,6 +36,7 @@ export function createPlayer(id: string, name: string): PlayerState {
     combosTriggered: [],
     totalCardsPlayed: 0,
     totalCombos: 0,
+    drewFreshObstacle: false,
   };
 }
 
@@ -66,6 +67,7 @@ export function initGame(playerNames: string[]): GameState {
     obstacleDeck: createObstacleDeck(),
     obstacleDiscard: [],
     activeObstacles: [],
+    roundRevealedObstacles: [],
     trailHazards: createTrailHazards(),
     currentHazards: [],
     lastHazardRolls: [],
@@ -188,6 +190,7 @@ export function advancePhase(state: GameState): GameState {
           p.cannotBrake = false;
           p.cardsPlayedThisTurn = [];
           p.combosTriggered = [];
+          p.drewFreshObstacle = false;
         }
         // Turn order: leader goes first (highest progress)
         {
@@ -237,8 +240,9 @@ function executeScrollDescent(state: GameState): GameState {
     setToken(player.grid, 0, row5col >= 0 ? row5col : 2);
   }
 
-  // Clear active obstacles from previous round (obstacles are now drawn manually)
+  // Clear active obstacles and revealed obstacles from previous round
   s.activeObstacles = [];
+  s.roundRevealedObstacles = [];
 
   s.log.push('All tokens shifted down. New token entered Row 1.');
   return s;
@@ -429,10 +433,9 @@ function executeStageBreak(state: GameState): GameState {
   lastPlayer.hand.push(...drawn);
   s.log.push(`Regroup: ${last.name} (last place) draws 2 cards.`);
 
-  // Flow: leader gains 1
-  const leaderPlayer = s.players.find(p => p.id === leader.id)!;
-  leaderPlayer.flow++;
-  s.log.push(`Flow: ${leader.name} (leader) gains 1 Flow.`);
+  // Flow: last place gains 1 (catch-up mechanic — leader already has positional advantage)
+  lastPlayer.flow++;
+  s.log.push(`Flow: ${last.name} (last place) gains 1 Flow.`);
 
   // Repair: everyone discards 1 penalty
   for (const player of s.players) {
@@ -804,7 +807,10 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'draw_obstacle': {
-      // Free action - flip an obstacle from the deck, must be resolved before other actions
+      // Free action - flip an obstacle from the deck (draws blind)
+      // Trail Read: drawing fresh locks the player out of the revealed obstacle pool
+      player.drewFreshObstacle = true;
+
       if (s.obstacleDeck.length === 0) {
         // Reshuffle discard pile back into deck
         if (s.obstacleDiscard.length > 0) {
@@ -819,6 +825,25 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       const drawn = s.obstacleDeck.shift()!;
       s.activeObstacles.push(drawn);
       s.log.push(`${player.name}: Flipped obstacle "${drawn.name}" (${drawn.symbols.map(sym => sym).join(', ')})`);
+      break;
+    }
+
+    case 'reuse_obstacle': {
+      // Trail Read: tackle an obstacle already revealed by a player ahead
+      // Only available if the player hasn't drawn a fresh obstacle yet this turn
+      if (player.drewFreshObstacle) {
+        s.log.push(`${player.name}: Already drew a fresh obstacle — can't reuse revealed obstacles.`);
+        break;
+      }
+      const revealedIdx = (action.payload?.revealedIndex as number) ?? 0;
+      if (revealedIdx >= s.roundRevealedObstacles.length) {
+        s.log.push(`${player.name}: No revealed obstacle at index ${revealedIdx}.`);
+        break;
+      }
+      // Copy the revealed obstacle into active obstacles for this player to resolve
+      const reused = { ...s.roundRevealedObstacles[revealedIdx] };
+      s.activeObstacles.push(reused);
+      s.log.push(`${player.name}: Trail Read — tackles revealed obstacle "${reused.name}" (${reused.symbols.join(', ')})`);
       break;
     }
 
@@ -879,6 +904,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
 
         if (allMatched) {
           s.activeObstacles.splice(obstacleIndex, 1);
+          // Trail Read: add to revealed pool so trailing players can see & reuse it
+          s.roundRevealedObstacles.push({ ...obstacle });
           s.obstacleDiscard.push(obstacle);
           break;
         }
@@ -900,6 +927,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       }
 
       s.activeObstacles.splice(obstacleIndex, 1);
+      // Trail Read: even blow-by obstacles are revealed (trailing players saw the attempt)
+      s.roundRevealedObstacles.push({ ...obstacle });
       s.obstacleDiscard.push(obstacle);
 
       // Check crash: 6+ hazard dice
