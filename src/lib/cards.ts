@@ -77,47 +77,60 @@ export function createPenaltyDeck(): PenaltyCard[] {
   return shuffle(cards);
 }
 
-export function createTrailDeck(): MainTrailCard[] {
-  const cards: MainTrailCard[] = [];
-  const names = [
-    'Rocky Descent', 'Forest Trail', 'Gravel Switch', 'Mud Chute',
-    'Root Garden', 'Cliff Edge', 'Stream Cross', 'Boulder Field',
-    'Sand Wash', 'Tight Trees', 'Open Meadow', 'Steep Drop',
-    'Technical Rock', 'Loose Shale', 'Final Sprint',
-  ];
+// Column label to 0-indexed lane: C1=0, C2=1, C3=2, C4=3, C5=4
+const C1 = 0, C2 = 1, C3 = 2, C4 = 3, C5 = 4;
 
-  for (let i = 0; i < 15; i++) {
-    const speedLimit = 2 + Math.floor(Math.random() * 4); // 2-5
-    const obstacleCount = 2 + Math.floor(Math.random() * 3); // 2-4
+/**
+ * Fixed trail card definitions.
+ * Each entry: [name, speedLimit, rowsChecked, targets (per row, -1 = not checked)]
+ * Rows are R1-R5 (0-indexed as 0-4). Only rows with a target >= 0 are checked.
+ */
+const TRAIL_DATA: [string, number, (number | -1)[]][] = [
+  ['Start Gate',     6, [C3, C3, C3, -1, -1]],
+  ['Right Hip',      4, [C3, C4, C5, C5, -1]],
+  ['Lower Bridge',   5, [C5, C4, C3, -1, -1]],
+  ['Rock Drop',      2, [C3, C3, C3, C3, C3]],
+  ['Berms (Left)',   3, [C3, C2, C1, C1, -1]],
+  ['The Tabletop',   6, [C1, C2, C3, -1, -1]],
+  ['Shark Fin',      4, [C3, C3, C4, C5, C5]],
+  ['Ski Jumps',      5, [C5, C4, C3, -1, -1]],
+  ['Moon Booter',    5, [C3, C3, C3, C3, C3]],
+  ['Merchant Link',  4, [C3, C3, C2, C1, -1]],
+  ['Tech Woods',     2, [C1, C1, C2, C3, C3]],
+  ['Brake Bumps',    3, [C3, C4, C2, C4, -1]],
+  ['Tombstone',      4, [C3, C4, C3, C2, -1]],
+  ['High Berms',     4, [C1, C1, C1, -1, -1]],
+  ['Hero Shot',      6, [C3, C3, C3, C3, C3]],
+];
+
+export function createTrailDeck(): MainTrailCard[] {
+  return TRAIL_DATA.map(([name, speedLimit, targets], i) => {
+    const checkedRows: number[] = [];
+    const targetLanes: number[] = [];
+    for (let r = 0; r < targets.length; r++) {
+      if (targets[r] >= 0) {
+        checkedRows.push(r);
+        targetLanes.push(targets[r]);
+      }
+    }
+
+    // Generate obstacle symbols based on the number of checked rows
+    const obstacleCount = checkedRows.length;
     const obstacleSymbols: CardSymbol[] = [];
     for (let j = 0; j < obstacleCount; j++) {
-      obstacleSymbols.push(SYMBOLS[Math.floor(Math.random() * 4)]);
+      obstacleSymbols.push(SYMBOLS[j % SYMBOLS.length]);
     }
 
-    // Checked rows: 2-3 random rows from 0-5
-    const numChecked = 2 + Math.floor(Math.random() * 2);
-    const checkedRows: number[] = [];
-    while (checkedRows.length < numChecked) {
-      const r = Math.floor(Math.random() * 6);
-      if (!checkedRows.includes(r)) checkedRows.push(r);
-    }
-    checkedRows.sort((a, b) => a - b);
-
-    // Target lanes for each checked row
-    const targetLanes = checkedRows.map(() => Math.floor(Math.random() * 5));
-
-    cards.push({
+    return {
       id: i + 1,
-      name: names[i],
+      name,
       speedLimit,
       checkedRows,
       targetLanes,
       obstacleCount,
       obstacleSymbols,
-    });
-  }
-
-  return cards;
+    };
+  });
 }
 
 export function createTrailHazards(): TrailHazard[] {
