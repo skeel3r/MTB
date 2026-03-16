@@ -84,6 +84,8 @@ export interface PlayerState {
   totalCombos: number;
   /** Trail Read: set to true once the player draws a fresh obstacle, locking them out of revealed pool */
   drewFreshObstacle: boolean;
+  /** Momentum earned from obstacles this turn — applied at end of turn, not immediately */
+  pendingMomentum: number;
 }
 
 // ── Game state ──

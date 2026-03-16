@@ -65,21 +65,16 @@ function resolveActiveObstacles(state: GameState, playerIndex: number): GameStat
     const hasMatch = canMatchObstacle(player.hand, obs.symbols, mode);
 
     if (hasMatch) {
+      // Match with cards — progress + deferred momentum
       s = processAction(s, playerIndex, {
         type: 'resolve_obstacle',
-        payload: { obstacleIndex: 0, choice: 'match' },
-      });
-    } else if (player.momentum >= 2) {
-      // "Send It" — spend 2 momentum to force-clear when no card match available
-      s = processAction(s, playerIndex, {
-        type: 'send_it',
         payload: { obstacleIndex: 0 },
       });
     } else {
-      // Take the penalty
+      // Send It (2 momentum + 1 hazard die) or crash if momentum < 2
       s = processAction(s, playerIndex, {
-        type: 'resolve_obstacle',
-        payload: { obstacleIndex: 0, choice: 'take_penalty' },
+        type: 'send_it',
+        payload: { obstacleIndex: 0 },
       });
     }
   }

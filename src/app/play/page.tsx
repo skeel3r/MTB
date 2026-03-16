@@ -483,27 +483,31 @@ export default function PlayPage() {
                     <div className="text-xs font-bold text-center leading-tight">{obs.name}</div>
                     <div className="text-[9px] text-red-300/70 mt-0.5 text-center">{obs.penaltyType}</div>
                     <div className="flex gap-1.5 mt-2 w-full flex-wrap">
-                      <button
-                        onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i, choice: 'match' } })}
-                        disabled={!canMatch}
-                        className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        Match
-                      </button>
-                      <button
-                        onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                        disabled={!canSendIt}
-                        className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-amber-700 hover:bg-amber-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        title="Spend 2 Momentum to force-clear"
-                      >
-                        Send It
-                      </button>
-                      <button
-                        onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i, choice: 'take_penalty' } })}
-                        className="w-full px-2 py-1 rounded text-[10px] font-bold bg-red-800 hover:bg-red-700 transition-colors"
-                      >
-                        Blow-By
-                      </button>
+                      {canMatch ? (
+                        <button
+                          onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i } })}
+                          className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-emerald-700 hover:bg-emerald-600 transition-colors"
+                        >
+                          Match
+                        </button>
+                      ) : null}
+                      {canSendIt ? (
+                        <button
+                          onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
+                          className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-amber-700 hover:bg-amber-600 transition-colors"
+                          title="Spend 2 Momentum + 1 Hazard Die"
+                        >
+                          Send It (-2M)
+                        </button>
+                      ) : null}
+                      {!canMatch && !canSendIt ? (
+                        <button
+                          onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
+                          className="w-full px-2 py-1.5 rounded text-[10px] font-bold bg-red-800 animate-pulse"
+                        >
+                          CRASH
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 );

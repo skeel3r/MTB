@@ -3,3 +3,5 @@ Inside Line,grip,"Ignore Grip penalties this turn. Shift any 1 token up to 2 lan
 Manual,air,"Swap any 2 adjacent-row tokens.",5
 Flick,agility,"Shift tokens in Rows 1-3 one lane toward center.",5
 Recover,balance,"Remove 2 Hazard Dice (or repair 1 Penalty). Center any 1 token.",5
+Pump,air,"Shift tokens in Rows 4-6 one lane toward center.",3
+Whip,grip,"Move any 1 token directly to any lane.",3

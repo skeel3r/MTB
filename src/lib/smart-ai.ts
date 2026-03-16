@@ -375,37 +375,17 @@ function scoreActions(state: GameState, playerIndex: number): ScoredAction[] {
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Evaluate whether to match an obstacle or take the blow-by penalty.
- * Even when a match is possible, it might be better to blow-by if
- * the card is more valuable held for a future obstacle.
- *
- * For the smart AI, we almost always match if we can — the progress
- * gain is the primary win condition. But we evaluate the tradeoff.
+ * Check if matching an obstacle is possible and worthwhile.
+ * With the new rules, you MUST match or Send It (no optional blow-by),
+ * so this always returns true if matching is possible.
  */
 function shouldMatchObstacle(
-  state: GameState,
-  playerIndex: number,
-  obstacle: ProgressObstacle,
+  _state: GameState,
+  _playerIndex: number,
+  _obstacle: ProgressObstacle,
 ): boolean {
-  const player = state.players[playerIndex];
-  const mode = obstacle.matchMode ?? 'all';
-  if (!canMatchObstacle(player.hand, obstacle.symbols, mode)) return false;
-
-  // Simulate both outcomes
-  const matchState = processAction(state, playerIndex, {
-    type: 'resolve_obstacle',
-    payload: { obstacleIndex: 0, choice: 'match' },
-  });
-  const penaltyState = processAction(state, playerIndex, {
-    type: 'resolve_obstacle',
-    payload: { obstacleIndex: 0, choice: 'take_penalty' },
-  });
-
-  const matchScore = evaluateState(matchState, playerIndex).total;
-  const penaltyScore = evaluateState(penaltyState, playerIndex).total;
-
-  // Match if it produces a better state
-  return matchScore >= penaltyScore;
+  // Always match if possible — alternative is spending 2 momentum + hazard die
+  return true;
 }
 
 /**
@@ -631,39 +611,25 @@ function resolveObstaclesSmart(state: GameState, playerIndex: number): GameState
     // Check if ghost copy would help
     if (!canMatchObstacle(player.hand, obs.symbols, mode) && shouldGhostCopy(s, playerIndex, obs)) {
       s = processAction(s, playerIndex, { type: 'flow_spend', payload: { flowAction: 'ghost_copy' } });
-      // After ghost copy, treat as matchable (the engine handles the symbol duplication conceptually)
+      // After ghost copy, treat as matchable
       s = processAction(s, playerIndex, {
         type: 'resolve_obstacle',
-        payload: { obstacleIndex: 0, choice: 'match' },
+        payload: { obstacleIndex: 0 },
       });
       continue;
     }
 
-    const doMatch = shouldMatchObstacle(s, playerIndex, obs);
-    if (doMatch) {
+    if (canMatchObstacle(player.hand, obs.symbols, mode)) {
+      // Match with cards — progress + deferred momentum
       s = processAction(s, playerIndex, {
         type: 'resolve_obstacle',
-        payload: { obstacleIndex: 0, choice: 'match' },
+        payload: { obstacleIndex: 0 },
       });
-    } else if (player.momentum >= 2) {
-      // "Send It" — spend 2 momentum to force-clear when no card match available
-      // Evaluate if Send It is better than taking the penalty
-      const sendItState = processAction(s, playerIndex, { type: 'send_it', payload: { obstacleIndex: 0 } });
-      const penaltyState = processAction(s, playerIndex, {
-        type: 'resolve_obstacle',
-        payload: { obstacleIndex: 0, choice: 'take_penalty' },
-      });
-      const sendItScore = evaluateState(sendItState, playerIndex).total;
-      const penaltyScore = evaluateState(penaltyState, playerIndex).total;
-      if (sendItScore >= penaltyScore) {
-        s = sendItState;
-      } else {
-        s = penaltyState;
-      }
     } else {
+      // Send It (2 momentum + 1 hazard die) or crash if momentum < 2
       s = processAction(s, playerIndex, {
-        type: 'resolve_obstacle',
-        payload: { obstacleIndex: 0, choice: 'take_penalty' },
+        type: 'send_it',
+        payload: { obstacleIndex: 0 },
       });
     }
   }

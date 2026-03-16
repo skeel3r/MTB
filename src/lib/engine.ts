@@ -37,6 +37,7 @@ export function createPlayer(id: string, name: string): PlayerState {
     totalCardsPlayed: 0,
     totalCombos: 0,
     drewFreshObstacle: false,
+    pendingMomentum: 0,
   };
 }
 
@@ -276,6 +277,7 @@ export function advancePhase(state: GameState): GameState {
           p.cardsPlayedThisTurn = [];
           p.combosTriggered = [];
           p.drewFreshObstacle = false;
+          p.pendingMomentum = 0;
         }
         // Turn order: leader goes first (highest progress)
         {
@@ -683,6 +685,30 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
             }
             break;
           }
+          case 'Pump': {
+            // Air: shift rows 4-6 (indices 3-5) toward center — lower grid complement to Flick
+            let moved = 0;
+            for (const r of [3, 4, 5]) {
+              const col = getTokenCol(player.grid, r);
+              if (col >= 0) {
+                const dir = col > 2 ? -1 : col < 2 ? 1 : 0;
+                if (dir !== 0) { setToken(player.grid, r, col + dir); moved++; }
+              }
+            }
+            s.log.push(`${player.name}: Pump — ${moved} token${moved !== 1 ? 's' : ''} shifted toward center (Rows 4-6).`);
+            break;
+          }
+          case 'Whip': {
+            // Grip: move any 1 token directly to any lane — precision placement
+            const whipRow = (action.payload?.targetRow as number) ?? 0;
+            const whipLane = (action.payload?.targetLane as number) ?? 2;
+            const clampedLane = Math.max(0, Math.min(4, whipLane));
+            if (whipRow >= 0 && whipRow < 6) {
+              setToken(player.grid, whipRow, clampedLane);
+              s.log.push(`${player.name}: Whip — placed Row ${whipRow + 1} token on lane ${clampedLane + 1}.`);
+            }
+            break;
+          }
         }
 
         // ── Combo Detection ──
@@ -761,61 +787,16 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'tackle': {
-      // Free action - tackle an obstacle
-      // Obstacle effect ALWAYS applies (terrain affects everyone), matching earns progress
+      // Legacy action — redirects to resolve_obstacle with auto-detect
       const obstacleIndex = (action.payload?.obstacleIndex as number) ?? 0;
       if (obstacleIndex >= s.activeObstacles.length) break;
-
       const obstacle = s.activeObstacles[obstacleIndex];
-
-      // Step 1: Obstacle effect ALWAYS fires
-      s.log.push(`${player.name}: Hits "${obstacle.name}" — ${obstacle.blowByText}`);
-      applyObstaclePenalty(player, obstacle, s);
-
-      // Step 2: Check match
       const matchCardIndices = findObstacleMatch(player.hand, obstacle);
-      const progressGain = player.commitment === 'pro' ? 2 : 1;
-
       if (matchCardIndices) {
-        const usedWilds = matchCardIndices.length > obstacle.symbols.length ||
-          (obstacle.matchMode === 'any' && matchCardIndices.length > 1);
-        const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
-        for (const idx of sortedIndices) {
-          const matchCard = player.hand.splice(idx, 1)[0];
-          s.techniqueDiscard.push(matchCard);
-        }
-        player.progress += progressGain;
-        player.momentum++;
-        player.obstaclesCleared++;
-        const wildNote = usedWilds ? ' (Forced Through!)' : '';
-        s.log.push(`${player.name}: Matched "${obstacle.name}"${wildNote}! +${progressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
+        return processAction(s, playerIndex, { type: 'resolve_obstacle', payload: { obstacleIndex } });
       } else {
-        // Blow-By: additional penalties on top of the always-applied effect
-        player.hazardDice++;
-        player.momentum = Math.max(0, player.momentum - 1);
-        s.log.push(`${player.name}: Blow-By on "${obstacle.name}"! +1 Hazard Die, -1 Momentum`);
-
-        if (player.commitment === 'pro') {
-          player.hazardDice++;
-          if (s.penaltyDeck.length > 0) {
-            player.penalties.push(s.penaltyDeck.shift()!);
-          }
-          s.log.push(`${player.name}: Pro Line Blow-By! +1 extra Hazard Die + Penalty Card`);
-        }
+        return processAction(s, playerIndex, { type: 'send_it', payload: { obstacleIndex } });
       }
-
-      s.activeObstacles.splice(obstacleIndex, 1);
-
-      if (player.hazardDice >= 6) {
-        player.crashed = true;
-        player.turnEnded = true;
-        for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
-        if (s.penaltyDeck.length > 0) {
-          player.penalties.push(s.penaltyDeck.shift()!);
-        }
-        s.log.push(`${player.name}: CRASH! Reset to center, penalty card drawn.`);
-      }
-      break;
     }
 
     case 'commit_line': {
@@ -929,90 +910,98 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'resolve_obstacle': {
-      // Obstacle effect ALWAYS applies — terrain hits everyone.
-      // Matching earns progress; blow-by adds hazard dice and momentum loss on top.
+      // Match an obstacle with cards. Terrain effect always fires.
+      // Momentum earned is DEFERRED to end of turn.
+      // If player can't match, they must Send It (2 momentum) or crash.
       const obstacleIndex = (action.payload?.obstacleIndex as number) ?? 0;
       if (obstacleIndex >= s.activeObstacles.length) break;
-      const choice = (action.payload?.choice as string) ?? 'take_penalty';
       const obstacle = s.activeObstacles[obstacleIndex];
 
-      // Step 1: Obstacle effect ALWAYS fires
+      // Step 1: Terrain effect ALWAYS fires
       s.log.push(`${player.name}: Hits "${obstacle.name}" — ${obstacle.blowByText}`);
       applyObstaclePenalty(player, obstacle, s);
 
-      // Step 2: Match or Blow-By
-      if (choice === 'match') {
-        const matchCardIndices = findObstacleMatch(player.hand, obstacle);
+      // Step 2: Try to match with cards
+      const matchCardIndices = findObstacleMatch(player.hand, obstacle);
 
-        if (matchCardIndices) {
-          const usedWilds = matchCardIndices.length > obstacle.symbols.length ||
-            (obstacle.matchMode === 'any' && matchCardIndices.length > 1);
+      if (matchCardIndices) {
+        const usedWilds = matchCardIndices.length > obstacle.symbols.length ||
+          (obstacle.matchMode === 'any' && matchCardIndices.length > 1);
 
-          const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
-          for (const idx of sortedIndices) {
-            const matchCard = player.hand.splice(idx, 1)[0];
-            s.techniqueDiscard.push(matchCard);
-          }
-          const resolveProgressGain = player.commitment === 'pro' ? 2 : 1;
-          player.progress += resolveProgressGain;
-          player.momentum++;
-          player.obstaclesCleared++;
-          const wildNote = usedWilds ? ' (Forced Through!)' : '';
-          s.log.push(`${player.name}: Matched "${obstacle.name}"${wildNote}! +${resolveProgressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
-
-          s.activeObstacles.splice(obstacleIndex, 1);
-          revealObstacle(s, player.id, obstacle);
-          s.obstacleDiscard.push(obstacle);
-          break;
-        } else {
-          s.log.push(`${player.name}: Cannot match "${obstacle.name}" — blow-by.`);
+        const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
+        for (const idx of sortedIndices) {
+          const matchCard = player.hand.splice(idx, 1)[0];
+          s.techniqueDiscard.push(matchCard);
         }
-      }
-
-      // Blow-By: additional penalties on top of the always-applied effect
-      player.hazardDice++;
-      player.momentum = Math.max(0, player.momentum - 1);
-      s.log.push(`${player.name}: Blow-By on "${obstacle.name}"! +1 Hazard Die, -1 Momentum`);
-
-      if (player.commitment === 'pro') {
-        player.hazardDice++;
+        const resolveProgressGain = player.commitment === 'pro' ? 2 : 1;
+        player.progress += resolveProgressGain;
+        player.pendingMomentum++; // Deferred — applied at end of turn
+        player.obstaclesCleared++;
+        const wildNote = usedWilds ? ' (Forced Through!)' : '';
+        s.log.push(`${player.name}: Matched "${obstacle.name}"${wildNote}! +${resolveProgressGain} Progress, +1 Pending Momentum (${player.obstaclesCleared} cleared)`);
+      } else {
+        // Can't match — this shouldn't happen if UI is correct (should use send_it instead)
+        // Force crash
+        s.log.push(`${player.name}: Cannot match "${obstacle.name}" and no momentum — CRASH!`);
+        player.crashed = true;
+        player.turnEnded = true;
+        for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
+        player.momentum = Math.max(0, player.momentum - 3);
         if (s.penaltyDeck.length > 0) {
           player.penalties.push(s.penaltyDeck.shift()!);
+          s.log.push(`${player.name}: Drew penalty card from crash.`);
         }
-        s.log.push(`${player.name}: Pro Line Blow-By! +1 extra Hazard Die + Penalty Card`);
       }
 
       s.activeObstacles.splice(obstacleIndex, 1);
       revealObstacle(s, player.id, obstacle);
       s.obstacleDiscard.push(obstacle);
 
-      if (player.hazardDice >= 6) {
+      // Crash check from terrain effect accumulating hazard dice
+      if (!player.crashed && player.hazardDice >= 6) {
         player.crashed = true;
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         if (s.penaltyDeck.length > 0) {
           player.penalties.push(s.penaltyDeck.shift()!);
         }
-        s.log.push(`${player.name}: CRASH! Reset to center, penalty card drawn.`);
+        player.momentum = Math.max(0, player.momentum - 3);
+        s.log.push(`${player.name}: CRASH from hazard dice! Reset to center, penalty card drawn.`);
       }
       break;
     }
 
     case 'send_it': {
-      // "Send It" — spend 2 Momentum + 1 Hazard Die to force-clear any active obstacle
-      // Obstacle effect still applies (terrain hits everyone)
+      // "Send It" / Blow-By — spend 2 Momentum + 1 Hazard Die to clear obstacle without cards
+      // Terrain effect always fires. If momentum < 2, this action is invalid (player must crash).
       const sendObstacleIdx = (action.payload?.obstacleIndex as number) ?? 0;
       if (sendObstacleIdx >= s.activeObstacles.length) {
         s.log.push(`${player.name}: No active obstacle to Send It through.`);
         break;
       }
       if (player.momentum < 2) {
-        s.log.push(`${player.name}: Not enough Momentum to Send It (need 2, have ${player.momentum}).`);
+        // Can't send it — force crash
+        const crashObs = s.activeObstacles[sendObstacleIdx];
+        s.log.push(`${player.name}: Hits "${crashObs.name}" — ${crashObs.blowByText}`);
+        applyObstaclePenalty(player, crashObs, s);
+        s.log.push(`${player.name}: Can't match or Send It — CRASH!`);
+        player.crashed = true;
+        player.turnEnded = true;
+        for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
+        player.momentum = Math.max(0, player.momentum - 3);
+        if (s.penaltyDeck.length > 0) {
+          player.penalties.push(s.penaltyDeck.shift()!);
+          s.log.push(`${player.name}: Drew penalty card from crash.`);
+        }
+        s.activeObstacles.splice(sendObstacleIdx, 1);
+        revealObstacle(s, player.id, crashObs);
+        s.obstacleDiscard.push(crashObs);
         break;
       }
+
       const sentObstacle = s.activeObstacles[sendObstacleIdx];
 
-      // Step 1: Obstacle effect ALWAYS fires
+      // Step 1: Terrain effect ALWAYS fires
       s.log.push(`${player.name}: Hits "${sentObstacle.name}" — ${sentObstacle.blowByText}`);
       applyObstaclePenalty(player, sentObstacle, s);
 
@@ -1028,21 +1017,30 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       revealObstacle(s, player.id, sentObstacle);
       s.obstacleDiscard.push(sentObstacle);
 
-      // Crash check
+      // Crash check from accumulated hazard dice
       if (player.hazardDice >= 6) {
         player.crashed = true;
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
+        player.momentum = Math.max(0, player.momentum - 3);
         if (s.penaltyDeck.length > 0) {
           player.penalties.push(s.penaltyDeck.shift()!);
         }
-        s.log.push(`${player.name}: CRASH! Reset to center, penalty card drawn.`);
+        s.log.push(`${player.name}: CRASH from hazard dice! Reset to center, penalty card drawn.`);
       }
       break;
     }
 
     case 'end_turn': {
       player.turnEnded = true;
+
+      // Apply deferred momentum from obstacle matches
+      if (player.pendingMomentum > 0) {
+        player.momentum = Math.min(player.momentum + player.pendingMomentum, 12);
+        s.log.push(`${player.name}: +${player.pendingMomentum} deferred Momentum from obstacles → Momentum ${player.momentum}`);
+        player.pendingMomentum = 0;
+      }
+
       s.log.push(`${player.name}: Ends turn.`);
 
       // Move to next player in standings order (highest progress first)

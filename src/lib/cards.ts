@@ -9,21 +9,22 @@ const SYMBOL_NAMES: Record<CardSymbol, string> = {
   balance: 'Level',
 };
 
-/** Official technique card definitions (one per symbol) */
-const TECHNIQUE_DEFS: { name: string; symbol: CardSymbol; actionText: string }[] = [
-  { name: 'Inside Line',  symbol: 'grip',    actionText: 'Ignore Grip penalties this turn. Shift any 1 token up to 2 lanes.' },
-  { name: 'Manual',       symbol: 'air',     actionText: 'Swap any 2 adjacent-row tokens.' },
-  { name: 'Flick',        symbol: 'agility', actionText: 'Shift tokens in Rows 1-3 one lane toward center.' },
-  { name: 'Recover',      symbol: 'balance', actionText: 'Remove 2 Hazard Dice (or repair 1 Penalty). Center any 1 token.' },
+/** Official technique card definitions */
+const TECHNIQUE_DEFS: { name: string; symbol: CardSymbol; actionText: string; copies: number }[] = [
+  { name: 'Inside Line',  symbol: 'grip',    actionText: 'Ignore Grip penalties this turn. Shift any 1 token up to 2 lanes.', copies: 5 },
+  { name: 'Manual',       symbol: 'air',     actionText: 'Swap any 2 adjacent-row tokens.', copies: 5 },
+  { name: 'Flick',        symbol: 'agility', actionText: 'Shift tokens in Rows 1-3 one lane toward center.', copies: 5 },
+  { name: 'Recover',      symbol: 'balance', actionText: 'Remove 2 Hazard Dice (or repair 1 Penalty). Center any 1 token.', copies: 5 },
+  { name: 'Pump',         symbol: 'air',     actionText: 'Shift tokens in Rows 4-6 one lane toward center.', copies: 3 },
+  { name: 'Whip',         symbol: 'grip',    actionText: 'Move any 1 token directly to any lane.', copies: 3 },
 ];
 
 export function createTechniqueDeck(): TechniqueCard[] {
   const cards: TechniqueCard[] = [];
   let id = 0;
 
-  // 5 copies of each technique card = 20 total
   for (const def of TECHNIQUE_DEFS) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < def.copies; i++) {
       cards.push({
         id: `tech-${id++}`,
         name: def.name,

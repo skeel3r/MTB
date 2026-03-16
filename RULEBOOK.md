@@ -8,7 +8,7 @@
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| Technique Cards | 20 (5 per symbol) | 4 unique cards with grip, air, agility, or balance symbols |
+| Technique Cards | 26 (see table) | 6 unique cards with grip, air, agility, or balance symbols |
 | Obstacle Cards | 30 (3 per type) | 10 unique obstacles requiring symbol matches |
 | Penalty Cards | 24 (2 per type) | 12 unique mechanical failures |
 | Trail Cards | 15 | Define the course layout and speed limits |
@@ -25,7 +25,7 @@ All card data is defined in the `data/` directory as CSV files for easy editing 
 ## Setup
 
 1. Each player receives a **6x5 grid**. Place tokens in the **center lane (C3)** of Rows 1-5.
-2. Shuffle the **Technique Deck** (20 cards), **Obstacle Deck** (30 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
+2. Shuffle the **Technique Deck** (26 cards), **Obstacle Deck** (30 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
 3. Place the **Trail Deck** (15 cards) in order — these define the 15-round course.
 4. Each player starts with:
    - **Momentum: 2**
@@ -143,14 +143,16 @@ After rounds 3, 6, 9, and 12:
 
 ## Technique Cards
 
-There are 4 unique technique cards (5 copies each = 20 total). Each card has a **symbol** used for obstacle matching and an **action effect** when played.
+There are 6 unique technique cards (26 total). Each card has a **symbol** used for obstacle matching and an **action effect** when played.
 
-| Card | Symbol | Effect When Played |
-|------|--------|--------------------|
-| **Inside Line** | Grip (red) | Ignore Grip penalties this turn. **Shift any 1 token up to 2 lanes** in either direction. |
-| **Manual** | Air (blue) | **Swap any 2 adjacent-row tokens.** Choose which pair of adjacent rows. |
-| **Flick** | Agility (green) | **Shift tokens in Rows 1-3** one lane toward center. |
-| **Recover** | Balance (orange) | Remove 2 Hazard Dice (or repair 1 Penalty if at 0 dice). **Center any 1 token** (move to C3). |
+| Card | Symbol | Copies | Effect When Played |
+|------|--------|--------|--------------------|
+| **Inside Line** | Grip (red) | 5 | Ignore Grip penalties this turn. **Shift any 1 token up to 2 lanes** in either direction. |
+| **Manual** | Air (blue) | 5 | **Swap any 2 adjacent-row tokens.** Choose which pair of adjacent rows. |
+| **Flick** | Agility (green) | 5 | **Shift tokens in Rows 1-3** one lane toward center. |
+| **Recover** | Balance (orange) | 5 | Remove 2 Hazard Dice (or repair 1 Penalty if at 0 dice). **Center any 1 token** (move to C3). |
+| **Pump** | Air (blue) | 3 | **Shift tokens in Rows 4-6** one lane toward center. Lower grid complement to Flick. |
+| **Whip** | Grip (red) | 3 | **Move any 1 token directly to any lane.** Precision placement. |
 
 Playing a technique card costs **1 Action** and discards the card. The card's symbol is consumed — it cannot also be used to match an obstacle.
 
@@ -200,7 +202,8 @@ Obstacles are flipped face-up during the Sprint phase as a free action. Players 
 - Check the obstacle's required **symbols** and **match mode**.
 - **"All" mode**: Discard cards matching ALL listed symbols (using different cards for each).
 - **"Any" mode**: Need just ONE card matching any listed symbol.
-- On success: **+1 Momentum**, **+1 Progress** (or +2 on Pro Line). Obstacle is discarded.
+- On success: **+1 Pending Momentum**, **+1 Progress** (or +2 on Pro Line). Obstacle is discarded.
+- **Deferred Momentum**: Momentum earned from matching obstacles is not available immediately. It accumulates as "pending momentum" and is added to your actual momentum at the **end of your turn**. This means you can't spend obstacle-earned momentum to Send It through later obstacles in the same turn.
 
 #### "Forced Through" — Wild Matching
 
@@ -219,14 +222,15 @@ Spend **2 Momentum** to force-clear any active obstacle, regardless of hand card
 - **Does NOT grant** the usual +1 Momentum reward (you spent momentum, not cards).
 - Useful when your hand can't match but you've built up speed.
 
-#### Blow-By (Failing to Match)
+#### Crash (Can't Match or Send It)
 
-Additional penalties on top of the terrain effect:
+If you cannot match the obstacle with cards (including wilds) **and** cannot or choose not to Send It, you **crash immediately**:
 
-1. **+1 Hazard Die**
-2. **-1 Momentum**
-3. If on **Pro Line**: +1 additional Hazard Die and draw a Penalty Card
-5. **Crash Check**: If Hazard Dice reach 6+, you crash immediately (tokens reset to center, draw Penalty Card)
+1. All tokens reset to **center (C3)**
+2. Lose **3 Momentum**
+3. Draw **1 Penalty Card**
+4. **+1 Hazard Die**
+5. Your turn ends immediately
 
 ### Obstacle List
 
@@ -338,7 +342,7 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 | Crash momentum penalty | -3 | Lost on crash |
 | Turn order | Leader first | Highest progress goes first each sprint |
 | Stage Break interval | Every 3 rounds | Rounds 3, 6, 9, 12 |
-| Technique deck size | 20 | 4 cards x 5 copies |
+| Technique deck size | 26 | 6 unique cards (see Technique Cards table) |
 | Obstacle deck size | 30 | 10 types x 3 copies |
 | Penalty deck size | 24 | 12 types x 2 copies |
 
