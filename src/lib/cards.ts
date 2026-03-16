@@ -104,10 +104,10 @@ export const OBSTACLE_DEFINITIONS: ProgressObstacle[] = [
   { id: 'obs-9',  name: 'Rooty Drop',      symbols: ['grip', 'air'],       matchMode: 'any', penaltyType: 'Wipeout',     blowByText: 'Take 2 Hazard Dice and end turn immediately.' },
   { id: 'obs-10', name: 'Slippery Berm',   symbols: ['grip', 'agility'],   matchMode: 'any', penaltyType: 'Wash Out',    blowByText: 'Shift Row 1 and Row 2 three lanes.' },
   // ── Hard Obstacles (2-symbol "all" match, 3 momentum Send It cost) ──
-  { id: 'obs-11', name: 'The Canyon Gap',   symbols: ['air', 'balance'],    matchMode: 'all', sendItCost: 3, penaltyType: 'Full Send',   blowByText: 'Lose 3 Momentum and take 1 Hazard Die.' },
+  { id: 'obs-11', name: 'The Canyon Gap',   symbols: ['air', 'balance'],    matchMode: 'all', sendItCost: 3, penaltyType: 'Full Send',   blowByText: 'Shift Rows 1 and 2 two lanes away from center.' },
   { id: 'obs-12', name: 'Rock Garden',      symbols: ['grip', 'agility'],   matchMode: 'all', sendItCost: 3, penaltyType: 'Pinball',     blowByText: 'Shift Rows 1-3 one lane away from center.' },
-  { id: 'obs-13', name: 'Gnarly Root Web',  symbols: ['balance', 'grip'],   matchMode: 'all', sendItCost: 3, penaltyType: 'Tangled',     blowByText: 'Lose 2 Momentum. Row 2 token locks next turn.' },
-  { id: 'obs-14', name: 'Steep Chute',      symbols: ['air', 'agility'],    matchMode: 'all', sendItCost: 3, penaltyType: 'Overshoot',   blowByText: 'Take 2 Hazard Dice. Shift Row 1 two lanes randomly.' },
+  { id: 'obs-13', name: 'Gnarly Root Web',  symbols: ['balance', 'grip'],   matchMode: 'all', sendItCost: 3, penaltyType: 'Tangled',     blowByText: 'Shift Rows 2-4 one lane left.' },
+  { id: 'obs-14', name: 'Steep Chute',      symbols: ['air', 'agility'],    matchMode: 'all', sendItCost: 3, penaltyType: 'Overshoot',   blowByText: 'Shift Row 1 two lanes and Row 3 one lane away from center.' },
 ];
 
 /** Create a shuffled obstacle deck (3 copies of each obstacle = 30 total) */

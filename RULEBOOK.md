@@ -247,10 +247,10 @@ If you cannot match the obstacle with cards (including wilds) **and** cannot or 
 | Granite Slab | Balance | All | Locked | Row 1 token cannot move next turn |
 | Rooty Drop | Grip, Air | Any | Wipeout | +2 Hazard Dice, end turn immediately |
 | Slippery Berm | Grip, Agility | Any | Wash Out | Shift Rows 1-2 three lanes |
-| **The Canyon Gap** | **Air, Balance** | **All** | **Full Send** | **Lose 3 Momentum and +1 Hazard Die** |
+| **The Canyon Gap** | **Air, Balance** | **All** | **Full Send** | **Shift Rows 1-2 two lanes from center** |
 | **Rock Garden** | **Grip, Agility** | **All** | **Pinball** | **Shift Rows 1-3 one lane from center** |
-| **Gnarly Root Web** | **Balance, Grip** | **All** | **Tangled** | **Lose 2 Momentum. Row 2 locks next turn** |
-| **Steep Chute** | **Air, Agility** | **All** | **Overshoot** | **+2 Hazard Dice. Row 1 shifts 2 lanes randomly** |
+| **Gnarly Root Web** | **Balance, Grip** | **All** | **Tangled** | **Shift Rows 2-4 one lane left** |
+| **Steep Chute** | **Air, Agility** | **All** | **Overshoot** | **Shift Row 1 two lanes + Row 3 one lane from center** |
 
 > **Hard Obstacles** (bold above): Require matching **both** symbols. Send It costs **3 Momentum** instead of 2. These obstacles appear less frequently in the deck (3 copies each like standard obstacles).
 
