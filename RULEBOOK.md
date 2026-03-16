@@ -9,7 +9,7 @@
 | Component | Count | Description |
 |-----------|-------|-------------|
 | Technique Cards | 26 (see table) | 6 unique cards with grip, air, agility, or balance symbols |
-| Obstacle Cards | 30 (3 per type) | 10 unique obstacles requiring symbol matches |
+| Obstacle Cards | 42 (3 per type) | 14 unique obstacles (10 standard + 4 hard) requiring symbol matches |
 | Penalty Cards | 24 (2 per type) | 12 unique mechanical failures |
 | Trail Cards | 15 | Define the course layout and speed limits |
 | Trail Hazards | 30+ | Environmental effects that shift token positions |
@@ -25,7 +25,7 @@ All card data is defined in the `data/` directory as CSV files for easy editing 
 ## Setup
 
 1. Each player receives a **6x5 grid**. Place tokens in the **center lane (C3)** of Rows 1-5.
-2. Shuffle the **Technique Deck** (26 cards), **Obstacle Deck** (30 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
+2. Shuffle the **Technique Deck** (26 cards), **Obstacle Deck** (42 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
 3. Place the **Trail Deck** (15 cards) in order — these define the 15-round course.
 4. Each player starts with:
    - **Momentum: 2**
@@ -99,7 +99,7 @@ This makes going first a **disadvantage** — the leader blazes the trail blind 
 | **Draw Obstacle** | Flip the top obstacle card face-up (locks you out of revealed pool) |
 | **Reuse Obstacle** | Tackle a revealed obstacle from a player ahead (only before drawing fresh) |
 | **Resolve Obstacle** | Match it with hand cards (including wilds) or take the blow-by penalty |
-| **Send It** | Spend 2 Momentum to force-clear an active obstacle |
+| **Send It** | Spend 2-3 Momentum to force-clear an active obstacle (hard obstacles cost 3) |
 
 #### Flow Actions (spend Flow resource):
 
@@ -215,8 +215,9 @@ Any **2 cards of the same symbol** can substitute for **1 card of any other symb
 
 #### "Send It" — Momentum-Powered Clear
 
-Spend **2 Momentum** to force-clear any active obstacle, regardless of hand cards. This is a **free action** (no Action cost).
+Spend **Momentum** to force-clear any active obstacle, regardless of hand cards. This is a **free action** (no Action cost).
 
+- **Standard obstacles** cost **2 Momentum**. **Hard obstacles** cost **3 Momentum**.
 - On success: **+1 Progress** (or +2 on Pro Line). Obstacle is discarded and counts as cleared.
 - **+1 Hazard Die** — sending it through rough terrain without technique is risky.
 - **Does NOT grant** the usual +1 Momentum reward (you spent momentum, not cards).
@@ -246,6 +247,12 @@ If you cannot match the obstacle with cards (including wilds) **and** cannot or 
 | Granite Slab | Balance | All | Locked | Row 1 token cannot move next turn |
 | Rooty Drop | Grip, Air | Any | Wipeout | +2 Hazard Dice, end turn immediately |
 | Slippery Berm | Grip, Agility | Any | Wash Out | Shift Rows 1-2 three lanes |
+| **The Canyon Gap** | **Air, Balance** | **All** | **Full Send** | **Lose 3 Momentum and +1 Hazard Die** |
+| **Rock Garden** | **Grip, Agility** | **All** | **Pinball** | **Shift Rows 1-3 one lane from center** |
+| **Gnarly Root Web** | **Balance, Grip** | **All** | **Tangled** | **Lose 2 Momentum. Row 2 locks next turn** |
+| **Steep Chute** | **Air, Agility** | **All** | **Overshoot** | **+2 Hazard Dice. Row 1 shifts 2 lanes randomly** |
+
+> **Hard Obstacles** (bold above): Require matching **both** symbols. Send It costs **3 Momentum** instead of 2. These obstacles appear less frequently in the deck (3 copies each like standard obstacles).
 
 ---
 
@@ -343,7 +350,7 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 | Turn order | Leader first | Highest progress goes first each sprint |
 | Stage Break interval | Every 3 rounds | Rounds 3, 6, 9, 12 |
 | Technique deck size | 26 | 6 unique cards (see Technique Cards table) |
-| Obstacle deck size | 30 | 10 types x 3 copies |
+| Obstacle deck size | 42 | 14 types x 3 copies (10 standard + 4 hard) |
 | Penalty deck size | 24 | 12 types x 2 copies |
 
 ---

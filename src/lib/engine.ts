@@ -972,14 +972,16 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'send_it': {
-      // "Send It" / Blow-By — spend 2 Momentum + 1 Hazard Die to clear obstacle without cards
-      // Terrain effect always fires. If momentum < 2, this action is invalid (player must crash).
+      // "Send It" / Blow-By — spend momentum + 1 Hazard Die to clear obstacle without cards
+      // Cost is obstacle.sendItCost (default 2). Hard obstacles cost 3.
+      // Terrain effect always fires. If momentum < cost, player must crash.
       const sendObstacleIdx = (action.payload?.obstacleIndex as number) ?? 0;
       if (sendObstacleIdx >= s.activeObstacles.length) {
         s.log.push(`${player.name}: No active obstacle to Send It through.`);
         break;
       }
-      if (player.momentum < 2) {
+      const sendCost = s.activeObstacles[sendObstacleIdx].sendItCost ?? 2;
+      if (player.momentum < sendCost) {
         // Can't send it — force crash
         const crashObs = s.activeObstacles[sendObstacleIdx];
         s.log.push(`${player.name}: Hits "${crashObs.name}" — ${crashObs.blowByText}`);
@@ -1006,12 +1008,13 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       applyObstaclePenalty(player, sentObstacle, s);
 
       // Step 2: Pay momentum cost + hazard die, earn progress
-      player.momentum -= 2;
+      const thisSendCost = sentObstacle.sendItCost ?? 2;
+      player.momentum -= thisSendCost;
       player.hazardDice++;
       const sendProgressGain = player.commitment === 'pro' ? 2 : 1;
       player.progress += sendProgressGain;
       player.obstaclesCleared++;
-      s.log.push(`${player.name}: SENDS IT through "${sentObstacle.name}"! -2 Momentum, +1 Hazard Die, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
+      s.log.push(`${player.name}: SENDS IT through "${sentObstacle.name}"! -${thisSendCost} Momentum, +1 Hazard Die, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
 
       s.activeObstacles.splice(sendObstacleIdx, 1);
       revealObstacle(s, player.id, sentObstacle);

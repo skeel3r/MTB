@@ -467,7 +467,8 @@ export default function PlayPage() {
                   return true;
                 })();
 
-                const canSendIt = currentPlayer.momentum >= 2;
+                const obsSendCost = obs.sendItCost ?? 2;
+                const canSendIt = currentPlayer.momentum >= obsSendCost;
 
                 return (
                   <div
@@ -497,7 +498,7 @@ export default function PlayPage() {
                           className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-amber-700 hover:bg-amber-600 transition-colors"
                           title="Spend 2 Momentum + 1 Hazard Die"
                         >
-                          Send It (-2M)
+                          Send It (-{obsSendCost}M)
                         </button>
                       ) : null}
                       {!canMatch && !canSendIt ? (

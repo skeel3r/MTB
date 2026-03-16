@@ -71,7 +71,7 @@ function resolveActiveObstacles(state: GameState, playerIndex: number): GameStat
         payload: { obstacleIndex: 0 },
       });
     } else {
-      // Send It (2 momentum + 1 hazard die) or crash if momentum < 2
+      // Send It (variable momentum + 1 hazard die) or crash if insufficient
       s = processAction(s, playerIndex, {
         type: 'send_it',
         payload: { obstacleIndex: 0 },
@@ -724,7 +724,7 @@ export function runMonteCarlo(
  * Uses hypergeometric probability to compute exact chance of matching
  * each obstacle given a hand size drawn from the technique deck.
  *
- * Deck: 20 cards — 5 grip, 5 air, 5 agility, 5 balance
+ * Deck: 26 cards — 8 grip, 8 air, 5 agility, 5 balance
  */
 
 function choose(n: number, k: number): number {
@@ -763,8 +763,8 @@ export interface ObstacleMatchProbability {
 }
 
 export function computeObstacleMatchProbabilities(): ObstacleMatchProbability[] {
-  const N = 20; // deck size
-  const symbolCounts: Record<string, number> = { grip: 5, air: 5, agility: 5, balance: 5 };
+  const N = 26; // deck size
+  const symbolCounts: Record<string, number> = { grip: 8, air: 8, agility: 5, balance: 5 };
 
   // Rough momentum distribution weights for hand sizes 2-6
   // (momentum typically 2-5, capped at 6)

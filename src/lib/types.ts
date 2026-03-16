@@ -9,6 +9,8 @@ export interface ProgressObstacle {
   symbols: CardSymbol[];
   /** 'all' = need every symbol, 'any' = need just one. Defaults to 'all' */
   matchMode?: 'all' | 'any';
+  /** Momentum cost to Send It through this obstacle. Defaults to 2 */
+  sendItCost?: number;
   penaltyType: string;
   blowByText: string;
 }

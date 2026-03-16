@@ -463,9 +463,10 @@ function shouldDrawFreshObstacle(
   const symbolsInHand: Record<string, number> = { grip: 0, air: 0, agility: 0, balance: 0 };
   for (const c of player.hand) symbolsInHand[c.symbol]++;
 
-  // Average match probability across all obstacle types
+  // Average match probability across all obstacle types (14 total)
   // 8 single-symbol obstacles: P(match) = P(have at least 1 of that symbol)
   // 2 dual-symbol 'any' obstacles: P(match) = P(have at least 1 of either)
+  // 4 hard dual-symbol 'all' obstacles: P(match) = P(have both symbols or wilds)
   let totalMatchProb = 0;
   const syms: CardSymbol[] = ['grip', 'air', 'agility', 'balance'];
 
@@ -475,12 +476,21 @@ function shouldDrawFreshObstacle(
     totalMatchProb += hasIt * 2; // 2 obstacles of this type
   }
 
-  // Dual-symbol 'any' obstacles
+  // Dual-symbol 'any' obstacles (2 total)
   const hasGripOrAir = (symbolsInHand['grip'] > 0 || symbolsInHand['air'] > 0) ? 1 : 0;
   const hasGripOrAgility = (symbolsInHand['grip'] > 0 || symbolsInHand['agility'] > 0) ? 1 : 0;
   totalMatchProb += hasGripOrAir + hasGripOrAgility;
 
-  const avgMatchProb = totalMatchProb / 10;
+  // Hard dual-symbol 'all' obstacles (4 total): need both symbols (or wilds)
+  const hardPairs: [string, string][] = [['air', 'balance'], ['grip', 'agility'], ['balance', 'grip'], ['air', 'agility']];
+  for (const [symA, symB] of hardPairs) {
+    const hasBoth = (symbolsInHand[symA] > 0 && symbolsInHand[symB] > 0) ? 1 : 0;
+    // Also check wild matching: any symbol with 2+ copies can sub for missing
+    const canWild = !hasBoth && Object.values(symbolsInHand).some(n => n >= 2) ? 0.5 : 0;
+    totalMatchProb += hasBoth || canWild;
+  }
+
+  const avgMatchProb = totalMatchProb / 14;
 
   // Expected value of drawing: P(match) * matchValue + P(miss) * blowByPenalty
   const progressGain = player.commitment === 'pro' ? 2 : 1;
@@ -626,7 +636,7 @@ function resolveObstaclesSmart(state: GameState, playerIndex: number): GameState
         payload: { obstacleIndex: 0 },
       });
     } else {
-      // Send It (2 momentum + 1 hazard die) or crash if momentum < 2
+      // Send It (variable momentum + 1 hazard die) or crash if insufficient
       s = processAction(s, playerIndex, {
         type: 'send_it',
         payload: { obstacleIndex: 0 },
