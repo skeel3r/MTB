@@ -1,5 +1,5 @@
 import { GameState, SimulationConfig, SimulationResult, ProgressObstacle, CardSymbol, TechniqueCard } from './types';
-import { initGame, advancePhase, processAction, getStandings } from './engine';
+import { initGame, advancePhase, processAction, getStandings, sortByProgressRandomTies } from './engine';
 import { OBSTACLE_DEFINITIONS } from './cards';
 import { smartAiPlaySprint, smartAiCommit } from './smart-ai';
 
@@ -321,11 +321,10 @@ export function runSingleGame(
     state = advancePhase(state); // preparation
     state = advancePhase(state); // sprint start (sets currentPlayerIndex by standings)
 
-    // Sprint: respect turn order from engine (leader goes first)
-    const turnOrder = [...state.players]
-      .map((p, i) => ({ i, progress: p.progress }))
-      .sort((a, b) => b.progress - a.progress)
-      .map(x => x.i);
+    // Sprint: leader goes first, random tiebreak
+    const turnOrder = sortByProgressRandomTies(
+      state.players.map((p, i) => ({ i, progress: p.progress }))
+    ).map(x => x.i);
 
     for (const pi of turnOrder) {
       if (useSmartAi) {
@@ -410,10 +409,9 @@ export function runSingleGameFast(
     state = advancePhase(state); // preparation
     state = advancePhase(state); // sprint start
 
-    const turnOrder = [...state.players]
-      .map((p, i) => ({ i, progress: p.progress }))
-      .sort((a, b) => b.progress - a.progress)
-      .map(x => x.i);
+    const turnOrder = sortByProgressRandomTies(
+      state.players.map((p, i) => ({ i, progress: p.progress }))
+    ).map(x => x.i);
 
     for (const pi of turnOrder) {
       if (useSmartAi) {
@@ -1174,11 +1172,10 @@ function runSingleGameWithOverride(
 
     state = advancePhase(state); // sprint start
 
-    // Respect turn order (leader first)
-    const sensTurnOrder = [...state.players]
-      .map((p, i) => ({ i, progress: p.progress }))
-      .sort((a, b) => b.progress - a.progress)
-      .map(x => x.i);
+    // Respect turn order (leader first, random tiebreak)
+    const sensTurnOrder = sortByProgressRandomTies(
+      state.players.map((p, i) => ({ i, progress: p.progress }))
+    ).map(x => x.i);
     for (const pi of sensTurnOrder) {
       state = smartAiPlaySprint(state, pi);
     }

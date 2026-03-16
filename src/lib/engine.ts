@@ -83,6 +83,17 @@ export function initGame(playerNames: string[], trailId?: string): GameState {
   };
 }
 
+// ── Turn order: sort by progress, randomize ties ──
+export function sortByProgressRandomTies(players: { i: number; progress: number }[]): { i: number; progress: number }[] {
+  // Shuffle first so ties are random (Fisher-Yates)
+  for (let i = players.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [players[i], players[j]] = [players[j], players[i]];
+  }
+  // Stable-ish sort by progress descending (JS sort is stable, so equal-progress players stay shuffled)
+  return players.sort((a, b) => b.progress - a.progress);
+}
+
 // ── Fast deep clone (avoids JSON.parse/stringify overhead) ──
 function clonePlayer(p: PlayerState): PlayerState {
   return {
@@ -340,11 +351,11 @@ export function advancePhase(state: GameState): GameState {
           p.drewFreshObstacle = false;
           p.pendingMomentum = 0;
         }
-        // Turn order: leader goes first (highest progress)
+        // Turn order: leader goes first (highest progress, random tiebreak)
         {
-          const sorted = [...s.players]
-            .map((p, i) => ({ i, progress: p.progress }))
-            .sort((a, b) => b.progress - a.progress); // highest progress first
+          const sorted = sortByProgressRandomTies(
+            s.players.map((p, i) => ({ i, progress: p.progress }))
+          );
           s.currentPlayerIndex = sorted[0].i;
           s.log.push(`Sprint phase! Turn order: ${sorted.map(x => s.players[x.i].name).join(' → ')} (leader goes first).`);
         }
