@@ -44,10 +44,13 @@ export function createPlayer(id: string, name: string): PlayerState {
 // ── Initialize game ──
 export function initGame(playerNames: string[], trailId?: string): GameState {
   const techniqueDeck = createTechniqueDeck();
+  const playerCount = playerNames.length;
   const players = playerNames.map((name, i) => {
     const p = createPlayer(`player-${i}`, name);
-    // Draw 2 initial cards
-    p.hand = techniqueDeck.splice(0, 2);
+    // Earlier players get more starting cards to offset Trail Read disadvantage
+    // P1 gets playerCount cards, P2 gets playerCount-1, etc.
+    const startingCards = Math.max(1, playerCount - i);
+    p.hand = techniqueDeck.splice(0, startingCards);
     return p;
   });
 
