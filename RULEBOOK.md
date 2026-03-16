@@ -11,7 +11,7 @@
 | Technique Cards | 52 (see table) | 6 unique cards with grip, air, agility, or balance symbols |
 | Obstacle Cards | 42 (3 per type) | 14 unique obstacles (10 standard + 4 hard) requiring symbol matches |
 | Penalty Cards | 24 (2 per type) | 12 unique mechanical failures |
-| Trail Cards | 15 | Define the course layout and speed limits |
+| Trail Cards | 12-15 per trail pack | Define the course layout and speed limits |
 | Trail Hazards | 30+ | Environmental effects that shift token positions |
 | Upgrade Cards | 6 | Purchasable bike improvements |
 | Player Grid | 1 per player | 6 rows x 5 columns (lanes C1-C5) |
@@ -26,7 +26,7 @@ All card data is defined in the `data/` directory as CSV files for easy editing 
 
 1. Each player receives a **6x5 grid**. Place tokens in the **center lane (C3)** of Rows 1-5.
 2. Shuffle the **Technique Deck** (52 cards), **Obstacle Deck** (42 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
-3. Place the **Trail Deck** (15 cards) in order — these define the 15-round course.
+3. Choose a **Trail Pack** and place the **Trail Deck** in order — these define the course.
 4. Each player starts with:
    - **Momentum: 2**
    - **Flow: 0**
@@ -292,12 +292,17 @@ Purchased during **Stage Break** phases using Flow. Each upgrade can only be pur
 
 ---
 
-## Trail Cards
+## Trail Cards (Trail Packs)
 
-15 cards played in order, defining each round's course section. Each has:
+Trail cards are played in order, defining each round's course section. Each trail pack is a different real-world trail with its own length and character. The game length matches the number of stages in the selected trail.
 
+Each trail card has:
 - **Speed Limit**: Momentum is capped at this value each round during Preparation. Any excess converts to Hazard Dice. Players must brake during the Sprint to manage speed for upcoming trail sections.
 - **Target Lanes**: Specific lanes (C1-C5) for checked rows. Used during Alignment to determine matches.
+
+### Trail Pack 1: Whistler A-Line (Whistler, BC) — 15 stages
+
+The iconic jump trail. Big airs, fast berms, and hero moments.
 
 | # | Trail | Speed Limit | Checked Rows & Targets |
 |---|-------|-------------|----------------------|
@@ -316,6 +321,25 @@ Purchased during **Stage Break** phases using Flow. Each upgrade can only be pur
 | 13 | Tombstone | 4 | R1:C3, R2:C4, R3:C3, R4:C2 |
 | 14 | High Berms | 4 | R1:C1, R2:C1, R3:C1 |
 | 15 | Hero Shot | 6 | R1:C3, R2:C3, R3:C3, R4:C3, R5:C3 |
+
+### Trail Pack 2: Tiger Mountain "The Predator" (Issaquah, WA) — 12 stages
+
+A classic PNW steeps trail. Tight trees, root nests, and constant vertical drops.
+
+| # | Trail | Speed Limit | Checked Rows & Targets |
+|---|-------|-------------|----------------------|
+| 1 | The High Traverse | 4 | R1:C3, R2:C3, R3:C3 |
+| 2 | Root Garden Entry | 2 | R1:C3, R2:C2, R3:C1, R4:C2, R5:C3 |
+| 3 | The Vertical Chute | 5 | R1:C3, R2:C3, R3:C3 |
+| 4 | Needle Eye Gap | 4 | R1:C2, R2:C2, R3:C2, R4:C1 |
+| 5 | Loamy Switchbacks | 3 | R1:C1, R2:C2, R3:C3, R4:C4, R5:C5 |
+| 6 | The Waterfall | 2 | R1:C3, R2:C3, R3:C3, R4:C3, R5:C3 |
+| 7 | Mossy Slab | 4 | R1:C4, R2:C5, R3:C5, R4:C4 |
+| 8 | Brake Bump Gully | 3 | R1:C3, R2:C4, R3:C2, R4:C4 |
+| 9 | The Cedar Gap | 5 | R1:C3, R2:C3, R3:C3 |
+| 10 | Final Tech Sprint | 4 | R1:C3, R2:C2, R3:C1, R4:C2, R5:C3 |
+| 11 | The Stump Jump | 5 | R1:C3, R2:C3, R3:C4, R4:C5 |
+| 12 | Exit Woods | 4 | R1:C3, R2:C3, R3:C3 |
 
 ---
 
@@ -337,7 +361,7 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Rounds per game | 15 | Fixed course length |
+| Rounds per game | 12-15 | Matches trail pack stage count |
 | Actions per turn | 5 | Reset each sprint |
 | Starting Momentum | 2 | |
 | Max Momentum | 12 | Hard cap (also capped per trail card speed limit) |

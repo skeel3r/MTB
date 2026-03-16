@@ -117,6 +117,10 @@ export interface GameState {
   players: PlayerState[];
   currentPlayerIndex: number;
   round: number;
+  /** Total rounds in this trail (matches trail deck length) */
+  trailLength: number;
+  /** Which trail pack is being played */
+  trailId: string;
   phase: GamePhase;
   activeTrailCard: MainTrailCard | null;
   queuedTrailCard: MainTrailCard | null;

@@ -499,7 +499,7 @@ function shouldDrawFreshObstacle(
   const drawEV = matchEV + blowByEV;
 
   // Threshold scales with urgency (later rounds = more willing to take risk)
-  const roundUrgency = Math.max(0.5, state.round / 15);
+  const roundUrgency = Math.max(0.5, state.round / state.trailLength);
 
   // First obstacle is almost always worth drawing
   if (obstaclesAlreadyTackled === 0) return drawEV > -2;

@@ -299,10 +299,11 @@ export function runSingleGame(
   const playerNames = Array.from({ length: config.playerCount }, (_, i) => `Player ${i + 1}`);
   let state = initGame(playerNames);
   const roundSnapshots: RoundSnapshot[] = [];
+  const totalRounds = state.trailLength;
 
   const useSmartAi = config.strategy === 'smart' || config.strategy === 'balanced';
 
-  for (let round = 0; round < 15; round++) {
+  for (let round = 0; round < totalRounds; round++) {
     state = advancePhase(state); // scroll descent
     state = advancePhase(state); // commitment phase
 
@@ -405,10 +406,11 @@ export function computeBalanceSummary(
   let totalHandSize = 0;
   let totalPlayers = 0;
 
-  const progressByRound = new Array(15).fill(0);
-  const momentumByRound = new Array(15).fill(0);
-  const hazardByRound = new Array(15).fill(0);
-  const roundCounts = new Array(15).fill(0);
+  const maxRounds = 20; // support trails up to 20 stages
+  const progressByRound = new Array(maxRounds).fill(0);
+  const momentumByRound = new Array(maxRounds).fill(0);
+  const hazardByRound = new Array(maxRounds).fill(0);
+  const roundCounts = new Array(maxRounds).fill(0);
 
   const trailStats: Record<string, { penalties: number; progress: number; count: number }> = {};
   const playerTotals: Record<string, { progress: number; perfect: number; penalties: number; flow: number; momentum: number; count: number }> = {};
@@ -896,8 +898,9 @@ export function computeGiniAnalysis(
   const penaltyGini = giniCoefficient(allPenalties);
 
   // Gini by round (across all games)
+  const maxRoundsGini = 20; // support trails up to 20 stages
   const progressGiniByRound: number[] = [];
-  for (let round = 0; round < 15; round++) {
+  for (let round = 0; round < maxRoundsGini; round++) {
     const roundProgress: number[] = [];
     for (const snaps of allSnapshots) {
       if (snaps[round]) {
@@ -1051,7 +1054,7 @@ function runSingleGameWithOverride(
     state.techniqueDeck = deck;
   }
 
-  for (let round = 0; round < 15; round++) {
+  for (let round = 0; round < state.trailLength; round++) {
     state = advancePhase(state); // scroll
     state = advancePhase(state); // commitment phase start
     for (let i = 0; i < state.players.length; i++) {

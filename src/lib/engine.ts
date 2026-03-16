@@ -42,7 +42,7 @@ export function createPlayer(id: string, name: string): PlayerState {
 }
 
 // ── Initialize game ──
-export function initGame(playerNames: string[]): GameState {
+export function initGame(playerNames: string[], trailId?: string): GameState {
   const techniqueDeck = createTechniqueDeck();
   const players = playerNames.map((name, i) => {
     const p = createPlayer(`player-${i}`, name);
@@ -51,13 +51,16 @@ export function initGame(playerNames: string[]): GameState {
     return p;
   });
 
-  const trailDeck = createTrailDeck();
+  const trailDeck = createTrailDeck(trailId);
+  const trailLength = trailDeck.length;
   const queuedTrailCard = trailDeck.shift()!;
 
   return {
     players,
     currentPlayerIndex: 0,
     round: 0,
+    trailLength,
+    trailId: trailId ?? 'whistler-a-line',
     phase: 'setup',
     activeTrailCard: null,
     queuedTrailCard,
@@ -235,7 +238,7 @@ export function advancePhase(state: GameState): GameState {
       return executeStageBreak(s);
     }
     // Check for game over
-    if (s.round >= 15) {
+    if (s.round >= s.trailLength) {
       s.phase = 'game_over';
       s.log.push('Game Over!');
       return s;
@@ -246,7 +249,7 @@ export function advancePhase(state: GameState): GameState {
   }
 
   if (s.phase === 'stage_break') {
-    if (s.round >= 15) {
+    if (s.round >= s.trailLength) {
       s.phase = 'game_over';
       s.log.push('Game Over!');
       return s;

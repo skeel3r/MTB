@@ -69,26 +69,62 @@ export function createPenaltyDeck(): PenaltyCard[] {
 const C1 = 0, C2 = 1, C3 = 2, C4 = 3, C5 = 4;
 
 /**
- * Fixed trail card definitions.
- * Each entry: [name, speedLimit, rowsChecked, targets (per row, -1 = not checked)]
+ * Trail pack definitions.
+ * Each entry: [name, speedLimit, targets (per row, -1 = not checked)]
  * Rows are R1-R5 (0-indexed as 0-4). Only rows with a target >= 0 are checked.
  */
-const TRAIL_DATA: [string, number, (number | -1)[]][] = [
-  ['Start Gate',     6, [C3, C3, C3, -1, -1]],
-  ['Right Hip',      4, [C3, C4, C5, C5, -1]],
-  ['Lower Bridge',   5, [C5, C4, C3, -1, -1]],
-  ['Rock Drop',      2, [C3, C3, C3, C3, C3]],
-  ['Berms (Left)',   3, [C3, C2, C1, C1, -1]],
-  ['The Tabletop',   6, [C1, C2, C3, -1, -1]],
-  ['Shark Fin',      4, [C3, C3, C4, C5, C5]],
-  ['Ski Jumps',      5, [C5, C4, C3, -1, -1]],
-  ['Moon Booter',    5, [C3, C3, C3, C3, C3]],
-  ['Merchant Link',  4, [C3, C3, C2, C1, -1]],
-  ['Tech Woods',     2, [C1, C1, C2, C3, C3]],
-  ['Brake Bumps',    3, [C3, C4, C2, C4, -1]],
-  ['Tombstone',      4, [C3, C4, C3, C2, -1]],
-  ['High Berms',     4, [C1, C1, C1, -1, -1]],
-  ['Hero Shot',      6, [C3, C3, C3, C3, C3]],
+export interface TrailPack {
+  id: string;
+  name: string;
+  location: string;
+  description: string;
+  stages: [string, number, (number | -1)[]][];
+}
+
+export const TRAIL_PACKS: TrailPack[] = [
+  {
+    id: 'whistler-a-line',
+    name: 'Whistler A-Line',
+    location: 'Whistler, BC',
+    description: 'The iconic jump trail. Big airs, fast berms, and hero moments.',
+    stages: [
+      ['Start Gate',     6, [C3, C3, C3, -1, -1]],
+      ['Right Hip',      4, [C3, C4, C5, C5, -1]],
+      ['Lower Bridge',   5, [C5, C4, C3, -1, -1]],
+      ['Rock Drop',      2, [C3, C3, C3, C3, C3]],
+      ['Berms (Left)',   3, [C3, C2, C1, C1, -1]],
+      ['The Tabletop',   6, [C1, C2, C3, -1, -1]],
+      ['Shark Fin',      4, [C3, C3, C4, C5, C5]],
+      ['Ski Jumps',      5, [C5, C4, C3, -1, -1]],
+      ['Moon Booter',    5, [C3, C3, C3, C3, C3]],
+      ['Merchant Link',  4, [C3, C3, C2, C1, -1]],
+      ['Tech Woods',     2, [C1, C1, C2, C3, C3]],
+      ['Brake Bumps',    3, [C3, C4, C2, C4, -1]],
+      ['Tombstone',      4, [C3, C4, C3, C2, -1]],
+      ['High Berms',     4, [C1, C1, C1, -1, -1]],
+      ['Hero Shot',      6, [C3, C3, C3, C3, C3]],
+    ],
+  },
+  {
+    id: 'tiger-mountain',
+    name: 'Tiger Mountain "The Predator"',
+    location: 'Issaquah, WA',
+    description: 'A classic PNW steeps trail. Tight trees, root nests, and constant vertical drops.',
+    stages: [
+      ['The High Traverse',  4, [C3, C3, C3, -1, -1]],
+      ['Root Garden Entry',  2, [C3, C2, C1, C2, C3]],
+      ['The Vertical Chute', 5, [C3, C3, C3, -1, -1]],
+      ['Needle Eye Gap',     4, [C2, C2, C2, C1, -1]],
+      ['Loamy Switchbacks',  3, [C1, C2, C3, C4, C5]],
+      ['The Waterfall',      2, [C3, C3, C3, C3, C3]],
+      ['Mossy Slab',         4, [C4, C5, C5, C4, -1]],
+      ['Brake Bump Gully',   3, [C3, C4, C2, C4, -1]],
+      ['The Cedar Gap',      5, [C3, C3, C3, -1, -1]],
+      ['Final Tech Sprint',  4, [C3, C2, C1, C2, C3]],
+      ['The Stump Jump',     5, [C3, C3, C4, C5, -1]],
+      ['Exit Woods',         4, [C3, C3, C3, -1, -1]],
+    ],
+  },
 ];
 
 // ── Progress Obstacles (fixed definitions) ──
@@ -122,8 +158,9 @@ export function createObstacleDeck(): ProgressObstacle[] {
   return shuffle(deck);
 }
 
-export function createTrailDeck(): MainTrailCard[] {
-  return TRAIL_DATA.map(([name, speedLimit, targets], i) => {
+export function createTrailDeck(trailId?: string): MainTrailCard[] {
+  const pack = TRAIL_PACKS.find(p => p.id === trailId) ?? TRAIL_PACKS[0];
+  return pack.stages.map(([name, speedLimit, targets], i) => {
     const checkedRows: number[] = [];
     const targetLanes: number[] = [];
     for (let r = 0; r < targets.length; r++) {
