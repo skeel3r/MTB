@@ -147,16 +147,14 @@ There are 4 unique technique cards (5 copies each = 20 total). Each card has a *
 
 | Card | Symbol | Effect When Played |
 |------|--------|--------------------|
-| **Inside Line** | Grip (red) | Ignore all Grip penalties this turn. **+2 Momentum.** |
-| **Manual** | Air (blue) | Swap Row 1 and Row 2 tokens. **Draw 1 card** (draw 2 if they were in different lanes). |
-| **Flick** | Agility (green) | Shift tokens in Rows 1-2 one lane toward center. **+1 Momentum.** |
-| **Recover** | Balance (orange) | Remove 2 Hazard Dice (or repair 1 Penalty if at 0 dice). **Draw 1 card.** |
+| **Inside Line** | Grip (red) | Ignore Grip penalties this turn. **Shift any 1 token up to 2 lanes** in either direction. |
+| **Manual** | Air (blue) | **Swap any 2 adjacent-row tokens.** Choose which pair of adjacent rows. |
+| **Flick** | Agility (green) | **Shift tokens in Rows 1-3** one lane toward center. |
+| **Recover** | Balance (orange) | Remove 2 Hazard Dice (or repair 1 Penalty if at 0 dice). **Center any 1 token** (move to C3). |
 
 Playing a technique card costs **1 Action** and discards the card. The card's symbol is consumed — it cannot also be used to match an obstacle.
 
-> **Design Note:** Every technique card generates momentum or draws cards when played, so no hand is ever dead weight. Playing cards for their effects is always productive, even when you can't match obstacles.
-
-**Bonus Draw Cap:** A player can draw at most **3 bonus cards per turn** from technique card effects (Manual, Recover). This prevents runaway card-chaining.
+> **Design Note:** Technique cards are repositioning tools, not speed generators. Pedal is for momentum; cards are for fixing your line. Players use cards and steering actions to position tokens for alignment, then Pedal to build speed for the next round's card draw.
 
 ### The Combo System
 
@@ -166,14 +164,14 @@ Playing multiple technique cards in a single turn triggers combo bonuses. This c
 
 | Symbol Pair | Synergy Bonus |
 |-------------|---------------|
-| Grip x2 | +2 Momentum burst |
+| Grip x2 | Powerslide Rows 1-2 tokens 2 lanes toward center |
 | Air x2 | Recover 1 Action (the second card is effectively free) |
 | Agility x2 | Realign ALL tokens across all 6 rows toward center |
 | Balance x2 | Clear ALL Hazard Dice |
 
 #### Versatility (3 unique symbols in one turn)
 
-- +1 Momentum
+- +1 Flow
 
 #### Mastery (4 unique symbols in one turn)
 
@@ -181,7 +179,7 @@ Playing multiple technique cards in a single turn triggers combo bonuses. This c
 
 #### Pro Line Combo Bonus
 
-- Playing 2+ technique cards while on the Pro Line grants +1 Momentum.
+- Playing 2+ technique cards while on the Pro Line grants +1 Flow.
 
 ---
 
@@ -189,37 +187,45 @@ Playing multiple technique cards in a single turn triggers combo bonuses. This c
 
 Obstacles are flipped face-up during the Sprint phase as a free action. Players must then resolve each obstacle before taking other actions.
 
-### Matching an Obstacle
+### Resolving an Obstacle
 
+**The obstacle's penalty effect ALWAYS applies** — this represents the terrain itself affecting the rider. Whether you match, Send It, or blow by, the terrain hits you. Matching earns progress; failing earns additional punishment.
+
+**Step 1: Terrain Effect (always)**
+- The obstacle's specific penalty fires immediately (e.g., "Row 1 shifts 2 lanes randomly" for Loose Scree).
+
+**Step 2: Match, Send It, or Blow-By**
+
+#### Matching (Cards)
 - Check the obstacle's required **symbols** and **match mode**.
-- **"All" mode**: Player must discard cards matching ALL listed symbols (using different cards for each).
-- **"Any" mode**: Player needs just ONE card matching any listed symbol.
+- **"All" mode**: Discard cards matching ALL listed symbols (using different cards for each).
+- **"Any" mode**: Need just ONE card matching any listed symbol.
 - On success: **+1 Momentum**, **+1 Progress** (or +2 on Pro Line). Obstacle is discarded.
 
-### "Forced Through" — Wild Matching
+#### "Forced Through" — Wild Matching
 
-Any **2 cards of the same symbol** can substitute for **1 card of any other symbol** when matching obstacles. You're muscling through with raw technique even if it's not the ideal skill.
+Any **2 cards of the same symbol** can substitute for **1 card of any other symbol** when matching. You're muscling through with raw technique even if it's not the ideal skill.
 
 - Example: Need a Grip card but only have 2 Agility cards? Discard both Agility cards to match the Grip requirement.
 - Multiple wilds can be stacked — 4 Balance cards could cover 2 different missing symbols.
 - Wild matches consume 2 cards each, so they cost more hand resources than exact matches.
 
-### "Send It" — Momentum-Powered Clear
+#### "Send It" — Momentum-Powered Clear
 
 Spend **2 Momentum** to force-clear any active obstacle, regardless of hand cards. This is a **free action** (no Action cost).
 
 - On success: **+1 Progress** (or +2 on Pro Line). Obstacle is discarded and counts as cleared.
+- **+1 Hazard Die** — sending it through rough terrain without technique is risky.
 - **Does NOT grant** the usual +1 Momentum reward (you spent momentum, not cards).
 - Useful when your hand can't match but you've built up speed.
 
-### Blow-By (Failing to Match)
+#### Blow-By (Failing to Match)
 
-If you can't (or choose not to) match the obstacle:
+Additional penalties on top of the terrain effect:
 
-1. **+1 Hazard Die** (always)
+1. **+1 Hazard Die**
 2. **-1 Momentum**
-3. Apply the obstacle's specific **penalty effect**
-4. If on **Pro Line**: +1 additional Hazard Die and draw a Penalty Card
+3. If on **Pro Line**: +1 additional Hazard Die and draw a Penalty Card
 5. **Crash Check**: If Hazard Dice reach 6+, you crash immediately (tokens reset to center, draw Penalty Card)
 
 ### Obstacle List

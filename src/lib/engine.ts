@@ -37,7 +37,6 @@ export function createPlayer(id: string, name: string): PlayerState {
     totalCardsPlayed: 0,
     totalCombos: 0,
     drewFreshObstacle: false,
-    bonusCardsDrawn: 0,
   };
 }
 
@@ -106,10 +105,6 @@ function revealObstacle(state: GameState, playerId: string, obstacle: ProgressOb
   state.roundRevealedObstacles.push({ ...obstacle });
 }
 
-// ── Constants ──
-/** Max bonus cards a player can draw per turn from card effects (prevents infinite loops) */
-const MAX_BONUS_DRAWS_PER_TURN = 3;
-
 // ── Draw cards from technique deck ──
 function drawCards(state: GameState, count: number): TechniqueCard[] {
   const cards: TechniqueCard[] = [];
@@ -123,18 +118,6 @@ function drawCards(state: GameState, count: number): TechniqueCard[] {
     }
   }
   return cards;
-}
-
-// ── Draw a bonus card (from card effects), respecting per-turn cap ──
-function drawBonusCard(state: GameState, player: PlayerState): boolean {
-  if (player.bonusCardsDrawn >= MAX_BONUS_DRAWS_PER_TURN) return false;
-  const cards = drawCards(state, 1);
-  if (cards.length > 0) {
-    player.hand.push(cards[0]);
-    player.bonusCardsDrawn++;
-    return true;
-  }
-  return false;
 }
 
 // ── Find obstacle match including "Forced Through" wild matching ──
@@ -293,7 +276,6 @@ export function advancePhase(state: GameState): GameState {
           p.cardsPlayedThisTurn = [];
           p.combosTriggered = [];
           p.drewFreshObstacle = false;
-          p.bonusCardsDrawn = 0;
         }
         // Turn order: leader goes first (highest progress)
         {
@@ -632,50 +614,52 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         // ── Apply base technique card effects ──
         switch (card.name) {
           case 'Inside Line':
-            // Grip mastery: strong momentum engine (+2) + ignore grip penalties
+            // Grip control: ignore grip penalties + shift any 1 token up to 2 lanes
             s.log.push(`${player.name}: Grip penalties ignored this turn.`);
-            player.momentum = Math.min(player.momentum + 2, 12);
-            s.log.push(`${player.name}: +2 Momentum from grip mastery.`);
+            {
+              const targetRow = (action.payload?.targetRow as number) ?? 0;
+              const targetDir = (action.payload?.targetDirection as number) ?? 0;
+              const targetAmount = Math.min(2, Math.abs(targetDir));
+              const col = getTokenCol(player.grid, targetRow);
+              if (col >= 0 && targetAmount > 0) {
+                const dir = targetDir > 0 ? targetAmount : -targetAmount;
+                setToken(player.grid, targetRow, col + dir);
+                s.log.push(`${player.name}: Shifted Row ${targetRow + 1} token ${targetAmount} lane${targetAmount > 1 ? 's' : ''} ${targetDir > 0 ? 'right' : 'left'}.`);
+              }
+            }
             break;
           case 'Manual': {
-            // Air control: swap rows + always draw 1 card (draw 2 if different lanes)
-            const r1col = getTokenCol(player.grid, 0);
-            const r2col = getTokenCol(player.grid, 1);
-            if (r1col >= 0 && r2col >= 0) {
-              const wereInDifferentLanes = r1col !== r2col;
-              if (wereInDifferentLanes) {
-                setToken(player.grid, 0, r2col);
-                setToken(player.grid, 1, r1col);
-              }
-              // Always draw 1 card; draw 2 if rows were in different lanes (bigger reposition = bigger reward)
-              const drawCount = wereInDifferentLanes ? 2 : 1;
-              let drawn = 0;
-              for (let d = 0; d < drawCount; d++) {
-                if (drawBonusCard(s, player)) drawn++;
-              }
-              if (drawn > 0) {
-                s.log.push(`${player.name}: Drew ${drawn} card${drawn > 1 ? 's' : ''} from Manual${wereInDifferentLanes ? ' (different lanes bonus!)' : ''}.`);
+            // Air control: swap any 2 adjacent-row tokens
+            const swapRow1 = (action.payload?.swapRow1 as number) ?? 0;
+            const swapRow2 = swapRow1 + 1; // must be adjacent
+            if (swapRow2 < 6) {
+              const col1 = getTokenCol(player.grid, swapRow1);
+              const col2 = getTokenCol(player.grid, swapRow2);
+              if (col1 >= 0 && col2 >= 0 && col1 !== col2) {
+                setToken(player.grid, swapRow1, col2);
+                setToken(player.grid, swapRow2, col1);
+                s.log.push(`${player.name}: Swapped Row ${swapRow1 + 1} and Row ${swapRow2 + 1} tokens.`);
+              } else if (col1 >= 0 && col2 >= 0) {
+                s.log.push(`${player.name}: Rows ${swapRow1 + 1} and ${swapRow2 + 1} already aligned — no swap needed.`);
               }
             }
             break;
           }
           case 'Flick': {
-            // Agility: shift rows 0-1 toward center + gain momentum for repositioning
+            // Agility: shift rows 1-3 (indices 0-2) toward center
             let moved = 0;
-            for (const r of [0, 1]) {
+            for (const r of [0, 1, 2]) {
               const col = getTokenCol(player.grid, r);
               if (col >= 0) {
                 const dir = col > 2 ? -1 : col < 2 ? 1 : 0;
                 if (dir !== 0) { setToken(player.grid, r, col + dir); moved++; }
               }
             }
-            // Always +1 Momentum (maintaining flow through the turn)
-            player.momentum = Math.min(player.momentum + 1, 12);
-            s.log.push(`${player.name}: +1 Momentum from agility.${moved >= 2 ? ' Both tokens repositioned toward center.' : ''}`);
+            s.log.push(`${player.name}: Flick — ${moved} token${moved !== 1 ? 's' : ''} shifted toward center (Rows 1-3).`);
             break;
           }
           case 'Recover': {
-            // Balance: remove 2 hazard dice (or repair penalty) + draw 1 card
+            // Balance: remove 2 hazard dice (or repair penalty) + center any 1 token
             if (player.hazardDice >= 2) {
               player.hazardDice -= 2;
               s.log.push(`${player.name}: Removed 2 Hazard Dice.`);
@@ -688,9 +672,14 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
             } else {
               s.log.push(`${player.name}: Nothing to recover — already clean!`);
             }
-            // Always draw 1 card (composure under pressure)
-            if (drawBonusCard(s, player)) {
-              s.log.push(`${player.name}: Drew 1 card from composure.`);
+            // Center any 1 token (regain composure)
+            {
+              const centerRow = (action.payload?.centerRow as number) ?? 0;
+              const centerCol = getTokenCol(player.grid, centerRow);
+              if (centerCol >= 0 && centerCol !== 2) {
+                setToken(player.grid, centerRow, 2);
+                s.log.push(`${player.name}: Centered Row ${centerRow + 1} token.`);
+              }
             }
             break;
           }
@@ -704,9 +693,15 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           player.totalCombos++;
           switch (card.symbol) {
             case 'grip':
-              // Double grip = extra momentum burst
-              player.momentum = Math.min(player.momentum + 2, 12);
-              s.log.push(`⚡ SYNERGY (Grip x2): ${player.name} gets +2 Momentum burst!`);
+              // Double grip = shift any 2 tokens up to 2 lanes each (total control)
+              for (const r of [0, 1]) {
+                const col = getTokenCol(player.grid, r);
+                if (col >= 0 && col !== 2) {
+                  const dir = col > 2 ? -1 : col < 2 ? 1 : 0;
+                  if (dir !== 0) setToken(player.grid, r, col + dir * 2);
+                }
+              }
+              s.log.push(`⚡ SYNERGY (Grip x2): ${player.name} powerslides Rows 1-2 tokens 2 lanes toward center!`);
               break;
             case 'air':
               // Double air = free action refund (the combo play is "free")
@@ -735,12 +730,12 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           }
         }
 
-        // VERSATILITY: 3+ unique symbols played = big flow reward
+        // VERSATILITY: 3+ unique symbols played = flow reward
         if (uniqueSymbols >= 3 && playCount >= 3) {
           player.combosTriggered.push('Versatility');
           player.totalCombos++;
-          player.momentum = Math.min(player.momentum + 1, 12);
-          s.log.push(`🌟 VERSATILITY (3 symbols): ${player.name} gains +1 Momentum!`);
+          player.flow++;
+          s.log.push(`🌟 VERSATILITY (3 symbols): ${player.name} gains +1 Flow!`);
         }
 
         // MASTERY: 4 unique symbols = ultimate combo
@@ -756,30 +751,34 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           }
         }
 
-        // PRO LINE COMBO BONUS: cards played while on pro line get extra momentum
+        // PRO LINE COMBO BONUS: cards played while on pro line earn flow
         if (player.commitment === 'pro' && playCount >= 2) {
-          player.momentum = Math.min(player.momentum + 1, 12);
-          s.log.push(`${player.name}: Pro Line combo bonus — +1 Momentum.`);
+          player.flow++;
+          s.log.push(`${player.name}: Pro Line combo bonus — +1 Flow.`);
         }
       }
       break;
     }
 
     case 'tackle': {
-      // Free action - tackle an obstacle (supports "Forced Through" wild matching)
+      // Free action - tackle an obstacle
+      // Obstacle effect ALWAYS applies (terrain affects everyone), matching earns progress
       const obstacleIndex = (action.payload?.obstacleIndex as number) ?? 0;
       if (obstacleIndex >= s.activeObstacles.length) break;
 
       const obstacle = s.activeObstacles[obstacleIndex];
+
+      // Step 1: Obstacle effect ALWAYS fires
+      s.log.push(`${player.name}: Hits "${obstacle.name}" — ${obstacle.blowByText}`);
+      applyObstaclePenalty(player, obstacle, s);
+
+      // Step 2: Check match
       const matchCardIndices = findObstacleMatch(player.hand, obstacle);
       const progressGain = player.commitment === 'pro' ? 2 : 1;
 
       if (matchCardIndices) {
-        // Check if wilds were used (more cards consumed than required symbols)
         const usedWilds = matchCardIndices.length > obstacle.symbols.length ||
           (obstacle.matchMode === 'any' && matchCardIndices.length > 1);
-
-        // Match! Discard matching cards, gain progress and momentum
         const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
         for (const idx of sortedIndices) {
           const matchCard = player.hand.splice(idx, 1)[0];
@@ -791,12 +790,10 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         const wildNote = usedWilds ? ' (Forced Through!)' : '';
         s.log.push(`${player.name}: Matched "${obstacle.name}"${wildNote}! +${progressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
       } else {
-        // Blow-By
+        // Blow-By: additional penalties on top of the always-applied effect
         player.hazardDice++;
         player.momentum = Math.max(0, player.momentum - 1);
-        s.log.push(`${player.name}: Blow-By on "${obstacle.name}" (${obstacle.penaltyType})! ${obstacle.blowByText}`);
-
-        applyObstaclePenalty(player, obstacle, s);
+        s.log.push(`${player.name}: Blow-By on "${obstacle.name}"! +1 Hazard Die, -1 Momentum`);
 
         if (player.commitment === 'pro') {
           player.hazardDice++;
@@ -932,12 +929,18 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'resolve_obstacle': {
-      // Resolve a pending obstacle: 'match' to use cards (with wild support), 'take_penalty' to accept blow-by
+      // Obstacle effect ALWAYS applies — terrain hits everyone.
+      // Matching earns progress; blow-by adds hazard dice and momentum loss on top.
       const obstacleIndex = (action.payload?.obstacleIndex as number) ?? 0;
       if (obstacleIndex >= s.activeObstacles.length) break;
       const choice = (action.payload?.choice as string) ?? 'take_penalty';
       const obstacle = s.activeObstacles[obstacleIndex];
 
+      // Step 1: Obstacle effect ALWAYS fires
+      s.log.push(`${player.name}: Hits "${obstacle.name}" — ${obstacle.blowByText}`);
+      applyObstaclePenalty(player, obstacle, s);
+
+      // Step 2: Match or Blow-By
       if (choice === 'match') {
         const matchCardIndices = findObstacleMatch(player.hand, obstacle);
 
@@ -962,16 +965,14 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           s.obstacleDiscard.push(obstacle);
           break;
         } else {
-          s.log.push(`${player.name}: Cannot match "${obstacle.name}" — taking penalty instead.`);
+          s.log.push(`${player.name}: Cannot match "${obstacle.name}" — blow-by.`);
         }
       }
 
-      // take_penalty (or failed match attempt)
+      // Blow-By: additional penalties on top of the always-applied effect
       player.hazardDice++;
       player.momentum = Math.max(0, player.momentum - 1);
-      s.log.push(`${player.name}: Blow-By on "${obstacle.name}" (${obstacle.penaltyType})! ${obstacle.blowByText}`);
-
-      applyObstaclePenalty(player, obstacle, s);
+      s.log.push(`${player.name}: Blow-By on "${obstacle.name}"! +1 Hazard Die, -1 Momentum`);
 
       if (player.commitment === 'pro') {
         player.hazardDice++;
@@ -998,7 +999,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'send_it': {
-      // "Send It" — spend 2 Momentum to force-clear any active obstacle
+      // "Send It" — spend 2 Momentum + 1 Hazard Die to force-clear any active obstacle
+      // Obstacle effect still applies (terrain hits everyone)
       const sendObstacleIdx = (action.payload?.obstacleIndex as number) ?? 0;
       if (sendObstacleIdx >= s.activeObstacles.length) {
         s.log.push(`${player.name}: No active obstacle to Send It through.`);
@@ -1009,15 +1011,33 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         break;
       }
       const sentObstacle = s.activeObstacles[sendObstacleIdx];
+
+      // Step 1: Obstacle effect ALWAYS fires
+      s.log.push(`${player.name}: Hits "${sentObstacle.name}" — ${sentObstacle.blowByText}`);
+      applyObstaclePenalty(player, sentObstacle, s);
+
+      // Step 2: Pay momentum cost + hazard die, earn progress
       player.momentum -= 2;
+      player.hazardDice++;
       const sendProgressGain = player.commitment === 'pro' ? 2 : 1;
       player.progress += sendProgressGain;
       player.obstaclesCleared++;
-      s.log.push(`${player.name}: SENDS IT through "${sentObstacle.name}"! -2 Momentum, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
+      s.log.push(`${player.name}: SENDS IT through "${sentObstacle.name}"! -2 Momentum, +1 Hazard Die, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
 
       s.activeObstacles.splice(sendObstacleIdx, 1);
       revealObstacle(s, player.id, sentObstacle);
       s.obstacleDiscard.push(sentObstacle);
+
+      // Crash check
+      if (player.hazardDice >= 6) {
+        player.crashed = true;
+        player.turnEnded = true;
+        for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
+        if (s.penaltyDeck.length > 0) {
+          player.penalties.push(s.penaltyDeck.shift()!);
+        }
+        s.log.push(`${player.name}: CRASH! Reset to center, penalty card drawn.`);
+      }
       break;
     }
 

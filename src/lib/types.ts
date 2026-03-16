@@ -84,8 +84,6 @@ export interface PlayerState {
   totalCombos: number;
   /** Trail Read: set to true once the player draws a fresh obstacle, locking them out of revealed pool */
   drewFreshObstacle: boolean;
-  /** Bonus cards drawn this turn (capped to prevent infinite loops) */
-  bonusCardsDrawn: number;
 }
 
 // ── Game state ──
