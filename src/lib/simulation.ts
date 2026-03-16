@@ -1,6 +1,7 @@
 import { GameState, SimulationConfig, SimulationResult, ProgressObstacle, CardSymbol, TechniqueCard } from './types';
 import { initGame, advancePhase, processAction, getStandings } from './engine';
 import { OBSTACLE_DEFINITIONS } from './cards';
+import { smartAiPlaySprint, smartAiCommit } from './smart-ai';
 
 type Strategy = SimulationConfig['strategy'];
 
@@ -236,21 +237,42 @@ export function runSingleGame(
   let state = initGame(playerNames);
   const roundSnapshots: RoundSnapshot[] = [];
 
+  const useSmartAi = config.strategy === 'smart' || config.strategy === 'balanced';
+
   for (let round = 0; round < 15; round++) {
-    state = advancePhase(state);
-    state = advancePhase(state);
+    state = advancePhase(state); // scroll descent
+    state = advancePhase(state); // commitment phase
+
+    // Commitment: smart AI evaluates, heuristic uses strategy-based choice
     for (let i = 0; i < state.players.length; i++) {
-      const line = config.strategy === 'aggressive' ? 'pro' : 'main';
-      state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      if (useSmartAi) {
+        state = smartAiCommit(state, i);
+      } else {
+        const line = config.strategy === 'aggressive' ? 'pro' : 'main';
+        state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      }
     }
-    state = advancePhase(state);
-    state = advancePhase(state);
-    state = advancePhase(state);
-    for (let i = 0; i < state.players.length; i++) {
-      state = aiTakeTurn(state, i, config.strategy);
+
+    state = advancePhase(state); // environment
+    state = advancePhase(state); // preparation
+    state = advancePhase(state); // sprint start (sets currentPlayerIndex by standings)
+
+    // Sprint: respect turn order from engine (leader goes first)
+    const turnOrder = [...state.players]
+      .map((p, i) => ({ i, progress: p.progress }))
+      .sort((a, b) => b.progress - a.progress)
+      .map(x => x.i);
+
+    for (const pi of turnOrder) {
+      if (useSmartAi) {
+        state = smartAiPlaySprint(state, pi);
+      } else {
+        state = aiTakeTurn(state, pi, config.strategy);
+      }
     }
-    state = advancePhase(state);
-    state = advancePhase(state);
+
+    state = advancePhase(state); // alignment
+    state = advancePhase(state); // reckoning
 
     roundSnapshots.push({
       round: round + 1,
@@ -497,7 +519,7 @@ export function runMonteCarlo(
   totalGames: number,
   onProgress?: (done: number, total: number) => void,
 ): MonteCarloResult {
-  const strategies: Strategy[] = ['aggressive', 'balanced', 'conservative'];
+  const strategies: Strategy[] = ['aggressive', 'smart', 'conservative'];
   const gamesPerStrategy = Math.ceil(totalGames / strategies.length);
 
   const seatWins: Record<string, number> = {};
@@ -525,7 +547,8 @@ export function runMonteCarlo(
 
       // Track wins by seat
       seatWins[result.winner] = (seatWins[result.winner] || 0) + 1;
-      strategyData[strategy].wins += (result.winner === 'Player 1') ? 1 : 0;
+      // Strategy win rate: track winner's progress as a quality metric
+      strategyData[strategy].wins += result.finalStandings[0].progress;
       strategyData[strategy].games++;
 
       if (result.winner === 'Player 1') p1Wins++;
@@ -969,8 +992,7 @@ function runSingleGameWithOverride(
     state = advancePhase(state); // scroll
     state = advancePhase(state); // commitment phase start
     for (let i = 0; i < state.players.length; i++) {
-      const line = config.strategy === 'aggressive' ? 'pro' : 'main';
-      state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      state = smartAiCommit(state, i);
     }
     state = advancePhase(state); // environment
     state = advancePhase(state); // preparation
@@ -992,8 +1014,14 @@ function runSingleGameWithOverride(
     }
 
     state = advancePhase(state); // sprint start
-    for (let i = 0; i < state.players.length; i++) {
-      state = aiTakeTurn(state, i, config.strategy);
+
+    // Respect turn order (leader first)
+    const sensTurnOrder = [...state.players]
+      .map((p, i) => ({ i, progress: p.progress }))
+      .sort((a, b) => b.progress - a.progress)
+      .map(x => x.i);
+    for (const pi of sensTurnOrder) {
+      state = smartAiPlaySprint(state, pi);
     }
     state = advancePhase(state); // alignment
 

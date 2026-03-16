@@ -14,7 +14,7 @@ export default function SimulatePage() {
   const [config, setConfig] = useState<SimulationConfig>({
     playerCount: 4,
     gamesCount: 10,
-    strategy: 'balanced',
+    strategy: 'smart',
   });
   const [results, setResults] = useState<SimulationResult[]>([]);
   const [allSnapshots, setAllSnapshots] = useState<RoundSnapshot[][]>([]);
@@ -354,8 +354,9 @@ export default function SimulatePage() {
               onChange={e => setConfig({ ...config, strategy: e.target.value as SimulationConfig['strategy'] })}
               className="w-full bg-black/30 border border-gray-600 rounded px-3 py-2 text-white"
             >
+              <option value="smart">Smart (Evaluation AI)</option>
               <option value="aggressive">Aggressive (Pro Line)</option>
-              <option value="balanced">Balanced</option>
+              <option value="balanced">Balanced (uses Smart AI)</option>
               <option value="conservative">Conservative</option>
             </select>
           </div>
@@ -810,7 +811,8 @@ export default function SimulatePage() {
                         <div
                           className={`h-full rounded-full transition-all ${
                             s.strategy === 'aggressive' ? 'bg-red-600' :
-                            s.strategy === 'conservative' ? 'bg-blue-600' : 'bg-emerald-600'
+                            s.strategy === 'conservative' ? 'bg-blue-600' :
+                            s.strategy === 'smart' ? 'bg-purple-600' : 'bg-emerald-600'
                           }`}
                           style={{ width: `${s.rate * 100}%` }}
                         />
