@@ -151,7 +151,7 @@ export interface GameAction {
 export interface SimulationConfig {
   playerCount: number;
   gamesCount: number;
-  strategy: 'aggressive' | 'balanced' | 'conservative' | 'smart';
+  strategy: 'aggressive' | 'balanced' | 'conservative' | 'smart' | 'random';
 }
 
 export interface SimulationResult {

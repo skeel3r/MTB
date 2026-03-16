@@ -220,6 +220,61 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
   return s;
 }
 
+/**
+ * Random AI: picks legal actions uniformly at random.
+ * Serves as the "zero skill" baseline for agency measurement.
+ */
+function aiTakeTurnRandom(state: GameState, playerIndex: number): GameState {
+  let s = state;
+  const p = () => s.players[playerIndex];
+
+  // Randomly decide to draw 0-2 obstacles
+  const obsToDraw = Math.floor(Math.random() * 3);
+  for (let i = 0; i < obsToDraw && !p().crashed && !p().turnEnded; i++) {
+    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
+  }
+
+  // Spend actions randomly
+  let safety = 20;
+  while (p().actionsRemaining > 0 && !p().crashed && !p().turnEnded && safety-- > 0) {
+    const player = p();
+    const options: (() => GameState)[] = [];
+
+    if (!player.cannotPedal) {
+      options.push(() => processAction(s, playerIndex, { type: 'pedal' }));
+    }
+    if (!player.cannotBrake && player.commitment !== 'pro' && player.momentum > 0) {
+      options.push(() => processAction(s, playerIndex, { type: 'brake' }));
+    }
+    // Random steer
+    for (let r = 0; r < 6; r++) {
+      const col = getTokenCol(player.grid, r);
+      if (col >= 0 && col < 4) {
+        options.push(() => processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: 1 } }));
+      }
+      if (col > 0) {
+        options.push(() => processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: -1 } }));
+      }
+    }
+    if (player.hand.length > 0) {
+      const ci = Math.floor(Math.random() * player.hand.length);
+      options.push(() => processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: ci } }));
+    }
+
+    if (options.length === 0) break;
+    // 10% chance to just end turn early (randomness)
+    if (Math.random() < 0.1) break;
+
+    s = options[Math.floor(Math.random() * options.length)]();
+  }
+
+  if (!p().turnEnded) {
+    s = processAction(s, playerIndex, { type: 'end_turn' });
+  }
+  return s;
+}
+
 /** Pick the best card index for combo potential */
 function pickComboCard(player: { hand: { symbol: string; name: string }[]; cardsPlayedThisTurn: { symbol: string }[]; hazardDice: number; grid: boolean[][] }): number {
   if (player.hand.length === 0) return 0;
@@ -820,6 +875,318 @@ export function runMonteCarlo(
     strategyDominance,
     fairnessVerdict,
   };
+}
+
+// ═══════════════════════════════════════════════════════════
+// Agency Analysis — does skill correlate with winning?
+// ═══════════════════════════════════════════════════════════
+
+type PerPlayerStrategy = Strategy;
+
+/**
+ * Run a single game where each player uses a different strategy.
+ * Strategies are assigned by index: strategies[0] → Player 1, etc.
+ */
+function runMixedStrategyGame(
+  strategies: PerPlayerStrategy[],
+  gameNumber: number,
+): SimulationResult {
+  const playerCount = strategies.length;
+  const playerNames = strategies.map((s, i) => `Player ${i + 1} (${s})`);
+  let state = initGame(playerNames);
+  const totalRounds = state.trailLength;
+
+  for (let round = 0; round < totalRounds; round++) {
+    state = advancePhase(state); // scroll descent
+    state = advancePhase(state); // commitment
+
+    for (let i = 0; i < state.players.length; i++) {
+      const strat = strategies[i];
+      if (strat === 'smart' || strat === 'balanced') {
+        state = smartAiCommit(state, i);
+      } else {
+        const line = strat === 'aggressive' ? 'pro' : 'main';
+        state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      }
+    }
+
+    state = advancePhase(state); // environment
+    state = advancePhase(state); // preparation
+    state = advancePhase(state); // sprint start
+
+    const turnOrder = sortByProgressRandomTies(
+      state.players.map((p, i) => ({ i, progress: p.progress }))
+    ).map(x => x.i);
+
+    for (const pi of turnOrder) {
+      const strat = strategies[pi];
+      if (strat === 'smart' || strat === 'balanced') {
+        state = smartAiPlaySprint(state, pi);
+      } else if (strat === 'random') {
+        state = aiTakeTurnRandom(state, pi);
+      } else {
+        state = aiTakeTurn(state, pi, strat);
+      }
+    }
+
+    state = advancePhase(state); // alignment
+    state = advancePhase(state); // reckoning
+  }
+
+  state.phase = 'game_over';
+  const standings = getStandings(state);
+
+  return {
+    gameNumber,
+    winner: standings[0].name,
+    finalStandings: standings.map(s => ({
+      name: s.name,
+      progress: s.progress,
+      perfectMatches: s.perfectMatches,
+      penalties: s.penalties,
+      flow: s.flow,
+      momentum: s.momentum,
+      combosTriggered: s.totalCombos,
+      cardsPlayed: s.totalCardsPlayed,
+    })),
+    totalRounds: state.round,
+  };
+}
+
+export interface AgencyResult {
+  /** Total games run */
+  totalGames: number;
+  /** Win rate per strategy across all matchups */
+  strategyWinRates: { strategy: string; wins: number; games: number; winRate: number }[];
+  /** Average final progress per strategy */
+  strategyAvgProgress: { strategy: string; avgProgress: number }[];
+  /** Head-to-head: smart vs each other strategy */
+  headToHead: { opponent: string; smartWinRate: number; opponentWinRate: number; games: number }[];
+  /** Skill gap: how much better does smart do vs random? (0=no agency, 1=total agency) */
+  skillGap: number;
+  /** Decision quality: correlation between obstacles cleared and final rank */
+  decisionQualityCorrelation: number;
+  /** Perfect match bonus correlation: do perfect matches predict wins? */
+  perfectMatchCorrelation: number;
+  /** Verdict */
+  verdict: string;
+}
+
+/**
+ * Run agency analysis: mixed-strategy tournament.
+ *
+ * Tests:
+ * 1. Smart vs 3x Conservative (does smart play beat safe play?)
+ * 2. Smart vs 3x Aggressive (does smart beat reckless play?)
+ * 3. Smart vs 3x Random (skill ceiling vs floor)
+ * 4. All-different: smart, aggressive, conservative, random
+ * 5. Rotates smart through all 4 seats to control for position
+ *
+ * Key metrics:
+ * - Strategy win rates across all matchups
+ * - Skill gap: smart win rate vs random win rate
+ * - Decision quality: obstacle-cleared → rank correlation
+ */
+export function runAgencyAnalysis(
+  gamesPerMatchup: number,
+  onProgress?: (done: number, total: number) => void,
+): AgencyResult {
+  const strategyWins: Record<string, { wins: number; games: number; totalProgress: number }> = {};
+  const headToHead: Record<string, { smartWins: number; opponentWins: number; games: number }> = {};
+
+  // For decision quality correlation
+  const decisionQualityData: { obstaclesCleared: number; rank: number }[] = [];
+  const perfectMatchData: { perfectMatches: number; rank: number }[] = [];
+
+  const matchups: { label: string; strategies: PerPlayerStrategy[] }[] = [
+    { label: 'conservative', strategies: ['smart', 'conservative', 'conservative', 'conservative'] },
+    { label: 'aggressive', strategies: ['smart', 'aggressive', 'aggressive', 'aggressive'] },
+    { label: 'random', strategies: ['smart', 'random', 'random', 'random'] },
+    { label: 'mixed', strategies: ['smart', 'aggressive', 'conservative', 'random'] },
+  ];
+
+  const totalWork = matchups.length * 4 * gamesPerMatchup; // 4 seat rotations per matchup
+  let done = 0;
+
+  function initStrategy(s: string) {
+    if (!strategyWins[s]) strategyWins[s] = { wins: 0, games: 0, totalProgress: 0 };
+  }
+
+  for (const matchup of matchups) {
+    if (!headToHead[matchup.label]) {
+      headToHead[matchup.label] = { smartWins: 0, opponentWins: 0, games: 0 };
+    }
+
+    // Rotate smart player through all 4 seats
+    for (let seat = 0; seat < 4; seat++) {
+      // Rotate strategies so smart is at position `seat`
+      const rotated = [...matchup.strategies];
+      // Move smart from position 0 to position `seat`
+      const smartStrat = rotated.splice(0, 1)[0];
+      rotated.splice(seat, 0, smartStrat);
+
+      for (let g = 0; g < gamesPerMatchup; g++) {
+        const result = runMixedStrategyGame(rotated, done + 1);
+
+        // Track wins and progress by strategy
+        for (let pi = 0; pi < result.finalStandings.length; pi++) {
+          const strat = rotated[pi];
+          const standing = result.finalStandings.find(s => s.name === `Player ${pi + 1} (${strat})`);
+          if (!standing) continue;
+
+          initStrategy(strat);
+          strategyWins[strat].games++;
+          strategyWins[strat].totalProgress += standing.progress;
+
+          // Rank = position in finalStandings (0 = winner)
+          const rank = result.finalStandings.indexOf(standing);
+          if (rank === 0) strategyWins[strat].wins++;
+
+          // Decision quality data
+          decisionQualityData.push({
+            obstaclesCleared: standing.progress, // progress ≈ obstacles cleared
+            rank: rank,
+          });
+          perfectMatchData.push({
+            perfectMatches: standing.perfectMatches,
+            rank: rank,
+          });
+        }
+
+        // Head-to-head tracking
+        const h2h = headToHead[matchup.label];
+        h2h.games++;
+        const winnerStrat = rotated[result.finalStandings.findIndex(s => s.name === result.winner) >= 0
+          ? (() => {
+            for (let pi = 0; pi < rotated.length; pi++) {
+              if (result.finalStandings[0].name === `Player ${pi + 1} (${rotated[pi]})`) return pi;
+            }
+            return 0;
+          })()
+          : 0];
+        if (winnerStrat === 'smart' || winnerStrat === 'balanced') {
+          h2h.smartWins++;
+        } else {
+          h2h.opponentWins++;
+        }
+
+        done++;
+        if (onProgress) onProgress(done, totalWork);
+      }
+    }
+  }
+
+  // Compute strategy win rates
+  const strategies = ['smart', 'aggressive', 'conservative', 'random'];
+  const strategyWinRates = strategies.map(s => {
+    const d = strategyWins[s] || { wins: 0, games: 0, totalProgress: 0 };
+    return {
+      strategy: s,
+      wins: d.wins,
+      games: d.games,
+      winRate: d.games > 0 ? d.wins / d.games : 0,
+    };
+  });
+
+  const strategyAvgProgress = strategies.map(s => {
+    const d = strategyWins[s] || { totalProgress: 0, games: 0 };
+    return {
+      strategy: s,
+      avgProgress: d.games > 0 ? d.totalProgress / d.games : 0,
+    };
+  });
+
+  // Head-to-head results
+  const h2hResults = Object.entries(headToHead).map(([opponent, data]) => ({
+    opponent,
+    smartWinRate: data.games > 0 ? data.smartWins / data.games : 0,
+    opponentWinRate: data.games > 0 ? data.opponentWins / data.games : 0,
+    games: data.games,
+  }));
+
+  // Skill gap: normalized difference between smart and random win rates
+  const smartWR = strategyWinRates.find(s => s.strategy === 'smart')?.winRate || 0;
+  const randomWR = strategyWinRates.find(s => s.strategy === 'random')?.winRate || 0;
+  // Normalize: 0.25 = no difference (both at chance), 1.0 = smart wins everything
+  // skillGap: (smart - random) / (1 - random), clamped to [0, 1]
+  const skillGap = randomWR < 1 ? Math.max(0, Math.min(1, (smartWR - randomWR) / (1 - randomWR))) : 0;
+
+  // Decision quality: Spearman rank correlation between obstacles cleared and rank
+  // Higher obstacle count should correlate with lower rank (rank 0 = best)
+  const decisionQualityCorrelation = spearmanCorrelation(
+    decisionQualityData.map(d => d.obstaclesCleared),
+    decisionQualityData.map(d => -d.rank), // negate rank so positive correlation = good
+  );
+
+  const perfectMatchCorrelation = spearmanCorrelation(
+    perfectMatchData.map(d => d.perfectMatches),
+    perfectMatchData.map(d => -d.rank),
+  );
+
+  // Verdict
+  let verdict: string;
+  if (skillGap >= 0.4) {
+    verdict = `Strong agency (skill gap ${(skillGap * 100).toFixed(0)}%) — better strategy strongly predicts winning. Players feel rewarded for good decisions.`;
+  } else if (skillGap >= 0.2) {
+    verdict = `Moderate agency (skill gap ${(skillGap * 100).toFixed(0)}%) — strategy matters but luck plays a significant role. Good balance for a board game.`;
+  } else if (skillGap >= 0.1) {
+    verdict = `Weak agency (skill gap ${(skillGap * 100).toFixed(0)}%) — skill has some impact but outcomes feel mostly random. Consider adding more meaningful decisions.`;
+  } else {
+    verdict = `Minimal agency (skill gap ${(skillGap * 100).toFixed(0)}%) — strategy barely matters. Games feel like coin flips. Major design concern.`;
+  }
+
+  return {
+    totalGames: done,
+    strategyWinRates,
+    strategyAvgProgress,
+    headToHead: h2hResults,
+    skillGap,
+    decisionQualityCorrelation,
+    perfectMatchCorrelation,
+    verdict,
+  };
+}
+
+/**
+ * Spearman rank correlation coefficient.
+ * Returns -1 to 1, where 1 = perfect positive correlation.
+ */
+function spearmanCorrelation(x: number[], y: number[]): number {
+  const n = x.length;
+  if (n < 3) return 0;
+
+  // Assign ranks (average for ties)
+  function rankArray(arr: number[]): number[] {
+    const indexed = arr.map((v, i) => ({ v, i }));
+    indexed.sort((a, b) => a.v - b.v);
+    const ranks = new Array(n);
+    let i = 0;
+    while (i < n) {
+      let j = i;
+      while (j < n - 1 && indexed[j + 1].v === indexed[j].v) j++;
+      const avgRank = (i + j) / 2 + 1;
+      for (let k = i; k <= j; k++) ranks[indexed[k].i] = avgRank;
+      i = j + 1;
+    }
+    return ranks;
+  }
+
+  const rx = rankArray(x);
+  const ry = rankArray(y);
+
+  // Pearson correlation on ranks
+  const meanRx = rx.reduce((s, v) => s + v, 0) / n;
+  const meanRy = ry.reduce((s, v) => s + v, 0) / n;
+  let num = 0, denX = 0, denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = rx[i] - meanRx;
+    const dy = ry[i] - meanRy;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX * denY);
+  return den > 0 ? num / den : 0;
 }
 
 // ═══════════════════════════════════════════════════════════
