@@ -98,7 +98,8 @@ This makes going first a **disadvantage** — the leader blazes the trail blind 
 |--------|--------|
 | **Draw Obstacle** | Flip the top obstacle card face-up (locks you out of revealed pool) |
 | **Reuse Obstacle** | Tackle a revealed obstacle from a player ahead (only before drawing fresh) |
-| **Resolve Obstacle** | Match it with hand cards or take the blow-by penalty |
+| **Resolve Obstacle** | Match it with hand cards (including wilds) or take the blow-by penalty |
+| **Send It** | Spend 2 Momentum to force-clear an active obstacle |
 
 #### Flow Actions (spend Flow resource):
 
@@ -146,12 +147,16 @@ There are 4 unique technique cards (5 copies each = 20 total). Each card has a *
 
 | Card | Symbol | Effect When Played |
 |------|--------|--------------------|
-| **Inside Line** | Grip (red) | Ignore all Grip penalties this turn. +1 Momentum. |
-| **Manual** | Air (blue) | Swap Row 1 and Row 2 tokens. Draw 1 card if they were in different lanes. |
-| **Flick** | Agility (green) | Shift tokens in Rows 1-2 one lane toward center. |
-| **Recover** | Balance (orange) | Remove 2 Hazard Dice. If at 0 dice: repair 1 Penalty Card. |
+| **Inside Line** | Grip (red) | Ignore all Grip penalties this turn. **+2 Momentum.** |
+| **Manual** | Air (blue) | Swap Row 1 and Row 2 tokens. **Draw 1 card** (draw 2 if they were in different lanes). |
+| **Flick** | Agility (green) | Shift tokens in Rows 1-2 one lane toward center. **+1 Momentum.** |
+| **Recover** | Balance (orange) | Remove 2 Hazard Dice (or repair 1 Penalty if at 0 dice). **Draw 1 card.** |
 
 Playing a technique card costs **1 Action** and discards the card. The card's symbol is consumed — it cannot also be used to match an obstacle.
+
+> **Design Note:** Every technique card generates momentum or draws cards when played, so no hand is ever dead weight. Playing cards for their effects is always productive, even when you can't match obstacles.
+
+**Bonus Draw Cap:** A player can draw at most **3 bonus cards per turn** from technique card effects (Manual, Recover). This prevents runaway card-chaining.
 
 ### The Combo System
 
@@ -190,6 +195,22 @@ Obstacles are flipped face-up during the Sprint phase as a free action. Players 
 - **"All" mode**: Player must discard cards matching ALL listed symbols (using different cards for each).
 - **"Any" mode**: Player needs just ONE card matching any listed symbol.
 - On success: **+1 Momentum**, **+1 Progress** (or +2 on Pro Line). Obstacle is discarded.
+
+### "Forced Through" — Wild Matching
+
+Any **2 cards of the same symbol** can substitute for **1 card of any other symbol** when matching obstacles. You're muscling through with raw technique even if it's not the ideal skill.
+
+- Example: Need a Grip card but only have 2 Agility cards? Discard both Agility cards to match the Grip requirement.
+- Multiple wilds can be stacked — 4 Balance cards could cover 2 different missing symbols.
+- Wild matches consume 2 cards each, so they cost more hand resources than exact matches.
+
+### "Send It" — Momentum-Powered Clear
+
+Spend **2 Momentum** to force-clear any active obstacle, regardless of hand cards. This is a **free action** (no Action cost).
+
+- On success: **+1 Progress** (or +2 on Pro Line). Obstacle is discarded and counts as cleared.
+- **Does NOT grant** the usual +1 Momentum reward (you spent momentum, not cards).
+- Useful when your hand can't match but you've built up speed.
 
 ### Blow-By (Failing to Match)
 

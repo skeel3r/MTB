@@ -11,10 +11,10 @@ const SYMBOL_NAMES: Record<CardSymbol, string> = {
 
 /** Official technique card definitions (one per symbol) */
 const TECHNIQUE_DEFS: { name: string; symbol: CardSymbol; actionText: string }[] = [
-  { name: 'Inside Line',  symbol: 'grip',    actionText: 'Ignore all Slide-Out (Grip) penalties for the rest of this turn.' },
-  { name: 'Manual',       symbol: 'air',     actionText: 'Swap your Row 1 token with your Row 2 token.' },
-  { name: 'Flick',        symbol: 'agility', actionText: 'Shift any two tokens on your grid 1 lane each for 1 Action.' },
-  { name: 'Recover',      symbol: 'balance', actionText: 'Discard 2 Hazard Dice from your pool.' },
+  { name: 'Inside Line',  symbol: 'grip',    actionText: 'Ignore all Grip penalties this turn. +2 Momentum.' },
+  { name: 'Manual',       symbol: 'air',     actionText: 'Swap Row 1 & Row 2 tokens. Draw 1 card (draw 2 if they were in different lanes).' },
+  { name: 'Flick',        symbol: 'agility', actionText: 'Shift Rows 1-2 tokens 1 lane toward center. +1 Momentum.' },
+  { name: 'Recover',      symbol: 'balance', actionText: 'Remove 2 Hazard Dice (or repair 1 Penalty). Draw 1 card.' },
 ];
 
 export function createTechniqueDeck(): TechniqueCard[] {

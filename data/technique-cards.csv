@@ -1,5 +1,5 @@
 name,symbol,actionText,copies
-Inside Line,grip,"Ignore all Slide-Out (Grip) penalties for the rest of this turn. +1 Momentum.",5
-Manual,air,"Swap your Row 1 token with your Row 2 token. Draw 1 card if tokens swapped.",5
-Flick,agility,"Shift any two tokens on your grid 1 lane toward center.",5
-Recover,balance,"Remove 2 Hazard Dice. If none: repair a Penalty Card.",5
+Inside Line,grip,"Ignore all Grip penalties this turn. +2 Momentum.",5
+Manual,air,"Swap Row 1 & Row 2 tokens. Draw 1 card (draw 2 if different lanes).",5
+Flick,agility,"Shift Rows 1-2 tokens 1 lane toward center. +1 Momentum.",5
+Recover,balance,"Remove 2 Hazard Dice (or repair 1 Penalty). Draw 1 card.",5

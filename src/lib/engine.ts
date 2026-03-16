@@ -37,6 +37,7 @@ export function createPlayer(id: string, name: string): PlayerState {
     totalCardsPlayed: 0,
     totalCombos: 0,
     drewFreshObstacle: false,
+    bonusCardsDrawn: 0,
   };
 }
 
@@ -105,6 +106,10 @@ function revealObstacle(state: GameState, playerId: string, obstacle: ProgressOb
   state.roundRevealedObstacles.push({ ...obstacle });
 }
 
+// ── Constants ──
+/** Max bonus cards a player can draw per turn from card effects (prevents infinite loops) */
+const MAX_BONUS_DRAWS_PER_TURN = 3;
+
 // ── Draw cards from technique deck ──
 function drawCards(state: GameState, count: number): TechniqueCard[] {
   const cards: TechniqueCard[] = [];
@@ -118,6 +123,93 @@ function drawCards(state: GameState, count: number): TechniqueCard[] {
     }
   }
   return cards;
+}
+
+// ── Draw a bonus card (from card effects), respecting per-turn cap ──
+function drawBonusCard(state: GameState, player: PlayerState): boolean {
+  if (player.bonusCardsDrawn >= MAX_BONUS_DRAWS_PER_TURN) return false;
+  const cards = drawCards(state, 1);
+  if (cards.length > 0) {
+    player.hand.push(cards[0]);
+    player.bonusCardsDrawn++;
+    return true;
+  }
+  return false;
+}
+
+// ── Find obstacle match including "Forced Through" wild matching ──
+// Returns card indices to discard, or null if no match possible.
+// "Forced Through": any 2 cards of the same symbol can substitute for 1 card of any other symbol.
+function findObstacleMatch(
+  hand: TechniqueCard[],
+  obstacle: ProgressObstacle,
+): number[] | null {
+  const mode = obstacle.matchMode ?? 'all';
+
+  if (mode === 'any') {
+    // Only need ONE matching symbol — try exact first
+    for (const sym of obstacle.symbols) {
+      const idx = hand.findIndex(c => c.symbol === sym);
+      if (idx >= 0) return [idx];
+    }
+    // Try wild: any 2 cards of the same symbol
+    const symbolGroups: Record<string, number[]> = {};
+    for (let i = 0; i < hand.length; i++) {
+      const s = hand[i].symbol;
+      if (!symbolGroups[s]) symbolGroups[s] = [];
+      symbolGroups[s].push(i);
+    }
+    for (const indices of Object.values(symbolGroups)) {
+      if (indices.length >= 2) return [indices[0], indices[1]];
+    }
+    return null;
+  }
+
+  // mode === 'all': need every required symbol
+  const usedIndices = new Set<number>();
+  const matchedIndices: number[] = [];
+  const unmatchedSymbols: CardSymbol[] = [];
+
+  // Pass 1: exact matches
+  for (const sym of obstacle.symbols) {
+    const idx = hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+    if (idx >= 0) {
+      matchedIndices.push(idx);
+      usedIndices.add(idx);
+    } else {
+      unmatchedSymbols.push(sym);
+    }
+  }
+
+  if (unmatchedSymbols.length === 0) return matchedIndices;
+
+  // Pass 2: "Forced Through" — use 2 same-symbol cards as wild for each unmatched symbol
+  for (const _sym of unmatchedSymbols) {
+    // Count available cards by symbol (excluding already-used indices)
+    const available: Record<string, number[]> = {};
+    for (let i = 0; i < hand.length; i++) {
+      if (usedIndices.has(i)) continue;
+      const s = hand[i].symbol;
+      if (!available[s]) available[s] = [];
+      available[s].push(i);
+    }
+
+    // Find any symbol group with 2+ available cards
+    let found = false;
+    for (const indices of Object.values(available)) {
+      if (indices.length >= 2) {
+        matchedIndices.push(indices[0], indices[1]);
+        usedIndices.add(indices[0]);
+        usedIndices.add(indices[1]);
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) return null; // Can't match this symbol even with wilds
+  }
+
+  return matchedIndices;
 }
 
 // ── Get affected rows for a hazard card ──
@@ -201,6 +293,7 @@ export function advancePhase(state: GameState): GameState {
           p.cardsPlayedThisTurn = [];
           p.combosTriggered = [];
           p.drewFreshObstacle = false;
+          p.bonusCardsDrawn = 0;
         }
         // Turn order: leader goes first (highest progress)
         {
@@ -539,37 +632,35 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         // ── Apply base technique card effects ──
         switch (card.name) {
           case 'Inside Line':
-            // Ignore grip penalties + gain +1 momentum (control = speed)
+            // Grip mastery: strong momentum engine (+2) + ignore grip penalties
             s.log.push(`${player.name}: Grip penalties ignored this turn.`);
-            player.momentum = Math.min(player.momentum + 1, 12);
-            s.log.push(`${player.name}: +1 Momentum from grip mastery.`);
+            player.momentum = Math.min(player.momentum + 2, 12);
+            s.log.push(`${player.name}: +2 Momentum from grip mastery.`);
             break;
           case 'Manual': {
-            // Swap Row 1 and Row 2 + draw 1 card if swap happened
+            // Air control: swap rows + always draw 1 card (draw 2 if different lanes)
             const r1col = getTokenCol(player.grid, 0);
             const r2col = getTokenCol(player.grid, 1);
-            if (r1col >= 0 && r2col >= 0 && r1col !== r2col) {
-              setToken(player.grid, 0, r2col);
-              setToken(player.grid, 1, r1col);
-              // Draw a card as reward for the repositioning
-              if (s.techniqueDeck.length > 0) {
-                player.hand.push(s.techniqueDeck.pop()!);
-                s.log.push(`${player.name}: Drew a card from the swap.`);
-              } else if (s.techniqueDiscard.length > 0) {
-                // Shuffle discard back in
-                s.techniqueDeck = [...s.techniqueDiscard].sort(() => Math.random() - 0.5);
-                s.techniqueDiscard = [];
-                player.hand.push(s.techniqueDeck.pop()!);
-                s.log.push(`${player.name}: Drew a card from the swap (deck reshuffled).`);
+            if (r1col >= 0 && r2col >= 0) {
+              const wereInDifferentLanes = r1col !== r2col;
+              if (wereInDifferentLanes) {
+                setToken(player.grid, 0, r2col);
+                setToken(player.grid, 1, r1col);
               }
-            } else if (r1col >= 0 && r2col >= 0) {
-              // Already aligned — still swap but no draw bonus
-              s.log.push(`${player.name}: Rows already aligned, no draw bonus.`);
+              // Always draw 1 card; draw 2 if rows were in different lanes (bigger reposition = bigger reward)
+              const drawCount = wereInDifferentLanes ? 2 : 1;
+              let drawn = 0;
+              for (let d = 0; d < drawCount; d++) {
+                if (drawBonusCard(s, player)) drawn++;
+              }
+              if (drawn > 0) {
+                s.log.push(`${player.name}: Drew ${drawn} card${drawn > 1 ? 's' : ''} from Manual${wereInDifferentLanes ? ' (different lanes bonus!)' : ''}.`);
+              }
             }
             break;
           }
           case 'Flick': {
-            // Shift rows 0-1 toward center + gain +1 Flow if both moved
+            // Agility: shift rows 0-1 toward center + gain momentum for repositioning
             let moved = 0;
             for (const r of [0, 1]) {
               const col = getTokenCol(player.grid, r);
@@ -578,13 +669,13 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
                 if (dir !== 0) { setToken(player.grid, r, col + dir); moved++; }
               }
             }
-            if (moved >= 2) {
-              s.log.push(`${player.name}: Both tokens repositioned toward center.`);
-            }
+            // Always +1 Momentum (maintaining flow through the turn)
+            player.momentum = Math.min(player.momentum + 1, 12);
+            s.log.push(`${player.name}: +1 Momentum from agility.${moved >= 2 ? ' Both tokens repositioned toward center.' : ''}`);
             break;
           }
           case 'Recover': {
-            // Remove 2 hazard dice; if already at 0, remove a penalty card instead
+            // Balance: remove 2 hazard dice (or repair penalty) + draw 1 card
             if (player.hazardDice >= 2) {
               player.hazardDice -= 2;
               s.log.push(`${player.name}: Removed 2 Hazard Dice.`);
@@ -596,6 +687,10 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
               s.log.push(`${player.name}: No dice to remove — repaired "${removed.name}" instead!`);
             } else {
               s.log.push(`${player.name}: Nothing to recover — already clean!`);
+            }
+            // Always draw 1 card (composure under pressure)
+            if (drawBonusCard(s, player)) {
+              s.log.push(`${player.name}: Drew 1 card from composure.`);
             }
             break;
           }
@@ -671,49 +766,20 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'tackle': {
-      // Free action - tackle an obstacle
+      // Free action - tackle an obstacle (supports "Forced Through" wild matching)
       const obstacleIndex = (action.payload?.obstacleIndex as number) ?? 0;
       if (obstacleIndex >= s.activeObstacles.length) break;
 
       const obstacle = s.activeObstacles[obstacleIndex];
-      // Check if player has matching cards for ALL required symbols
-      const matchCardIndices: number[] = [];
-      let allMatched = true;
-      const usedIndices = new Set<number>();
-      const mode = obstacle.matchMode ?? 'all';
-
-      if (mode === 'any') {
-        // Only need ONE matching symbol from the list
-        let foundAny = false;
-        for (const sym of obstacle.symbols) {
-          const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-          if (idx >= 0) {
-            matchCardIndices.push(idx);
-            usedIndices.add(idx);
-            foundAny = true;
-            break;
-          }
-        }
-        allMatched = foundAny;
-      } else {
-        // Need ALL symbols
-        for (const sym of obstacle.symbols) {
-          const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-          if (idx >= 0) {
-            matchCardIndices.push(idx);
-            usedIndices.add(idx);
-          } else {
-            allMatched = false;
-            break;
-          }
-        }
-      }
-
+      const matchCardIndices = findObstacleMatch(player.hand, obstacle);
       const progressGain = player.commitment === 'pro' ? 2 : 1;
 
-      if (allMatched) {
+      if (matchCardIndices) {
+        // Check if wilds were used (more cards consumed than required symbols)
+        const usedWilds = matchCardIndices.length > obstacle.symbols.length ||
+          (obstacle.matchMode === 'any' && matchCardIndices.length > 1);
+
         // Match! Discard matching cards, gain progress and momentum
-        // Remove in reverse order to preserve indices
         const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
         for (const idx of sortedIndices) {
           const matchCard = player.hand.splice(idx, 1)[0];
@@ -722,16 +788,16 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.progress += progressGain;
         player.momentum++;
         player.obstaclesCleared++;
-        s.log.push(`${player.name}: Matched "${obstacle.name}"! +${progressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
+        const wildNote = usedWilds ? ' (Forced Through!)' : '';
+        s.log.push(`${player.name}: Matched "${obstacle.name}"${wildNote}! +${progressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
       } else {
-        // Blow-By — apply the obstacle's specific penalty
+        // Blow-By
         player.hazardDice++;
         player.momentum = Math.max(0, player.momentum - 1);
         s.log.push(`${player.name}: Blow-By on "${obstacle.name}" (${obstacle.penaltyType})! ${obstacle.blowByText}`);
 
         applyObstaclePenalty(player, obstacle, s);
 
-        // Pro Line blow-by: extra hazard die + penalty card
         if (player.commitment === 'pro') {
           player.hazardDice++;
           if (s.penaltyDeck.length > 0) {
@@ -741,10 +807,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         }
       }
 
-      // Remove used obstacle
       s.activeObstacles.splice(obstacleIndex, 1);
 
-      // Check crash: 6+ hazard dice
       if (player.hazardDice >= 6) {
         player.crashed = true;
         player.turnEnded = true;
@@ -868,45 +932,19 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'resolve_obstacle': {
-      // Resolve a pending obstacle: 'match' to use cards, 'take_penalty' to accept blow-by
+      // Resolve a pending obstacle: 'match' to use cards (with wild support), 'take_penalty' to accept blow-by
       const obstacleIndex = (action.payload?.obstacleIndex as number) ?? 0;
       if (obstacleIndex >= s.activeObstacles.length) break;
       const choice = (action.payload?.choice as string) ?? 'take_penalty';
       const obstacle = s.activeObstacles[obstacleIndex];
 
       if (choice === 'match') {
-        // Verify the player actually has matching cards
-        const matchCardIndices: number[] = [];
-        let allMatched = true;
-        const usedIndices = new Set<number>();
-        const mode = obstacle.matchMode ?? 'all';
+        const matchCardIndices = findObstacleMatch(player.hand, obstacle);
 
-        if (mode === 'any') {
-          let foundAny = false;
-          for (const sym of obstacle.symbols) {
-            const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-            if (idx >= 0) {
-              matchCardIndices.push(idx);
-              usedIndices.add(idx);
-              foundAny = true;
-              break;
-            }
-          }
-          allMatched = foundAny;
-        } else {
-          for (const sym of obstacle.symbols) {
-            const idx = player.hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-            if (idx >= 0) {
-              matchCardIndices.push(idx);
-              usedIndices.add(idx);
-            } else {
-              allMatched = false;
-              break;
-            }
-          }
-        }
+        if (matchCardIndices) {
+          const usedWilds = matchCardIndices.length > obstacle.symbols.length ||
+            (obstacle.matchMode === 'any' && matchCardIndices.length > 1);
 
-        if (allMatched) {
           const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
           for (const idx of sortedIndices) {
             const matchCard = player.hand.splice(idx, 1)[0];
@@ -916,18 +954,15 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           player.progress += resolveProgressGain;
           player.momentum++;
           player.obstaclesCleared++;
-          s.log.push(`${player.name}: Matched "${obstacle.name}"! +${resolveProgressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
-        } else {
-          // Player tried to match but can't — shouldn't happen if UI is correct, fall through to penalty
-          s.log.push(`${player.name}: Cannot match "${obstacle.name}" — taking penalty instead.`);
-        }
+          const wildNote = usedWilds ? ' (Forced Through!)' : '';
+          s.log.push(`${player.name}: Matched "${obstacle.name}"${wildNote}! +${resolveProgressGain} Progress, +1 Momentum (${player.obstaclesCleared} cleared)`);
 
-        if (allMatched) {
           s.activeObstacles.splice(obstacleIndex, 1);
-          // Trail Read: add to this player's obstacle line so trailing players can see & reuse it
           revealObstacle(s, player.id, obstacle);
           s.obstacleDiscard.push(obstacle);
           break;
+        } else {
+          s.log.push(`${player.name}: Cannot match "${obstacle.name}" — taking penalty instead.`);
         }
       }
 
@@ -947,11 +982,9 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       }
 
       s.activeObstacles.splice(obstacleIndex, 1);
-      // Trail Read: even blow-by obstacles are revealed (trailing players saw the attempt)
       revealObstacle(s, player.id, obstacle);
       s.obstacleDiscard.push(obstacle);
 
-      // Check crash: 6+ hazard dice
       if (player.hazardDice >= 6) {
         player.crashed = true;
         player.turnEnded = true;
@@ -961,6 +994,30 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         }
         s.log.push(`${player.name}: CRASH! Reset to center, penalty card drawn.`);
       }
+      break;
+    }
+
+    case 'send_it': {
+      // "Send It" — spend 2 Momentum to force-clear any active obstacle
+      const sendObstacleIdx = (action.payload?.obstacleIndex as number) ?? 0;
+      if (sendObstacleIdx >= s.activeObstacles.length) {
+        s.log.push(`${player.name}: No active obstacle to Send It through.`);
+        break;
+      }
+      if (player.momentum < 2) {
+        s.log.push(`${player.name}: Not enough Momentum to Send It (need 2, have ${player.momentum}).`);
+        break;
+      }
+      const sentObstacle = s.activeObstacles[sendObstacleIdx];
+      player.momentum -= 2;
+      const sendProgressGain = player.commitment === 'pro' ? 2 : 1;
+      player.progress += sendProgressGain;
+      player.obstaclesCleared++;
+      s.log.push(`${player.name}: SENDS IT through "${sentObstacle.name}"! -2 Momentum, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
+
+      s.activeObstacles.splice(sendObstacleIdx, 1);
+      revealObstacle(s, player.id, sentObstacle);
+      s.obstacleDiscard.push(sentObstacle);
       break;
     }
 

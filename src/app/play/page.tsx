@@ -421,20 +421,53 @@ export default function PlayPage() {
 
               {/* Pending obstacle to resolve */}
               {game.activeObstacles.map((obs, i) => {
+                // Check exact match OR "Forced Through" wild match (2 same-symbol cards = 1 wild)
                 const canMatch = (() => {
-                  const usedIndices = new Set<number>();
                   const mode = obs.matchMode ?? 'all';
+                  const hand = currentPlayer.hand;
+
                   if (mode === 'any') {
-                    return obs.symbols.some(sym =>
-                      currentPlayer.hand.some((c, ci) => c.symbol === sym && !usedIndices.has(ci) && (usedIndices.add(ci), true)),
-                    );
+                    // Exact match: any 1 matching symbol
+                    if (obs.symbols.some(sym => hand.some(c => c.symbol === sym))) return true;
+                    // Wild: any 2 cards of same symbol
+                    const counts: Record<string, number> = {};
+                    for (const c of hand) counts[c.symbol] = (counts[c.symbol] || 0) + 1;
+                    return Object.values(counts).some(n => n >= 2);
                   }
-                  return obs.symbols.every(sym => {
-                    const idx = currentPlayer.hand.findIndex((c, ci) => c.symbol === sym && !usedIndices.has(ci));
-                    if (idx >= 0) { usedIndices.add(idx); return true; }
-                    return false;
-                  });
+
+                  // mode === 'all': try exact + wild matching
+                  const usedIndices = new Set<number>();
+                  const unmatched: string[] = [];
+                  for (const sym of obs.symbols) {
+                    const idx = hand.findIndex((c, ci) => c.symbol === sym && !usedIndices.has(ci));
+                    if (idx >= 0) usedIndices.add(idx);
+                    else unmatched.push(sym);
+                  }
+                  if (unmatched.length === 0) return true;
+                  // Try wilds for each unmatched symbol
+                  for (const _sym of unmatched) {
+                    const avail: Record<string, number[]> = {};
+                    for (let ci = 0; ci < hand.length; ci++) {
+                      if (usedIndices.has(ci)) continue;
+                      const s = hand[ci].symbol;
+                      if (!avail[s]) avail[s] = [];
+                      avail[s].push(ci);
+                    }
+                    let found = false;
+                    for (const indices of Object.values(avail)) {
+                      if (indices.length >= 2) {
+                        usedIndices.add(indices[0]);
+                        usedIndices.add(indices[1]);
+                        found = true;
+                        break;
+                      }
+                    }
+                    if (!found) return false;
+                  }
+                  return true;
                 })();
+
+                const canSendIt = currentPlayer.momentum >= 2;
 
                 return (
                   <div
@@ -449,7 +482,7 @@ export default function PlayPage() {
                     </div>
                     <div className="text-xs font-bold text-center leading-tight">{obs.name}</div>
                     <div className="text-[9px] text-red-300/70 mt-0.5 text-center">{obs.penaltyType}</div>
-                    <div className="flex gap-1.5 mt-2 w-full">
+                    <div className="flex gap-1.5 mt-2 w-full flex-wrap">
                       <button
                         onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i, choice: 'match' } })}
                         disabled={!canMatch}
@@ -458,10 +491,18 @@ export default function PlayPage() {
                         Match
                       </button>
                       <button
-                        onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i, choice: 'take_penalty' } })}
-                        className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-red-800 hover:bg-red-700 transition-colors"
+                        onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
+                        disabled={!canSendIt}
+                        className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-amber-700 hover:bg-amber-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Spend 2 Momentum to force-clear"
                       >
-                        Penalty
+                        Send It
+                      </button>
+                      <button
+                        onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i, choice: 'take_penalty' } })}
+                        className="w-full px-2 py-1 rounded text-[10px] font-bold bg-red-800 hover:bg-red-700 transition-colors"
+                      >
+                        Blow-By
                       </button>
                     </div>
                   </div>

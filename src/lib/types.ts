@@ -84,6 +84,8 @@ export interface PlayerState {
   totalCombos: number;
   /** Trail Read: set to true once the player draws a fresh obstacle, locking them out of revealed pool */
   drewFreshObstacle: boolean;
+  /** Bonus cards drawn this turn (capped to prevent infinite loops) */
+  bonusCardsDrawn: number;
 }
 
 // ── Game state ──
@@ -136,7 +138,7 @@ export interface GameState {
 
 export interface GameAction {
   type: 'pedal' | 'brake' | 'steer' | 'technique' | 'tackle' | 'pass_duel' |
-        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle' | 'resolve_obstacle' | 'reuse_obstacle';
+        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle' | 'resolve_obstacle' | 'reuse_obstacle' | 'send_it';
   payload?: Record<string, unknown>;
 }
 

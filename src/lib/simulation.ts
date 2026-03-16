@@ -5,22 +5,55 @@ import { smartAiPlaySprint, smartAiCommit } from './smart-ai';
 
 type Strategy = SimulationConfig['strategy'];
 
+/** Check if hand can match obstacle (supports "Forced Through" wild matching) */
 function canMatchObstacle(
   hand: { symbol: string }[],
   symbols: string[],
   matchMode: 'all' | 'any',
 ): boolean {
   const usedIndices = new Set<number>();
+
   if (matchMode === 'any') {
-    return symbols.some(sym =>
-      hand.some((c, i) => c.symbol === sym && !usedIndices.has(i) && (usedIndices.add(i), true)),
-    );
+    // Exact match
+    if (symbols.some(sym => hand.some((c, i) => c.symbol === sym && !usedIndices.has(i) && (usedIndices.add(i), true)))) {
+      return true;
+    }
+    // Wild: any 2 cards of same symbol
+    const counts: Record<string, number> = {};
+    for (const c of hand) counts[c.symbol] = (counts[c.symbol] || 0) + 1;
+    return Object.values(counts).some(n => n >= 2);
   }
-  return symbols.every(sym => {
+
+  // mode === 'all': exact matches first, then wilds for remainder
+  const unmatched: string[] = [];
+  for (const sym of symbols) {
     const idx = hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-    if (idx >= 0) { usedIndices.add(idx); return true; }
-    return false;
-  });
+    if (idx >= 0) usedIndices.add(idx);
+    else unmatched.push(sym);
+  }
+  if (unmatched.length === 0) return true;
+
+  // "Forced Through": 2 same-symbol cards = 1 wild match
+  for (const _sym of unmatched) {
+    const avail: Record<string, number[]> = {};
+    for (let i = 0; i < hand.length; i++) {
+      if (usedIndices.has(i)) continue;
+      const s = hand[i].symbol;
+      if (!avail[s]) avail[s] = [];
+      avail[s].push(i);
+    }
+    let found = false;
+    for (const indices of Object.values(avail)) {
+      if (indices.length >= 2) {
+        usedIndices.add(indices[0]);
+        usedIndices.add(indices[1]);
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
 }
 
 function resolveActiveObstacles(state: GameState, playerIndex: number): GameState {
@@ -30,10 +63,25 @@ function resolveActiveObstacles(state: GameState, playerIndex: number): GameStat
     const player = s.players[playerIndex];
     const mode = obs.matchMode ?? 'all';
     const hasMatch = canMatchObstacle(player.hand, obs.symbols, mode);
-    s = processAction(s, playerIndex, {
-      type: 'resolve_obstacle',
-      payload: { obstacleIndex: 0, choice: hasMatch ? 'match' : 'take_penalty' },
-    });
+
+    if (hasMatch) {
+      s = processAction(s, playerIndex, {
+        type: 'resolve_obstacle',
+        payload: { obstacleIndex: 0, choice: 'match' },
+      });
+    } else if (player.momentum >= 2) {
+      // "Send It" — spend 2 momentum to force-clear when no card match available
+      s = processAction(s, playerIndex, {
+        type: 'send_it',
+        payload: { obstacleIndex: 0 },
+      });
+    } else {
+      // Take the penalty
+      s = processAction(s, playerIndex, {
+        type: 'resolve_obstacle',
+        payload: { obstacleIndex: 0, choice: 'take_penalty' },
+      });
+    }
   }
   return s;
 }
