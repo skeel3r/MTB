@@ -378,6 +378,88 @@ export function runSingleGame(
   };
 }
 
+/**
+ * Fast game runner — skips snapshot collection for Monte Carlo.
+ * Only returns the result + minimal round-5 leader info for snowball tracking.
+ */
+export function runSingleGameFast(
+  config: SimulationConfig,
+  gameNumber: number,
+): { result: SimulationResult; round5Leader: string | null } {
+  const playerNames = Array.from({ length: config.playerCount }, (_, i) => `Player ${i + 1}`);
+  let state = initGame(playerNames);
+  const totalRounds = state.trailLength;
+  let round5Leader: string | null = null;
+
+  const useSmartAi = config.strategy === 'smart' || config.strategy === 'balanced';
+
+  for (let round = 0; round < totalRounds; round++) {
+    state = advancePhase(state); // scroll descent
+    state = advancePhase(state); // commitment phase
+
+    for (let i = 0; i < state.players.length; i++) {
+      if (useSmartAi) {
+        state = smartAiCommit(state, i);
+      } else {
+        const line = config.strategy === 'aggressive' ? 'pro' : 'main';
+        state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      }
+    }
+
+    state = advancePhase(state); // environment
+    state = advancePhase(state); // preparation
+    state = advancePhase(state); // sprint start
+
+    const turnOrder = [...state.players]
+      .map((p, i) => ({ i, progress: p.progress }))
+      .sort((a, b) => b.progress - a.progress)
+      .map(x => x.i);
+
+    for (const pi of turnOrder) {
+      if (useSmartAi) {
+        state = smartAiPlaySprint(state, pi);
+      } else {
+        state = aiTakeTurn(state, pi, config.strategy);
+      }
+    }
+
+    state = advancePhase(state); // alignment
+    state = advancePhase(state); // reckoning
+
+    // Capture round-5 leader for snowball tracking (no snapshot needed)
+    if (round === 4) {
+      let maxProg = -1;
+      let leaderName: string | null = null;
+      for (const p of state.players) {
+        if (p.progress > maxProg) { maxProg = p.progress; leaderName = p.name; }
+      }
+      round5Leader = leaderName;
+    }
+  }
+
+  state.phase = 'game_over';
+  const standings = getStandings(state);
+
+  return {
+    result: {
+      gameNumber,
+      winner: standings[0].name,
+      finalStandings: standings.map(s => ({
+        name: s.name,
+        progress: s.progress,
+        perfectMatches: s.perfectMatches,
+        penalties: s.penalties,
+        flow: s.flow,
+        momentum: s.momentum,
+        combosTriggered: s.totalCombos,
+        cardsPlayed: s.totalCardsPlayed,
+      })),
+      totalRounds: state.round,
+    },
+    round5Leader,
+  };
+}
+
 /** Legacy sync runner */
 export function runSimulation(config: SimulationConfig): SimulationResult[] {
   const results: SimulationResult[] = [];
@@ -590,16 +672,21 @@ export function runMonteCarlo(
   const seatWins: Record<string, number> = {};
   const strategyData: Record<string, { wins: number; games: number }> = {};
   const convergencePoints: { games: number; p1WinRate: number }[] = [];
-  const winnerScores: number[] = [];
-  const loserScores: number[] = [];
 
-  // For snowball tracking
-  const earlyLeadWins: { hadLead: boolean; won: boolean }[] = [];
+  // Incremental stats — avoid storing all scores in arrays
+  let winnerScoreSum = 0, winnerScoreSqSum = 0, winnerCount = 0;
+  let loserScoreSum = 0, loserScoreSqSum = 0, loserCount = 0;
+
+  // For snowball tracking — incremental
+  let earlyLeadWinCount = 0;
+  let earlyLeadTotal = 0;
 
   let totalObstaclesCleared = 0;
   let totalObstaclesFlipped = 0;
   let gamesDone = 0;
   let p1Wins = 0;
+
+  const convergenceInterval = Math.max(1, Math.floor(totalGames / 50));
 
   for (const strategy of strategies) {
     if (!strategyData[strategy]) {
@@ -608,45 +695,43 @@ export function runMonteCarlo(
 
     for (let g = 0; g < gamesPerStrategy; g++) {
       const config: SimulationConfig = { playerCount, gamesCount: 1, strategy };
-      const { result, roundSnapshots } = runSingleGame(config, gamesDone + 1);
+      const { result, round5Leader } = runSingleGameFast(config, gamesDone + 1);
 
       // Track wins by seat
       seatWins[result.winner] = (seatWins[result.winner] || 0) + 1;
-      // Strategy win rate: track winner's progress as a quality metric
       strategyData[strategy].wins += result.finalStandings[0].progress;
       strategyData[strategy].games++;
 
       if (result.winner === 'Player 1') p1Wins++;
 
-      // Score distributions
-      winnerScores.push(result.finalStandings[0].progress);
+      // Incremental score distributions
+      const wScore = result.finalStandings[0].progress;
+      winnerScoreSum += wScore;
+      winnerScoreSqSum += wScore * wScore;
+      winnerCount++;
       if (result.finalStandings.length > 1) {
-        loserScores.push(result.finalStandings[result.finalStandings.length - 1].progress);
+        const lScore = result.finalStandings[result.finalStandings.length - 1].progress;
+        loserScoreSum += lScore;
+        loserScoreSqSum += lScore * lScore;
+        loserCount++;
       }
 
-      // Estimate obstacle match rate from progress vs penalties
+      // Estimate obstacle match rate
       for (const s of result.finalStandings) {
-        totalObstaclesCleared += s.progress; // rough proxy
-        totalObstaclesFlipped += s.progress + s.penalties; // cleared + blown by
+        totalObstaclesCleared += s.progress;
+        totalObstaclesFlipped += s.progress + s.penalties;
       }
 
-      // Snowball: check if leader at round 5 also won
-      if (roundSnapshots.length >= 5) {
-        const r5 = roundSnapshots[4];
-        const maxProg = Math.max(...r5.players.map(p => p.progress));
-        const leader = r5.players.find(p => p.progress === maxProg);
-        if (leader) {
-          earlyLeadWins.push({
-            hadLead: leader.name === result.winner,
-            won: true,
-          });
-        }
+      // Snowball: check if round-5 leader won
+      if (round5Leader) {
+        earlyLeadTotal++;
+        if (round5Leader === result.winner) earlyLeadWinCount++;
       }
 
       gamesDone++;
 
       // Convergence sampling
-      if (gamesDone % Math.max(1, Math.floor(totalGames / 50)) === 0 || gamesDone === 1) {
+      if (gamesDone % convergenceInterval === 0 || gamesDone === 1) {
         convergencePoints.push({
           games: gamesDone,
           p1WinRate: p1Wins / gamesDone,
@@ -690,17 +775,18 @@ export function runMonteCarlo(
     mean: p1Rate,
   };
 
-  // Score distributions
-  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-  const stdDev = (arr: number[], mean: number) =>
-    arr.length > 1 ? Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / (arr.length - 1)) : 0;
-  const wAvg = avg(winnerScores);
-  const lAvg = avg(loserScores);
+  // Score distributions — computed from incremental sums
+  const wAvg = winnerCount > 0 ? winnerScoreSum / winnerCount : 0;
+  const wStdDev = winnerCount > 1
+    ? Math.sqrt((winnerScoreSqSum - winnerScoreSum * winnerScoreSum / winnerCount) / (winnerCount - 1))
+    : 0;
+  const lAvg = loserCount > 0 ? loserScoreSum / loserCount : 0;
+  const lStdDev = loserCount > 1
+    ? Math.sqrt((loserScoreSqSum - loserScoreSum * loserScoreSum / loserCount) / (loserCount - 1))
+    : 0;
 
   // Snowball correlation
-  const snowballRate = earlyLeadWins.length > 0
-    ? earlyLeadWins.filter(e => e.hadLead).length / earlyLeadWins.length
-    : 0;
+  const snowballRate = earlyLeadTotal > 0 ? earlyLeadWinCount / earlyLeadTotal : 0;
 
   // Strategy dominance
   const bestStrat = strategyWinRates.reduce((a, b) => a.rate > b.rate ? a : b);
@@ -727,9 +813,9 @@ export function runMonteCarlo(
     p1Confidence,
     scoreDistribution: {
       winnerAvg: wAvg,
-      winnerStdDev: stdDev(winnerScores, wAvg),
+      winnerStdDev: wStdDev,
       loserAvg: lAvg,
-      loserStdDev: stdDev(loserScores, lAvg),
+      loserStdDev: lStdDev,
     },
     obstacleMatchRate: totalObstaclesFlipped > 0 ? totalObstaclesCleared / totalObstaclesFlipped : 0,
     snowballCorrelation: snowballRate,
@@ -749,14 +835,21 @@ export function runMonteCarlo(
  * Deck: 52 cards — 17 grip, 17 air, 9 agility, 9 balance
  */
 
+const _chooseCache = new Map<number, number>();
 function choose(n: number, k: number): number {
   if (k < 0 || k > n) return 0;
   if (k === 0 || k === n) return 1;
+  const kk = k < n - k ? k : n - k;
+  const key = n * 1000 + kk;
+  const cached = _chooseCache.get(key);
+  if (cached !== undefined) return cached;
   let result = 1;
-  for (let i = 0; i < k; i++) {
+  for (let i = 0; i < kk; i++) {
     result = result * (n - i) / (i + 1);
   }
-  return Math.round(result);
+  const val = Math.round(result);
+  _chooseCache.set(key, val);
+  return val;
 }
 
 /** P(at least 1 card of a given symbol | hand of size h from deck of N with K of that symbol) */

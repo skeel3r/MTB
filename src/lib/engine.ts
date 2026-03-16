@@ -83,9 +83,64 @@ export function initGame(playerNames: string[], trailId?: string): GameState {
   };
 }
 
-// ── Deep clone helper ──
+// ── Fast deep clone (avoids JSON.parse/stringify overhead) ──
+function clonePlayer(p: PlayerState): PlayerState {
+  return {
+    id: p.id,
+    name: p.name,
+    grid: p.grid.map(row => [...row]),
+    momentum: p.momentum,
+    flow: p.flow,
+    progress: p.progress,
+    hand: p.hand.map(c => ({ ...c })),
+    penalties: p.penalties.map(c => ({ ...c })),
+    upgrades: [...p.upgrades],
+    hazardDice: p.hazardDice,
+    actionsRemaining: p.actionsRemaining,
+    commitment: p.commitment,
+    perfectMatches: p.perfectMatches,
+    obstaclesCleared: p.obstaclesCleared,
+    crashed: p.crashed,
+    turnEnded: p.turnEnded,
+    cannotPedal: p.cannotPedal,
+    cannotBrake: p.cannotBrake,
+    cardsPlayedThisTurn: p.cardsPlayedThisTurn.map(c => ({ ...c })),
+    combosTriggered: [...p.combosTriggered],
+    totalCardsPlayed: p.totalCardsPlayed,
+    totalCombos: p.totalCombos,
+    drewFreshObstacle: p.drewFreshObstacle,
+    pendingMomentum: p.pendingMomentum,
+  };
+}
+
 function cloneState(state: GameState): GameState {
-  return JSON.parse(JSON.stringify(state));
+  const playerObstacleLines: Record<string, ProgressObstacle[]> = {};
+  for (const key in state.playerObstacleLines) {
+    playerObstacleLines[key] = state.playerObstacleLines[key].map(o => ({ ...o }));
+  }
+  return {
+    players: state.players.map(clonePlayer),
+    currentPlayerIndex: state.currentPlayerIndex,
+    round: state.round,
+    trailLength: state.trailLength,
+    trailId: state.trailId,
+    phase: state.phase,
+    activeTrailCard: state.activeTrailCard ? { ...state.activeTrailCard, checkedRows: [...state.activeTrailCard.checkedRows], targetLanes: [...state.activeTrailCard.targetLanes] } : null,
+    queuedTrailCard: state.queuedTrailCard ? { ...state.queuedTrailCard, checkedRows: [...state.queuedTrailCard.checkedRows], targetLanes: [...state.queuedTrailCard.targetLanes] } : null,
+    trailDeck: state.trailDeck.map(c => ({ ...c, checkedRows: [...c.checkedRows], targetLanes: [...c.targetLanes] })),
+    techniqueDeck: state.techniqueDeck.map(c => ({ ...c })),
+    techniqueDiscard: state.techniqueDiscard.map(c => ({ ...c })),
+    penaltyDeck: state.penaltyDeck.map(c => ({ ...c })),
+    obstacleDeck: state.obstacleDeck.map(o => ({ ...o })),
+    obstacleDiscard: state.obstacleDiscard.map(o => ({ ...o })),
+    activeObstacles: state.activeObstacles.map(o => ({ ...o })),
+    trailHazards: state.trailHazards.map(h => ({ ...h })),
+    currentHazards: state.currentHazards.map(h => ({ ...h })),
+    playerObstacleLines,
+    roundRevealedObstacles: state.roundRevealedObstacles.map(o => ({ ...o })),
+    lastHazardRolls: state.lastHazardRolls.map(r => ({ ...r, rolls: [...r.rolls] })),
+    log: [...state.log],
+  };
 }
 
 // ── Get token position in a row ──

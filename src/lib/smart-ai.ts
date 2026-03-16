@@ -80,14 +80,22 @@ function canMatchObstacle(
 // Hypergeometric probability engine
 // ═══════════════════════════════════════════════════════════
 
+const _chooseCache = new Map<number, number>();
 function choose(n: number, k: number): number {
   if (k < 0 || k > n) return 0;
   if (k === 0 || k === n) return 1;
+  // Normalize: C(n,k) = C(n, n-k)
+  const kk = k < n - k ? k : n - k;
+  const key = n * 1000 + kk; // n < 1000 in practice
+  const cached = _chooseCache.get(key);
+  if (cached !== undefined) return cached;
   let result = 1;
-  for (let i = 0; i < k; i++) {
+  for (let i = 0; i < kk; i++) {
     result = result * (n - i) / (i + 1);
   }
-  return Math.round(result);
+  const val = Math.round(result);
+  _chooseCache.set(key, val);
+  return val;
 }
 
 /** P(hand of size h has at least 1 card of a symbol with K copies in deck of N) */
@@ -345,11 +353,56 @@ function getLegalActions(state: GameState, playerIndex: number): ScoredAction[] 
 }
 
 /**
+ * Prune obviously bad actions to reduce the number of full state simulations.
+ */
+function pruneActions(actions: ScoredAction[], state: GameState, playerIndex: number): ScoredAction[] {
+  const player = state.players[playerIndex];
+  const trail = state.activeTrailCard;
+
+  // Build a set of target lanes for quick lookup
+  const targetMap = new Map<number, number>();
+  if (trail) {
+    for (let i = 0; i < trail.checkedRows.length; i++) {
+      targetMap.set(trail.checkedRows[i], trail.targetLanes[i]);
+    }
+  }
+
+  return actions.filter(entry => {
+    const a = entry.action;
+
+    // Always keep non-steer/non-brake actions
+    if (a.type !== 'steer' && a.type !== 'brake') return true;
+
+    // Brake: skip if momentum <= 1 (almost never useful)
+    if (a.type === 'brake' && player.momentum <= 1) return false;
+
+    // Steer: skip moves that go away from target on checked rows
+    if (a.type === 'steer' && trail) {
+      const row = a.payload?.row as number;
+      const dir = a.payload?.direction as number;
+      const target = targetMap.get(row);
+      if (target !== undefined) {
+        const col = getTokenCol(player.grid, row);
+        if (col >= 0) {
+          const currentDist = Math.abs(col - target);
+          const newDist = Math.abs(col + dir - target);
+          // Skip if moving further from target (and already close)
+          if (newDist > currentDist && currentDist <= 1) return false;
+        }
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
  * Score each legal action by simulating it and evaluating the resulting state.
  * Returns actions sorted best-first.
  */
 function scoreActions(state: GameState, playerIndex: number): ScoredAction[] {
-  const actions = getLegalActions(state, playerIndex);
+  const allActions = getLegalActions(state, playerIndex);
+  const actions = pruneActions(allActions, state, playerIndex);
   const currentScore = evaluateState(state, playerIndex).total;
 
   for (const entry of actions) {
