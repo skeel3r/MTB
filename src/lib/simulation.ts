@@ -83,6 +83,7 @@ function resolveActiveObstacles(state: GameState, playerIndex: number): GameStat
 
 /**
  * Trail Read: try to reuse revealed obstacles the player can match.
+ * Evaluates all matchable revealed obstacles and picks the best ones.
  * Returns updated state and number reused.
  */
 function tryReuseRevealed(state: GameState, playerIndex: number, maxReuse: number): { state: GameState; reused: number } {
@@ -94,13 +95,32 @@ function tryReuseRevealed(state: GameState, playerIndex: number, maxReuse: numbe
 
   for (let attempt = 0; attempt < maxReuse && !p().crashed && !p().turnEnded; attempt++) {
     const revealed = s.roundRevealedObstacles;
+    const hand = p().hand;
     let bestIdx = -1;
+    let bestScore = -Infinity;
+
+    // Evaluate all matchable revealed obstacles and pick the best one
     for (let i = 0; i < revealed.length; i++) {
       const obs = revealed[i];
       const mode = obs.matchMode ?? 'all';
-      if (canMatchObstacle(p().hand, obs.symbols, mode)) {
+      if (!canMatchObstacle(hand, obs.symbols, mode)) continue;
+
+      // Score: prefer 'any' mode (cheaper), prefer symbols we have duplicates of
+      let score = 10;
+      if (mode === 'any') score += 3; // cheaper match
+      if (obs.symbols.length === 1) score += 2; // single symbol = easiest
+
+      const symbolCounts: Record<string, number> = {};
+      for (const c of hand) symbolCounts[c.symbol] = (symbolCounts[c.symbol] || 0) + 1;
+      for (const sym of obs.symbols) {
+        const count = symbolCounts[sym] || 0;
+        if (count >= 2) score += 1; // have duplicates, safe to spend
+        if (count <= 1 && mode === 'all') score -= 2; // using last copy
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
         bestIdx = i;
-        break;
       }
     }
     if (bestIdx < 0) break;

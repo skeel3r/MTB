@@ -11,7 +11,7 @@
  * and expected value calculations for action selection.
  */
 
-import { GameState, PlayerState, CardSymbol, GameAction, ProgressObstacle } from './types';
+import { GameState, PlayerState, CardSymbol, GameAction, ProgressObstacle, TechniqueCard } from './types';
 import { processAction } from './engine';
 
 // ═══════════════════════════════════════════════════════════
@@ -510,8 +510,44 @@ function shouldDrawFreshObstacle(
 }
 
 /**
+ * Score a single revealed obstacle for reuse potential.
+ * Higher score = better to match with current hand.
+ */
+function scoreRevealedObstacle(
+  obs: ProgressObstacle,
+  hand: TechniqueCard[],
+): number {
+  const mode = obs.matchMode ?? 'all';
+  if (!canMatchObstacle(hand, obs.symbols, mode)) return -Infinity;
+
+  const progressGain = 10; // base value
+  let score = progressGain;
+
+  if (mode === 'any') score += 3; // cheaper match (1 card)
+  if (obs.symbols.length === 1) score += 2; // single symbol = easiest
+
+  // Check if matching would deplete symbols we need
+  const symbolsInHand: Record<string, number> = {};
+  for (const c of hand) symbolsInHand[c.symbol] = (symbolsInHand[c.symbol] || 0) + 1;
+
+  if (mode === 'any') {
+    const available = obs.symbols.map(s => symbolsInHand[s] || 0);
+    const maxAvailable = Math.max(...available);
+    score += maxAvailable * 0.5; // prefer symbols we have plenty of
+  } else {
+    for (const sym of obs.symbols) {
+      const available = symbolsInHand[sym] || 0;
+      if (available >= 3) score += 1; // plenty of this symbol
+      else if (available <= 1) score -= 2; // using our last copy
+    }
+  }
+
+  return score;
+}
+
+/**
  * Select the best revealed obstacle to reuse.
- * Considers: match probability, card cost, obstacle value.
+ * Evaluates per-player obstacle lines and picks the single best matchable obstacle.
  */
 function pickBestRevealedObstacle(
   state: GameState,
@@ -523,36 +559,7 @@ function pickBestRevealedObstacle(
   let bestScore = -Infinity;
 
   for (let i = 0; i < revealed.length; i++) {
-    const obs = revealed[i];
-    const mode = obs.matchMode ?? 'all';
-    if (!canMatchObstacle(player.hand, obs.symbols, mode)) continue;
-
-    // Score: progress gain minus card cost
-    // Prefer 'any' mode obstacles (cheaper to match)
-    // Prefer obstacles whose matching cards we have duplicates of
-    let score = 10; // base value (progress)
-
-    if (mode === 'any') {
-      score += 2; // cheaper match
-    }
-
-    // Check if matching would deplete a symbol we need
-    const symbolsInHand: Record<string, number> = {};
-    for (const c of player.hand) symbolsInHand[c.symbol] = (symbolsInHand[c.symbol] || 0) + 1;
-
-    for (const sym of obs.symbols) {
-      if (mode === 'any') {
-        // Only costs 1 card of any listed symbol — prefer the one we have most of
-        const available = obs.symbols.map(s => symbolsInHand[s] || 0);
-        const maxAvailable = Math.max(...available);
-        score += maxAvailable * 0.5; // prefer symbols we have plenty of
-        break;
-      } else {
-        const available = symbolsInHand[sym] || 0;
-        if (available <= 1) score -= 1; // using our last copy of this symbol
-      }
-    }
-
+    const score = scoreRevealedObstacle(revealed[i], player.hand);
     if (score > bestScore) {
       bestScore = score;
       bestIdx = i;
