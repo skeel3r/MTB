@@ -744,7 +744,7 @@ export function runMonteCarlo(
  * Uses hypergeometric probability to compute exact chance of matching
  * each obstacle given a hand size drawn from the technique deck.
  *
- * Deck: 26 cards — 8 grip, 8 air, 5 agility, 5 balance
+ * Deck: 52 cards — 17 grip, 17 air, 9 agility, 9 balance
  */
 
 function choose(n: number, k: number): number {
@@ -783,8 +783,8 @@ export interface ObstacleMatchProbability {
 }
 
 export function computeObstacleMatchProbabilities(): ObstacleMatchProbability[] {
-  const N = 26; // deck size
-  const symbolCounts: Record<string, number> = { grip: 8, air: 8, agility: 5, balance: 5 };
+  const N = 52; // deck size
+  const symbolCounts: Record<string, number> = { grip: 17, air: 17, agility: 9, balance: 9 };
 
   // Rough momentum distribution weights for hand sizes 2-6
   // (momentum typically 2-5, capped at 6)

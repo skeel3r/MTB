@@ -8,7 +8,7 @@
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| Technique Cards | 26 (see table) | 6 unique cards with grip, air, agility, or balance symbols |
+| Technique Cards | 52 (see table) | 6 unique cards with grip, air, agility, or balance symbols |
 | Obstacle Cards | 42 (3 per type) | 14 unique obstacles (10 standard + 4 hard) requiring symbol matches |
 | Penalty Cards | 24 (2 per type) | 12 unique mechanical failures |
 | Trail Cards | 15 | Define the course layout and speed limits |
@@ -25,7 +25,7 @@ All card data is defined in the `data/` directory as CSV files for easy editing 
 ## Setup
 
 1. Each player receives a **6x5 grid**. Place tokens in the **center lane (C3)** of Rows 1-5.
-2. Shuffle the **Technique Deck** (26 cards), **Obstacle Deck** (42 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
+2. Shuffle the **Technique Deck** (52 cards), **Obstacle Deck** (42 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
 3. Place the **Trail Deck** (15 cards) in order — these define the 15-round course.
 4. Each player starts with:
    - **Momentum: 2**
@@ -143,16 +143,16 @@ After rounds 3, 6, 9, and 12:
 
 ## Technique Cards
 
-There are 6 unique technique cards (26 total). Each card has a **symbol** used for obstacle matching and an **action effect** when played.
+There are 6 unique technique cards (52 total). Each card has a **symbol** used for obstacle matching and an **action effect** when played.
 
 | Card | Symbol | Copies | Effect When Played |
 |------|--------|--------|--------------------|
-| **Inside Line** | Grip (red) | 5 | Ignore Grip penalties this turn. **Shift any 1 token up to 2 lanes** in either direction. |
-| **Manual** | Air (blue) | 5 | **Swap any 2 adjacent-row tokens.** Choose which pair of adjacent rows. |
-| **Flick** | Agility (green) | 5 | **Shift tokens in Rows 1-3** one lane toward center. |
-| **Recover** | Balance (orange) | 5 | Remove 2 Hazard Dice (or repair 1 Penalty if at 0 dice). **Center any 1 token** (move to C3). |
-| **Pump** | Air (blue) | 3 | **Shift tokens in Rows 4-6** one lane toward center. Lower grid complement to Flick. |
-| **Whip** | Grip (red) | 3 | **Move any 1 token directly to any lane.** Precision placement. |
+| **Inside Line** | Grip (red) | 10 | Ignore Grip penalties this turn. **Shift any 1 token up to 2 lanes** in either direction. |
+| **Manual** | Air (blue) | 10 | **Swap any 2 adjacent-row tokens.** Choose which pair of adjacent rows. |
+| **Flick** | Agility (green) | 9 | **Shift tokens in Rows 1-3** one lane toward center. |
+| **Recover** | Balance (orange) | 9 | Remove 2 Hazard Dice (or repair 1 Penalty if at 0 dice). **Center any 1 token** (move to C3). |
+| **Pump** | Air (blue) | 7 | **Shift tokens in Rows 4-6** one lane toward center. Lower grid complement to Flick. |
+| **Whip** | Grip (red) | 7 | **Move any 1 token directly to any lane.** Precision placement. |
 
 Playing a technique card costs **1 Action** and discards the card. The card's symbol is consumed — it cannot also be used to match an obstacle.
 
@@ -349,7 +349,7 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 | Crash momentum penalty | -3 | Lost on crash |
 | Turn order | Leader first | Highest progress goes first each sprint |
 | Stage Break interval | Every 3 rounds | Rounds 3, 6, 9, 12 |
-| Technique deck size | 26 | 6 unique cards (see Technique Cards table) |
+| Technique deck size | 52 | 6 unique cards (see Technique Cards table) |
 | Obstacle deck size | 42 | 14 types x 3 copies (10 standard + 4 hard) |
 | Penalty deck size | 24 | 12 types x 2 copies |
 
