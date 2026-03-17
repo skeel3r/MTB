@@ -12,12 +12,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* White background always */
 
 body {
   background: var(--background);
@@ -25,9 +20,10 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Game table felt background */
+/* Game table — clean white surface */
 .game-table {
-  background: radial-gradient(ellipse at center, #1a472a 0%, #0f2d1a 60%, #0a1f12 100%);
+  background: #ffffff;
+  color: #1a1a1a;
 }
 
 /* Playing card base style */
@@ -62,13 +58,13 @@ body {
   box-shadow: 2px 3px 8px rgba(0,0,0,0.4);
 }
 
-/* Trail card style (darker, worn parchment) */
+/* Trail card style */
 .trail-card {
-  background: linear-gradient(145deg, #3d3226 0%, #2a2218 100%);
-  border: 2px solid #5a4a3a;
+  background: linear-gradient(145deg, #f8f6f2 0%, #eee9e0 100%);
+  border: 2px solid #d0c8b8;
   border-radius: 8px;
-  box-shadow: 2px 3px 8px rgba(0,0,0,0.5);
-  color: #e8dcc8;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  color: #2a2218;
 }
 
 /* Obstacle card (warning/danger feel) */

@@ -53,7 +53,7 @@ export default function GameBoard({
 
   return (
     <div className="inline-block">
-      <div className="text-sm font-bold mb-1 text-center text-amber-200 tracking-wide drop-shadow-md">{player.name}</div>
+      <div className="text-sm font-bold mb-1 text-center text-gray-800 tracking-wide">{player.name}</div>
       <div
         className="relative rounded-lg overflow-hidden"
         style={{

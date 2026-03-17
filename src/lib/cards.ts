@@ -3,10 +3,10 @@ import { TechniqueCard, PenaltyCard, MainTrailCard, TrailHazard, CardSymbol, Pro
 // ── Technique Cards ──
 const SYMBOLS: CardSymbol[] = ['grip', 'air', 'agility', 'balance'];
 const SYMBOL_NAMES: Record<CardSymbol, string> = {
-  grip: 'Tire',
-  air: 'Spring',
-  agility: 'Bars',
-  balance: 'Level',
+  grip: 'Traction',
+  air: 'Suspension',
+  agility: 'Handling',
+  balance: 'Control',
 };
 
 /** Official technique card definitions */
@@ -238,10 +238,10 @@ export function shuffle<T>(array: T[]): T[] {
 }
 
 export const SYMBOL_EMOJI: Record<CardSymbol, string> = {
-  grip: '🛞',
-  air: '🌀',
-  agility: '🔀',
-  balance: '⚖️',
+  grip: '🏔️',
+  air: '💨',
+  agility: '🚴',
+  balance: '🛡️',
 };
 
 export const SYMBOL_COLORS: Record<CardSymbol, string> = {
