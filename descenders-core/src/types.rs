@@ -550,6 +550,10 @@ pub struct PlayerState {
     pub cannot_brake: bool,
     pub total_cards_played: i32,
     pub drew_fresh_obstacle: bool,
+    /// Trail Read: player index whose obstacle line this player is committed to
+    pub trail_read_committed_player: Option<usize>,
+    /// Trail Read: next obstacle index to resolve in the committed player's line
+    pub trail_read_next_index: usize,
     pub pending_momentum: i32,
 }
 

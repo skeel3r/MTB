@@ -297,15 +297,16 @@ export function advancePhase(state: GameState): GameState {
 
   if (s.phase === 'reckoning') {
     // Check for stage break (every 3 cards)
-    if (s.round > 0 && s.round % 3 === 0) {
-      s.phase = 'stage_break';
-      return executeStageBreak(s);
-    }
-    // Check for game over
+    // Check for game over (before stage break, so last round skips the shop)
     if (s.round >= s.trailLength) {
       s.phase = 'game_over';
       s.log.push('Game Over!');
       return s;
+    }
+    // Stage break every 3 rounds (but not the final round)
+    if (s.round > 0 && s.round % 3 === 0) {
+      s.phase = 'stage_break';
+      return executeStageBreak(s);
     }
     // Next round
     s.phase = 'scroll_descent';

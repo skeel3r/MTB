@@ -184,10 +184,28 @@ fn enumerate_free_sprint_choices(state: &GameState, player: &PlayerState) -> Vec
         choices.push(Choice::DrawObstacle);
     }
 
-    // ReuseObstacle (only if player hasn't drawn a fresh obstacle this turn)
-    if !player.drew_fresh_obstacle {
-        for revealed_index in 0..state.round_revealed_obstacles.len() {
-            choices.push(Choice::ReuseObstacle { revealed_index });
+    // ReuseObstacle: follow a player's obstacle line in order
+    // revealed_index is repurposed as target_player_index
+    if !player.drew_fresh_obstacle && state.active_obstacles.is_empty() {
+        if let Some(committed) = player.trail_read_committed_player {
+            // Already committed — can only continue with the same player's line
+            let target_id = &state.players[committed].id;
+            if let Some(line) = state.player_obstacle_lines.get(target_id) {
+                if player.trail_read_next_index < line.len() {
+                    choices.push(Choice::ReuseObstacle { revealed_index: committed });
+                }
+            }
+        } else {
+            // Not committed — offer each other player's line that has obstacles
+            let player_idx = state.current_player_index;
+            for (i, p) in state.players.iter().enumerate() {
+                if i == player_idx { continue; } // Can't follow own line
+                if let Some(line) = state.player_obstacle_lines.get(&p.id) {
+                    if !line.is_empty() {
+                        choices.push(Choice::ReuseObstacle { revealed_index: i });
+                    }
+                }
+            }
         }
     }
 

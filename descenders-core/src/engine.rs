@@ -381,6 +381,8 @@ pub fn init_game(
             cannot_brake: false,
             total_cards_played: 0,
             drew_fresh_obstacle: false,
+            trail_read_committed_player: None,
+            trail_read_next_index: 0,
             pending_momentum: 0,
         });
     }
@@ -614,15 +616,42 @@ pub fn process_action(
         }
 
         Choice::ReuseObstacle { revealed_index } => {
-            let revealed_index = *revealed_index;
+            // Trail Read: tackle next obstacle in a specific player's line, in order.
+            // revealed_index is the player index whose line to follow.
+            let target_player_idx = *revealed_index;
             let player = &state.players[player_index];
+
             if player.drew_fresh_obstacle {
                 return;
             }
-            if revealed_index >= state.round_revealed_obstacles.len() {
+
+            // Check if already committed to a different player's line
+            if let Some(committed) = player.trail_read_committed_player {
+                if committed != target_player_idx {
+                    return; // Can't switch lines
+                }
+            }
+
+            // Can't follow your own line
+            if target_player_idx == player_index {
                 return;
             }
-            let reused = state.round_revealed_obstacles[revealed_index];
+
+            // Get the target player's obstacle line
+            let target_id = &state.players[target_player_idx].id.clone();
+            let line = match state.player_obstacle_lines.get(target_id) {
+                Some(line) => line.clone(),
+                None => return,
+            };
+
+            let next_idx = state.players[player_index].trail_read_next_index;
+            if next_idx >= line.len() {
+                return; // No more obstacles in this line
+            }
+
+            let reused = line[next_idx];
+            state.players[player_index].trail_read_committed_player = Some(target_player_idx);
+            state.players[player_index].trail_read_next_index = next_idx + 1;
             state.active_obstacles.push(reused);
         }
 
@@ -860,12 +889,12 @@ pub fn advance_phase(state: &mut GameState, rng: &mut impl Rng) {
             execute_reckoning(state, rng);
         }
         GamePhase::Reckoning => {
-            // Check for stage break (every 3 rounds)
-            if state.round > 0 && state.round % 3 == 0 {
+            // Check for game over first (so last round skips the shop)
+            if state.round >= state.trail_length {
+                state.phase = GamePhase::GameOver;
+            } else if state.round > 0 && state.round % 3 == 0 {
                 state.phase = GamePhase::StageBreak;
                 execute_stage_break(state, rng);
-            } else if state.round >= state.trail_length {
-                state.phase = GamePhase::GameOver;
             } else {
                 state.phase = GamePhase::ScrollDescent;
                 execute_scroll_descent(state);
@@ -999,6 +1028,8 @@ fn execute_sprint_setup(state: &mut GameState, rng: &mut impl Rng) {
         player.cannot_pedal = false;
         player.cannot_brake = false;
         player.drew_fresh_obstacle = false;
+        player.trail_read_committed_player = None;
+        player.trail_read_next_index = 0;
         player.pending_momentum = 0;
 
         // Apply "Arm Pump" penalty (max actions = 3)
