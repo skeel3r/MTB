@@ -5,6 +5,34 @@ import { smartAiPlaySprint, smartAiCommit } from './smart-ai';
 
 type Strategy = SimulationConfig['strategy'];
 
+/**
+ * Aggressive commitment: choose pro line when we can reasonably accomplish it.
+ * Pro line gives +2 progress per obstacle but can't brake.
+ * Choose pro when: hand is large enough to match obstacles AND momentum provides
+ * a safety net for send-it. Otherwise fall back to main.
+ */
+function aggressiveCommitLine(state: GameState, playerIndex: number): 'main' | 'pro' {
+  const player = state.players[playerIndex];
+  const handSize = player.hand.length;
+  const momentum = player.momentum;
+
+  // Count distinct symbols in hand — more diversity = better matching
+  const symbolSet = new Set(player.hand.map(c => c.symbol));
+  const diversity = symbolSet.size;
+
+  // Pro is worthwhile when we have enough resources to match/send-it obstacles:
+  // - Hand of 3+ cards with 2+ distinct symbols means we can likely match
+  // - Momentum of 3+ means we can send-it at least once if needed
+  // - Low hazard dice means we can absorb the risk of not braking
+  const canMatch = handSize >= 3 && diversity >= 2;
+  const canSendIt = momentum >= 3;
+  const lowRisk = player.hazardDice <= 3;
+
+  // Go pro if we can reasonably match OR send-it, and risk is acceptable
+  if ((canMatch || canSendIt) && lowRisk) return 'pro';
+  return 'main';
+}
+
 /** Check if hand can match obstacle (supports "Forced Through" wild matching) */
 function canMatchObstacle(
   hand: { symbol: string }[],
@@ -144,25 +172,37 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
   s = afterReuse;
 
   // Determine how many fresh obstacles to draw
-  let targetObstacles: number;
-  if (strategy === 'conservative') {
-    // Conservative fresh obstacle logic:
-    // 1. Only draw if no reveals were available (e.g. P1 with no prior players)
-    // 2. Only draw on high momentum turns (at trail speed limit = good hand size)
-    // 3. Only draw if hand has 3+ cards (likely to match something)
-    const trailCard = s.activeTrailCard;
-    const atSpeedLimit = trailCard ? p().momentum >= trailCard.speedLimit : p().momentum >= 4;
-    const hasCards = p().hand.length >= 3;
-    const noRevealsAvailable = reused === 0 && s.roundRevealedObstacles.length === 0;
-    targetObstacles = (noRevealsAvailable && atSpeedLimit && hasCards) ? 1 : 0;
+  if (strategy === 'aggressive') {
+    // Aggressive: keep drawing obstacles as long as we have momentum to send it
+    // (can always match with cards if hand allows, or send it if momentum >= cost)
+    const maxFreshAggressive = 5; // safety cap
+    for (let i = 0; i < maxFreshAggressive && !p().crashed && !p().turnEnded; i++) {
+      // Default send_it cost is 2; stop if we can't afford to blow by
+      if (p().momentum < 2 && p().hand.length === 0) break;
+      s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+      s = resolveActiveObstacles(s, playerIndex);
+    }
   } else {
-    targetObstacles = strategy === 'aggressive' ? 2 : Math.max(1, Math.min(2, 1 + linesAvailable));
-  }
-  const freshNeeded = Math.max(0, targetObstacles - reused);
+    let targetObstacles: number;
+    if (strategy === 'conservative') {
+      // Conservative fresh obstacle logic:
+      // 1. Only draw if no reveals were available (e.g. P1 with no prior players)
+      // 2. Only draw on high momentum turns (at trail speed limit = good hand size)
+      // 3. Only draw if hand has 3+ cards (likely to match something)
+      const trailCard = s.activeTrailCard;
+      const atSpeedLimit = trailCard ? p().momentum >= trailCard.speedLimit : p().momentum >= 4;
+      const hasCards = p().hand.length >= 3;
+      const noRevealsAvailable = reused === 0 && s.roundRevealedObstacles.length === 0;
+      targetObstacles = (noRevealsAvailable && atSpeedLimit && hasCards) ? 1 : 0;
+    } else {
+      targetObstacles = Math.max(1, Math.min(2, 1 + linesAvailable));
+    }
+    const freshNeeded = Math.max(0, targetObstacles - reused);
 
-  for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
-    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
-    s = resolveActiveObstacles(s, playerIndex);
+    for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
+      s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+      s = resolveActiveObstacles(s, playerIndex);
+    }
   }
 
   // Spend actions
@@ -171,14 +211,30 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
     const player = p();
 
     if (strategy === 'aggressive') {
-      if (player.momentum < 5 && !player.cannotPedal) {
+      // Priority 1: Pedal to regain as much momentum as possible
+      if (!player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else if (player.hand.length > 0) {
+        // Priority 2: Play technique cards when we can't pedal
         s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
-      } else if (!player.cannotPedal) {
-        s = processAction(s, playerIndex, { type: 'pedal' });
       } else {
-        break;
+        // Priority 3: Steer only if a token is more than 2 lanes from its trail target
+        let steered = false;
+        const trailCard = s.activeTrailCard;
+        if (trailCard) {
+          for (let i = 0; i < trailCard.checkedRows.length; i++) {
+            const row = trailCard.checkedRows[i];
+            const targetLane = trailCard.targetLanes[i];
+            const col = getTokenCol(player.grid, row);
+            if (col >= 0 && Math.abs(col - targetLane) > 2) {
+              const dir = col > targetLane ? -1 : 1;
+              s = processAction(s, playerIndex, { type: 'steer', payload: { row, direction: dir } });
+              steered = true;
+              break;
+            }
+          }
+        }
+        if (!steered) break;
       }
     } else if (strategy === 'conservative') {
       // Conservative: match trail card's target lanes and speed limit
@@ -462,7 +518,7 @@ export function runSingleGame(
       if (useSmartAi) {
         state = smartAiCommit(state, i);
       } else {
-        const line = config.strategy === 'aggressive' ? 'pro' : 'main';
+        const line = config.strategy === 'aggressive' ? aggressiveCommitLine(state, i) : 'main';
         state = processAction(state, i, { type: 'commit_line', payload: { line } });
       }
     }
@@ -553,7 +609,7 @@ export function runSingleGameFast(
       if (useSmartAi) {
         state = smartAiCommit(state, i);
       } else {
-        const line = config.strategy === 'aggressive' ? 'pro' : 'main';
+        const line = config.strategy === 'aggressive' ? aggressiveCommitLine(state, i) : 'main';
         state = processAction(state, i, { type: 'commit_line', payload: { line } });
       }
     }
@@ -1002,7 +1058,7 @@ function runMixedStrategyGame(
       if (strat === 'smart' || strat === 'balanced') {
         state = smartAiCommit(state, i);
       } else {
-        const line = strat === 'aggressive' ? 'pro' : 'main';
+        const line = strat === 'aggressive' ? aggressiveCommitLine(state, i) : 'main';
         state = processAction(state, i, { type: 'commit_line', payload: { line } });
       }
     }
