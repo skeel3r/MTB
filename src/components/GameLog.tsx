@@ -3,14 +3,17 @@
 import { useEffect, useRef } from 'react';
 
 export default function GameLog({ log }: { log: string[] }) {
-  const endRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [log.length]);
+    const el = containerRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [log]);
 
   return (
-    <div className="trail-card relative p-3 h-64 overflow-y-auto font-mono text-xs">
+    <div ref={containerRef} className="trail-card relative p-3 h-full overflow-y-auto font-mono text-xs">
       {/* Top fade */}
       <div className="sticky top-0 left-0 right-0 h-4 pointer-events-none" style={{ background: 'linear-gradient(to bottom, #3d3226 0%, transparent 100%)' }} />
       {log.map((entry, i) => (
@@ -29,7 +32,6 @@ export default function GameLog({ log }: { log: string[] }) {
           {entry}
         </div>
       ))}
-      <div ref={endRef} />
       {/* Bottom fade */}
       <div className="sticky bottom-0 left-0 right-0 h-4 pointer-events-none" style={{ background: 'linear-gradient(to top, #2a2218 0%, transparent 100%)' }} />
     </div>
