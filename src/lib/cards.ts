@@ -225,7 +225,7 @@ export const UPGRADES: Upgrade[] = [
   { id: 'upgrade-3', name: 'Carbon Frame',          flowCost: 5, description: 'Max Momentum = 12; Min Hand Size = 4.' },
   { id: 'upgrade-4', name: 'Electronic Shifting',   flowCost: 5, description: '1 Steer action/turn is 0 Actions.' },
   { id: 'upgrade-5', name: 'Telemetry System',      flowCost: 6, description: 'Look at top 3 Obstacles at turn start; keep 1.' },
-  { id: 'upgrade-6', name: 'Factory Suspension',    flowCost: 8, description: 'Pro Line combos gain +2 Flow instead of 1.' },
+  { id: 'upgrade-6', name: 'Factory Suspension',    flowCost: 8, description: 'Pro Line obstacle clears gain +2 Flow instead of 1.' },
 ];
 
 export function shuffle<T>(array: T[]): T[] {

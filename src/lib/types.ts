@@ -77,13 +77,8 @@ export interface PlayerState {
   /** Flags for symbol penalties */
   cannotPedal: boolean;
   cannotBrake: boolean;
-  /** Technique cards played this sprint turn (for combo tracking) */
-  cardsPlayedThisTurn: { symbol: CardSymbol; name: string }[];
-  /** Combo bonuses earned this turn */
-  combosTriggered: string[];
   /** Cumulative stats across the whole game */
   totalCardsPlayed: number;
-  totalCombos: number;
   /** Trail Read: set to true once the player draws a fresh obstacle, locking them out of revealed pool */
   drewFreshObstacle: boolean;
   /** Momentum earned from obstacles this turn — applied at end of turn, not immediately */
@@ -151,12 +146,12 @@ export interface GameAction {
 export interface SimulationConfig {
   playerCount: number;
   gamesCount: number;
-  strategy: 'aggressive' | 'balanced' | 'conservative' | 'smart' | 'random' | 'adaptive' | 'combo';
+  strategy: 'aggressive' | 'balanced' | 'conservative' | 'smart' | 'random' | 'adaptive';
 }
 
 export interface SimulationResult {
   gameNumber: number;
   winner: string;
-  finalStandings: { name: string; progress: number; perfectMatches: number; penalties: number; flow: number; momentum: number; combosTriggered: number; cardsPlayed: number }[];
+  finalStandings: { name: string; progress: number; perfectMatches: number; penalties: number; flow: number; momentum: number; cardsPlayed: number }[];
   totalRounds: number;
 }

@@ -143,8 +143,8 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
   const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, maxReuse);
   s = afterReuse;
 
-  // Determine how many fresh obstacles to draw
-  const targetObstacles = strategy === 'aggressive' ? 2 : Math.max(1, Math.min(2, 1 + linesAvailable));
+  // Determine how many fresh obstacles to draw (conservative only tackles revealed obstacles)
+  const targetObstacles = strategy === 'conservative' ? 0 : strategy === 'aggressive' ? 2 : Math.max(1, Math.min(2, 1 + linesAvailable));
   const freshNeeded = Math.max(0, targetObstacles - reused);
 
   for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
@@ -161,30 +161,58 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       if (player.momentum < 5 && !player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else if (player.hand.length > 0) {
-        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: pickComboCard(player) } });
+        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
       } else if (!player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else {
         break;
       }
     } else if (strategy === 'conservative') {
-      if (player.momentum > 3) {
+      // Conservative: match trail card's target lanes and speed limit
+      const trailCard = s.activeTrailCard;
+      const targetSpeed = trailCard?.speedLimit ?? 4;
+
+      // Priority 1: brake if over trail speed limit
+      if (player.momentum > targetSpeed && !player.cannotBrake && player.commitment !== 'pro') {
         s = processAction(s, playerIndex, { type: 'brake' });
       } else {
-        // Steer toward center
+        // Priority 2: steer tokens toward trail card target lanes (not just center)
         let steered = false;
-        for (let r = 0; r < 6; r++) {
-          const col = getTokenCol(player.grid, r);
-          if (col >= 0 && col !== 2) {
-            const dir = col > 2 ? -1 : 1;
-            s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
-            steered = true;
-            break;
+        if (trailCard) {
+          for (let i = 0; i < trailCard.checkedRows.length; i++) {
+            const row = trailCard.checkedRows[i];
+            const targetLane = trailCard.targetLanes[i];
+            const col = getTokenCol(player.grid, row);
+            if (col >= 0 && col !== targetLane) {
+              const dir = col > targetLane ? -1 : 1;
+              s = processAction(s, playerIndex, { type: 'steer', payload: { row, direction: dir } });
+              steered = true;
+              break;
+            }
           }
         }
-        if (!steered && !player.cannotPedal) {
+        if (!steered) {
+          // Steer any off-center token toward center as fallback
+          for (let r = 0; r < 6; r++) {
+            const col = getTokenCol(player.grid, r);
+            if (col >= 0 && col !== 2) {
+              const dir = col > 2 ? -1 : 1;
+              s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
+              steered = true;
+              break;
+            }
+          }
+        }
+        if (steered) {
+          continue;
+        }
+        // Priority 3: play technique cards (use hand for obstacle matching or effects)
+        if (player.hand.length > 0) {
+          s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
+        } else if (player.momentum < targetSpeed && !player.cannotPedal) {
+          // Priority 4: pedal up to trail speed limit
           s = processAction(s, playerIndex, { type: 'pedal' });
-        } else if (!steered) {
+        } else {
           break;
         }
       }
@@ -205,7 +233,7 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       if (player.momentum < 4 && !player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else if (player.hand.length > 0) {
-        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: pickComboCard(player) } });
+        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
       } else if (!player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else {
@@ -331,7 +359,7 @@ function aiTakeTurnAdaptive(state: GameState, playerIndex: number): GameState {
 
     // Play technique cards when available
     if (player.hand.length > 0) {
-      s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: pickComboCard(player) } });
+      s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
     } else if (player.momentum < momentumTarget && !player.cannotPedal) {
       s = processAction(s, playerIndex, { type: 'pedal' });
     } else if (ahead && player.momentum > 3 && !player.cannotBrake && player.commitment !== 'pro') {
@@ -349,97 +377,7 @@ function aiTakeTurnAdaptive(state: GameState, playerIndex: number): GameState {
   return s;
 }
 
-/**
- * Combo-focused AI: prioritizes technique cards and combo chains but still
- * draws obstacles (since obstacles cleared is the primary win condition).
- * - Reuses revealed obstacles + draws 1-2 fresh ones
- * - Plays technique cards first, always seeking synergy matches
- * - Steers to center between card plays
- * - Pedals conservatively — combos generate flow which matters more
- * Represents a player who has mastered the card system.
- */
-function aiTakeTurnCombo(state: GameState, playerIndex: number): GameState {
-  let s = { ...state };
-  const p = () => s.players[playerIndex];
 
-  // Still draw obstacles — can't win without clears
-  const linesAvailable = Object.keys(s.playerObstacleLines).length;
-  const maxReuse = Math.max(1, linesAvailable);
-  const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, maxReuse);
-  s = afterReuse;
-
-  // Draw 1-2 fresh obstacles (need clears for standings)
-  const targetObstacles = Math.max(1, Math.min(2, 1 + linesAvailable));
-  const freshNeeded = Math.max(0, targetObstacles - reused);
-  for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
-    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
-    s = resolveActiveObstacles(s, playerIndex);
-  }
-
-  // Spend actions: cards first (combo chaining), then steer, then pedal
-  let safety = 20;
-  while (p().actionsRemaining > 0 && !p().crashed && !p().turnEnded && safety-- > 0) {
-    const player = p();
-
-    // Priority 1: play technique cards (combo chaining)
-    if (player.hand.length > 0) {
-      s = processAction(s, playerIndex, {
-        type: 'technique',
-        payload: { cardIndex: pickComboCard(player) },
-      });
-      continue;
-    }
-
-    // Priority 2: steer toward center (reduce crash risk for next turn)
-    let steered = false;
-    for (let r = 0; r < 6; r++) {
-      const col = getTokenCol(player.grid, r);
-      if (col >= 0 && col !== 2) {
-        const dir = col > 2 ? -1 : 1;
-        s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
-        steered = true;
-        break;
-      }
-    }
-    if (steered) continue;
-
-    // Priority 3: pedal conservatively (momentum 3 target)
-    if (player.momentum < 3 && !player.cannotPedal) {
-      s = processAction(s, playerIndex, { type: 'pedal' });
-    } else if (!player.cannotPedal && player.momentum < 4) {
-      s = processAction(s, playerIndex, { type: 'pedal' });
-    } else {
-      break;
-    }
-  }
-
-  if (!p().turnEnded) {
-    s = processAction(s, playerIndex, { type: 'end_turn' });
-  }
-  return s;
-}
-
-/** Pick the best card index for combo potential */
-function pickComboCard(player: { hand: { symbol: string; name: string }[]; cardsPlayedThisTurn: { symbol: string }[]; hazardDice: number; grid: boolean[][] }): number {
-  if (player.hand.length === 0) return 0;
-  const played = player.cardsPlayedThisTurn || [];
-  if (played.length > 0) {
-    // Try synergy first (same symbol)
-    const playedSymbols = played.map(c => c.symbol);
-    const synergyIdx = player.hand.findIndex(c => playedSymbols.includes(c.symbol));
-    if (synergyIdx >= 0) return synergyIdx;
-    // Then diversify
-    const usedSymbols = new Set(playedSymbols);
-    const diverseIdx = player.hand.findIndex(c => !usedSymbols.has(c.symbol));
-    if (diverseIdx >= 0) return diverseIdx;
-  }
-  // First card: prioritize by state
-  if (player.hazardDice >= 3) {
-    const ri = player.hand.findIndex(c => c.name === 'Recover');
-    if (ri >= 0) return ri;
-  }
-  return 0;
-}
 
 function getTokenCol(grid: boolean[][], row: number): number {
   for (let c = 0; c < 5; c++) {
@@ -532,8 +470,6 @@ export function runSingleGame(
         state = aiTakeTurnRandom(state, pi);
       } else if (config.strategy === 'adaptive') {
         state = aiTakeTurnAdaptive(state, pi);
-      } else if (config.strategy === 'combo') {
-        state = aiTakeTurnCombo(state, pi);
       } else {
         state = aiTakeTurn(state, pi, config.strategy);
       }
@@ -573,7 +509,6 @@ export function runSingleGame(
         penalties: s.penalties,
         flow: s.flow,
         momentum: s.momentum,
-        combosTriggered: s.totalCombos,
         cardsPlayed: s.totalCardsPlayed,
       })),
       totalRounds: state.round,
@@ -654,7 +589,6 @@ export function runSingleGameFast(
         penalties: s.penalties,
         flow: s.flow,
         momentum: s.momentum,
-        combosTriggered: s.totalCombos,
         cardsPlayed: s.totalCardsPlayed,
       })),
       totalRounds: state.round,
@@ -1076,8 +1010,6 @@ function runMixedStrategyGame(
         state = aiTakeTurnRandom(state, pi);
       } else if (strat === 'adaptive') {
         state = aiTakeTurnAdaptive(state, pi);
-      } else if (strat === 'combo') {
-        state = aiTakeTurnCombo(state, pi);
       } else {
         state = aiTakeTurn(state, pi, strat);
       }
@@ -1100,7 +1032,6 @@ function runMixedStrategyGame(
       penalties: s.penalties,
       flow: s.flow,
       momentum: s.momentum,
-      combosTriggered: s.totalCombos,
       cardsPlayed: s.totalCardsPlayed,
     })),
     totalRounds: state.round,
@@ -1157,9 +1088,8 @@ export function runAgencyAnalysis(
     { label: 'aggressive', strategies: ['smart', 'aggressive', 'aggressive', 'aggressive'] },
     { label: 'random', strategies: ['smart', 'random', 'random', 'random'] },
     { label: 'adaptive', strategies: ['smart', 'adaptive', 'adaptive', 'adaptive'] },
-    { label: 'combo', strategies: ['smart', 'combo', 'combo', 'combo'] },
     { label: 'mixed', strategies: ['smart', 'aggressive', 'conservative', 'random'] },
-    { label: 'full-mixed', strategies: ['smart', 'adaptive', 'combo', 'conservative'] },
+    { label: 'full-mixed', strategies: ['smart', 'adaptive', 'aggressive', 'conservative'] },
   ];
 
   const totalWork = matchups.length * 4 * gamesPerMatchup; // 4 seat rotations per matchup
@@ -1234,7 +1164,7 @@ export function runAgencyAnalysis(
   }
 
   // Compute strategy win rates
-  const strategies = ['smart', 'adaptive', 'combo', 'aggressive', 'conservative', 'random'];
+  const strategies = ['smart', 'adaptive', 'aggressive', 'conservative', 'random'];
   const strategyWinRates = strategies.map(s => {
     const d = strategyWins[s] || { wins: 0, games: 0, totalProgress: 0 };
     return {
@@ -1741,7 +1671,6 @@ function runSingleGameWithOverride(
         penalties: s.penalties,
         flow: s.flow,
         momentum: s.momentum,
-        combosTriggered: s.totalCombos,
         cardsPlayed: s.totalCardsPlayed,
       })),
       totalRounds: state.round,

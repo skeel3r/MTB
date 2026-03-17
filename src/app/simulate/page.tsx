@@ -76,19 +76,6 @@ export default function SimulatePage() {
 
     if (results.length > 0) {
       // Per-game detail summary
-      const comboStats = results.flatMap(r => r.finalStandings);
-      const totalCombos = comboStats.reduce((s, p) => s + p.combosTriggered, 0);
-      const totalCardsPlayed = comboStats.reduce((s, p) => s + p.cardsPlayed, 0);
-
-      report.comboAnalysis = {
-        totalCardsPlayed,
-        totalCombosTriggered: totalCombos,
-        comboRate: totalCardsPlayed > 0 ? totalCombos / totalCardsPlayed : 0,
-        avgCombosPerGame: totalCombos / results.length,
-        avgCardsPlayedPerGame: totalCardsPlayed / results.length,
-        avgCombosPerPlayer: totalCombos / comboStats.length,
-      };
-
       report.gameResults = results.map(r => ({
         game: r.gameNumber,
         winner: r.winner,
@@ -537,7 +524,6 @@ export default function SimulatePage() {
                 { label: 'Monte Carlo', active: !!mcResult, detail: mcResult ? `${mcResult.totalGames} games` : '' },
                 { label: 'Sensitivity', active: !!sensitivity, detail: sensitivity ? `${sensitivity.length} params` : '' },
                 { label: 'Obstacle Probs', active: true, detail: `${obsProbabilities.length} obstacles` },
-                { label: 'Combo Analysis', active: results.length > 0, detail: results.length > 0 ? `${results.flatMap(r => r.finalStandings).reduce((s, p) => s + p.combosTriggered, 0)} combos` : '' },
               ].map(item => (
                 <span
                   key={item.label}

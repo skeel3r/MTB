@@ -32,10 +32,7 @@ export function createPlayer(id: string, name: string): PlayerState {
     turnEnded: false,
     cannotPedal: false,
     cannotBrake: false,
-    cardsPlayedThisTurn: [],
-    combosTriggered: [],
     totalCardsPlayed: 0,
-    totalCombos: 0,
     drewFreshObstacle: false,
     pendingMomentum: 0,
   };
@@ -115,10 +112,7 @@ function clonePlayer(p: PlayerState): PlayerState {
     turnEnded: p.turnEnded,
     cannotPedal: p.cannotPedal,
     cannotBrake: p.cannotBrake,
-    cardsPlayedThisTurn: p.cardsPlayedThisTurn.map(c => ({ ...c })),
-    combosTriggered: [...p.combosTriggered],
     totalCardsPlayed: p.totalCardsPlayed,
-    totalCombos: p.totalCombos,
     drewFreshObstacle: p.drewFreshObstacle,
     pendingMomentum: p.pendingMomentum,
   };
@@ -346,8 +340,6 @@ export function advancePhase(state: GameState): GameState {
           p.turnEnded = false;
           p.cannotPedal = false;
           p.cannotBrake = false;
-          p.cardsPlayedThisTurn = [];
-          p.combosTriggered = [];
           p.drewFreshObstacle = false;
           p.pendingMomentum = 0;
         }
@@ -678,12 +670,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         s.log.push(`${player.name}: Plays "${card.name}" - ${card.actionText}`);
         s.techniqueDiscard.push(card);
 
-        // Track for combo system
-        player.cardsPlayedThisTurn.push({ symbol: card.symbol, name: card.name });
         player.totalCardsPlayed++;
-        const playCount = player.cardsPlayedThisTurn.length;
-        const sameSymbolCount = player.cardsPlayedThisTurn.filter(c => c.symbol === card.symbol).length;
-        const uniqueSymbols = new Set(player.cardsPlayedThisTurn.map(c => c.symbol)).size;
 
         // ── Apply base technique card effects ──
         switch (card.name) {
@@ -783,77 +770,6 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           }
         }
 
-        // ── Combo Detection ──
-
-        // SYNERGY: 2+ cards of same symbol = amplified effect
-        if (sameSymbolCount === 2) {
-          player.combosTriggered.push(`Synergy: ${card.symbol}`);
-          player.totalCombos++;
-          switch (card.symbol) {
-            case 'grip':
-              // Double grip = shift any 2 tokens up to 2 lanes each (total control)
-              for (const r of [0, 1]) {
-                const col = getTokenCol(player.grid, r);
-                if (col >= 0 && col !== 2) {
-                  const dir = col > 2 ? -1 : col < 2 ? 1 : 0;
-                  if (dir !== 0) setToken(player.grid, r, col + dir * 2);
-                }
-              }
-              s.log.push(`⚡ SYNERGY (Grip x2): ${player.name} powerslides Rows 1-2 tokens 2 lanes toward center!`);
-              break;
-            case 'air':
-              // Double air = free action refund (the combo play is "free")
-              player.actionsRemaining = Math.min(player.actionsRemaining + 1, 5);
-              s.log.push(`⚡ SYNERGY (Air x2): ${player.name} recovers 1 Action!`);
-              break;
-            case 'agility':
-              // Double agility = shift ALL off-center tokens 1 lane toward center
-              for (let r = 0; r < 6; r++) {
-                const col = getTokenCol(player.grid, r);
-                if (col >= 0 && col !== 2) {
-                  setToken(player.grid, r, col + (col > 2 ? -1 : 1));
-                }
-              }
-              s.log.push(`⚡ SYNERGY (Agility x2): ${player.name} realigns ALL tokens toward center!`);
-              break;
-            case 'balance':
-              // Double balance = clear ALL hazard dice
-              if (player.hazardDice > 0) {
-                s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} clears ALL ${player.hazardDice} Hazard Dice!`);
-                player.hazardDice = 0;
-              } else {
-                s.log.push(`⚡ SYNERGY (Balance x2): ${player.name} is already clean — no dice to clear.`);
-              }
-              break;
-          }
-        }
-
-        // VERSATILITY: 3+ unique symbols played = flow reward
-        if (uniqueSymbols >= 3 && playCount >= 3) {
-          player.combosTriggered.push('Versatility');
-          player.totalCombos++;
-          player.flow++;
-          s.log.push(`🌟 VERSATILITY (3 symbols): ${player.name} gains +1 Flow!`);
-        }
-
-        // MASTERY: 4 unique symbols = ultimate combo
-        if (uniqueSymbols >= 4) {
-          player.combosTriggered.push('Mastery');
-          player.totalCombos++;
-          player.hazardDice = Math.max(0, player.hazardDice - 2);
-          if (player.penalties.length > 0) {
-            const removed = player.penalties.pop()!;
-            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} removes 2 Hazard Dice and repaired "${removed.name}"!`);
-          } else {
-            s.log.push(`🏆 MASTERY (4 symbols): ${player.name} removes 2 Hazard Dice!`);
-          }
-        }
-
-        // PRO LINE COMBO BONUS: cards played while on pro line earn flow
-        if (player.commitment === 'pro' && playCount >= 2) {
-          player.flow++;
-          s.log.push(`${player.name}: Pro Line combo bonus — +1 Flow.`);
-        }
       }
       break;
     }
@@ -1252,6 +1168,5 @@ export function getStandings(state: GameState) {
       flow: p.flow,
       momentum: p.momentum,
       totalCardsPlayed: p.totalCardsPlayed,
-      totalCombos: p.totalCombos,
     }));
 }
