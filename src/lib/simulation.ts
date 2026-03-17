@@ -275,6 +275,150 @@ function aiTakeTurnRandom(state: GameState, playerIndex: number): GameState {
   return s;
 }
 
+/**
+ * Adaptive AI: checks its standing relative to opponents each turn.
+ * - When behind: plays balanced but draws more obstacles (catch up on clears)
+ * - When ahead: plays conservative (protect the lead)
+ * - When tied/middle: plays balanced
+ * Represents a "positionally aware" human player who adjusts risk tolerance.
+ */
+function aiTakeTurnAdaptive(state: GameState, playerIndex: number): GameState {
+  let s = { ...state };
+  const me = s.players[playerIndex];
+  const others = s.players.filter((_, i) => i !== playerIndex);
+  const p = () => s.players[playerIndex];
+
+  // Determine position: compare obstaclesCleared (primary standings metric)
+  const myScore = me.obstaclesCleared * 10 + me.progress;
+  const bestOther = Math.max(...others.map(p => p.obstaclesCleared * 10 + p.progress));
+  const worstOther = Math.min(...others.map(p => p.obstaclesCleared * 10 + p.progress));
+
+  const behind = myScore < worstOther;
+  const ahead = myScore > bestOther;
+
+  // Trail Read: always try to reuse
+  const linesAvailable = Object.keys(s.playerObstacleLines).length;
+  const maxReuse = Math.max(1, linesAvailable);
+  const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, maxReuse);
+  s = afterReuse;
+
+  // When behind, draw more obstacles to catch up on clears; when ahead, draw fewer
+  const targetObstacles = behind ? 2 : ahead ? 1 : Math.max(1, Math.min(2, 1 + linesAvailable));
+  const freshNeeded = Math.max(0, targetObstacles - reused);
+  for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
+    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
+  }
+
+  // Spend actions: balanced play with risk-adjusted momentum target
+  const momentumTarget = behind ? 4 : ahead ? 3 : 4;
+  let safety = 20;
+  while (p().actionsRemaining > 0 && !p().crashed && !p().turnEnded && safety-- > 0) {
+    const player = p();
+
+    // Steer toward center first (reduces crash risk)
+    let steered = false;
+    for (let r = 0; r < 6; r++) {
+      const col = getTokenCol(player.grid, r);
+      if (col >= 0 && col !== 2) {
+        const dir = col > 2 ? -1 : 1;
+        s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
+        steered = true;
+        break;
+      }
+    }
+    if (steered) continue;
+
+    // Play technique cards when available
+    if (player.hand.length > 0) {
+      s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: pickComboCard(player) } });
+    } else if (player.momentum < momentumTarget && !player.cannotPedal) {
+      s = processAction(s, playerIndex, { type: 'pedal' });
+    } else if (ahead && player.momentum > 3 && !player.cannotBrake && player.commitment !== 'pro') {
+      s = processAction(s, playerIndex, { type: 'brake' });
+    } else if (!player.cannotPedal) {
+      s = processAction(s, playerIndex, { type: 'pedal' });
+    } else {
+      break;
+    }
+  }
+
+  if (!p().turnEnded) {
+    s = processAction(s, playerIndex, { type: 'end_turn' });
+  }
+  return s;
+}
+
+/**
+ * Combo-focused AI: prioritizes technique cards and combo chains but still
+ * draws obstacles (since obstacles cleared is the primary win condition).
+ * - Reuses revealed obstacles + draws 1-2 fresh ones
+ * - Plays technique cards first, always seeking synergy matches
+ * - Steers to center between card plays
+ * - Pedals conservatively — combos generate flow which matters more
+ * Represents a player who has mastered the card system.
+ */
+function aiTakeTurnCombo(state: GameState, playerIndex: number): GameState {
+  let s = { ...state };
+  const p = () => s.players[playerIndex];
+
+  // Still draw obstacles — can't win without clears
+  const linesAvailable = Object.keys(s.playerObstacleLines).length;
+  const maxReuse = Math.max(1, linesAvailable);
+  const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, maxReuse);
+  s = afterReuse;
+
+  // Draw 1-2 fresh obstacles (need clears for standings)
+  const targetObstacles = Math.max(1, Math.min(2, 1 + linesAvailable));
+  const freshNeeded = Math.max(0, targetObstacles - reused);
+  for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
+    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
+  }
+
+  // Spend actions: cards first (combo chaining), then steer, then pedal
+  let safety = 20;
+  while (p().actionsRemaining > 0 && !p().crashed && !p().turnEnded && safety-- > 0) {
+    const player = p();
+
+    // Priority 1: play technique cards (combo chaining)
+    if (player.hand.length > 0) {
+      s = processAction(s, playerIndex, {
+        type: 'technique',
+        payload: { cardIndex: pickComboCard(player) },
+      });
+      continue;
+    }
+
+    // Priority 2: steer toward center (reduce crash risk for next turn)
+    let steered = false;
+    for (let r = 0; r < 6; r++) {
+      const col = getTokenCol(player.grid, r);
+      if (col >= 0 && col !== 2) {
+        const dir = col > 2 ? -1 : 1;
+        s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
+        steered = true;
+        break;
+      }
+    }
+    if (steered) continue;
+
+    // Priority 3: pedal conservatively (momentum 3 target)
+    if (player.momentum < 3 && !player.cannotPedal) {
+      s = processAction(s, playerIndex, { type: 'pedal' });
+    } else if (!player.cannotPedal && player.momentum < 4) {
+      s = processAction(s, playerIndex, { type: 'pedal' });
+    } else {
+      break;
+    }
+  }
+
+  if (!p().turnEnded) {
+    s = processAction(s, playerIndex, { type: 'end_turn' });
+  }
+  return s;
+}
+
 /** Pick the best card index for combo potential */
 function pickComboCard(player: { hand: { symbol: string; name: string }[]; cardsPlayedThisTurn: { symbol: string }[]; hazardDice: number; grid: boolean[][] }): number {
   if (player.hand.length === 0) return 0;
@@ -384,6 +528,12 @@ export function runSingleGame(
     for (const pi of turnOrder) {
       if (useSmartAi) {
         state = smartAiPlaySprint(state, pi);
+      } else if (config.strategy === 'random') {
+        state = aiTakeTurnRandom(state, pi);
+      } else if (config.strategy === 'adaptive') {
+        state = aiTakeTurnAdaptive(state, pi);
+      } else if (config.strategy === 'combo') {
+        state = aiTakeTurnCombo(state, pi);
       } else {
         state = aiTakeTurn(state, pi, config.strategy);
       }
@@ -924,6 +1074,10 @@ function runMixedStrategyGame(
         state = smartAiPlaySprint(state, pi);
       } else if (strat === 'random') {
         state = aiTakeTurnRandom(state, pi);
+      } else if (strat === 'adaptive') {
+        state = aiTakeTurnAdaptive(state, pi);
+      } else if (strat === 'combo') {
+        state = aiTakeTurnCombo(state, pi);
       } else {
         state = aiTakeTurn(state, pi, strat);
       }
@@ -1002,7 +1156,10 @@ export function runAgencyAnalysis(
     { label: 'conservative', strategies: ['smart', 'conservative', 'conservative', 'conservative'] },
     { label: 'aggressive', strategies: ['smart', 'aggressive', 'aggressive', 'aggressive'] },
     { label: 'random', strategies: ['smart', 'random', 'random', 'random'] },
+    { label: 'adaptive', strategies: ['smart', 'adaptive', 'adaptive', 'adaptive'] },
+    { label: 'combo', strategies: ['smart', 'combo', 'combo', 'combo'] },
     { label: 'mixed', strategies: ['smart', 'aggressive', 'conservative', 'random'] },
+    { label: 'full-mixed', strategies: ['smart', 'adaptive', 'combo', 'conservative'] },
   ];
 
   const totalWork = matchups.length * 4 * gamesPerMatchup; // 4 seat rotations per matchup
@@ -1077,7 +1234,7 @@ export function runAgencyAnalysis(
   }
 
   // Compute strategy win rates
-  const strategies = ['smart', 'aggressive', 'conservative', 'random'];
+  const strategies = ['smart', 'adaptive', 'combo', 'aggressive', 'conservative', 'random'];
   const strategyWinRates = strategies.map(s => {
     const d = strategyWins[s] || { wins: 0, games: 0, totalProgress: 0 };
     return {
