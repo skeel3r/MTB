@@ -261,7 +261,7 @@ export default function PlayPage() {
   const bottomPlayers = playerCount <= 2 ? [1] : playerCount <= 4 ? [2, 3].filter(i => i < playerCount) : game.players.slice(Math.ceil(playerCount / 2)).map((_, i) => i + Math.ceil(playerCount / 2));
 
   return (
-    <div className="min-h-screen game-table overflow-auto">
+    <div className="min-h-screen game-table">
       {/* Top bar */}
       <div className="bg-white border-b border-gray-200 px-4 py-2 sticky top-0 z-10">
         <div className="flex items-center justify-between flex-wrap gap-2">
