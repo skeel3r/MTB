@@ -939,7 +939,7 @@ export function runMonteCarlo(
   totalGames: number,
   onProgress?: (done: number, total: number) => void,
 ): MonteCarloResult {
-  const strategies: Strategy[] = ['aggressive', 'smart', 'conservative'];
+  const strategies: Strategy[] = ['aggressive', 'smart', 'conservative', 'mcts'];
   const gamesPerStrategy = Math.ceil(totalGames / strategies.length);
 
   const seatWins: Record<string, number> = {};
