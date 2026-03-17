@@ -254,9 +254,9 @@ export default function PlayPage() {
 
   // ── Tabletop Simulator Layout ──
   return (
-    <div className="min-h-screen game-table text-white overflow-auto">
+    <div className="h-screen game-table text-white flex flex-col overflow-hidden">
       {/* Top bar - compact info strip */}
-      <div className="bg-black/50 border-b border-emerald-900/50 px-3 py-2 backdrop-blur-sm sticky top-0 z-10">
+      <div className="bg-black/50 border-b border-emerald-900/50 px-3 py-1.5 backdrop-blur-sm z-10 flex-shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <h1 className="text-base sm:text-lg font-bold">The Descent</h1>
@@ -287,9 +287,9 @@ export default function PlayPage() {
       </div>
 
       {/* Tabletop surface */}
-      <div className="p-3 sm:p-4">
+      <div className="flex-1 min-h-0 p-2 flex flex-col overflow-hidden">
         {/* ═══ TOP ZONE: Player grids + stats side by side ═══ */}
-        <div className="flex flex-wrap gap-3 mb-4">
+        <div className="flex flex-wrap gap-2 mb-2">
           {game.players.map((player, i) => {
             const isSelected = i === selectedPlayer;
             const canSteer = isSelected && game.phase === 'sprint' && currentPlayer.actionsRemaining >= 1 && !currentPlayer.turnEnded && !currentPlayer.crashed && !hasPendingObstacle;
@@ -349,22 +349,22 @@ export default function PlayPage() {
         </div>
 
         {/* ═══ MIDDLE ZONE: Table center - Trail Cards, Decks, Obstacles, Actions ═══ */}
-        <div className="flex flex-wrap gap-4 mb-4">
+        <div className="flex flex-wrap gap-3 mb-2">
 
           {/* Trail Cards */}
           <div className="flex-shrink-0">
             <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Trail</h3>
-            <div className="flex gap-3 items-start">
-              <TrailCardDisplay card={game.activeTrailCard} label="Active" />
-              <TrailCardDisplay card={game.queuedTrailCard} label="Next" />
+            <div className="flex gap-2 items-start">
+              <TrailCardDisplay card={game.activeTrailCard} label="Active" compact />
+              <TrailCardDisplay card={game.queuedTrailCard} label="Next" compact />
               {/* Trail deck count */}
               <div className="flex flex-col items-center gap-1">
                 <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Deck</div>
                 <div
                   className="card-back deck-pile flex items-center justify-center"
-                  style={{ width: '80px', height: '115px' }}
+                  style={{ width: '60px', height: '85px' }}
                 >
-                  <div className="text-white/80 text-xs font-bold bg-black/40 rounded px-2 py-1">
+                  <div className="text-white/80 text-[10px] font-bold bg-black/40 rounded px-1.5 py-0.5">
                     {game.trailDeck.length}
                   </div>
                 </div>
@@ -382,16 +382,13 @@ export default function PlayPage() {
                   onClick={() => doAction({ type: 'draw_obstacle' })}
                   disabled={currentPlayer.turnEnded || currentPlayer.crashed || hasPendingObstacle}
                   className="deck-pile card-back flex flex-col items-center justify-center disabled:opacity-30 transition-transform hover:scale-105"
-                  style={{ width: '90px', height: '125px' }}
+                  style={{ width: '70px', height: '95px' }}
                 >
-                  <div className="text-white text-xs font-bold text-center drop-shadow-md bg-black/40 rounded px-2 py-1">
+                  <div className="text-white text-[10px] font-bold text-center drop-shadow-md bg-black/40 rounded px-1.5 py-0.5">
                     Flip
                   </div>
-                  <div className="text-white/60 text-[10px] mt-1">
+                  <div className="text-white/60 text-[9px] mt-0.5">
                     {game.obstacleDeck.length} left
-                  </div>
-                  <div className="text-white/40 text-[8px] mt-0.5 text-center">
-                    Free action
                   </div>
                 </button>
               )}
@@ -451,7 +448,7 @@ export default function PlayPage() {
                   <div
                     key={i}
                     className="obstacle-card flex flex-col items-center justify-center"
-                    style={{ width: '130px', padding: '8px' }}
+                    style={{ width: '120px', padding: '6px' }}
                   >
                     <div className="flex gap-1 mb-1">
                       {obs.symbols.map((sym, j) => (
@@ -706,9 +703,9 @@ export default function PlayPage() {
         )}
 
         {/* ═══ BOTTOM ZONE: Hand + Penalties + Game Log ═══ */}
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-3 flex-shrink-0">
           {/* Player's Hand */}
-          <div className="flex-1 min-w-[300px]">
+          <div className="flex-1 min-w-[250px]">
             <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">
               {currentPlayer.name}&apos;s Hand
               {game.phase === 'sprint' && <span className="text-gray-600 normal-case"> (Click to play = 1 Action)</span>}
@@ -753,9 +750,9 @@ export default function PlayPage() {
           )}
 
           {/* Game Log */}
-          <div className="min-w-[200px] w-full sm:w-auto sm:max-w-[300px]">
-            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Game Log</h3>
-            <div className="h-64">
+          <div className="min-w-[180px] w-full sm:w-auto sm:max-w-[280px]">
+            <h3 className="text-xs font-bold mb-1 text-gray-400 uppercase tracking-wider">Game Log</h3>
+            <div className="h-28">
               <GameLog log={game.log} />
             </div>
           </div>

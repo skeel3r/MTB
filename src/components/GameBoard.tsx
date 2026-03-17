@@ -24,8 +24,8 @@ export default function GameBoard({
   selectedSteerRow, steerEnabled, onTokenSelect, onSteerTo,
 }: GameBoardProps) {
   // Sizes
-  const spotSize = compact ? 28 : 36;
-  const rowGap = compact ? 6 : 10;
+  const spotSize = compact ? 20 : 36;
+  const rowGap = compact ? 3 : 10;
   const cols = 5;
   const boardWidth = cols * spotSize + (cols - 1) * 4;
   const boardHeight = player.grid.length * (spotSize + rowGap) - rowGap;
@@ -267,16 +267,21 @@ export function TrailCardDisplay({
   card,
   label,
   faceDown,
+  compact,
 }: {
   card: MainTrailCard | null;
   label?: string;
   faceDown?: boolean;
+  compact?: boolean;
 }) {
+  const cardWidth = compact ? 100 : 140;
+  const cardHeight = compact ? 140 : 200;
+
   if (faceDown || !card) {
     return (
       <div
         className="card-back flex items-center justify-center"
-        style={{ width: '140px', height: '200px' }}
+        style={{ width: `${cardWidth}px`, height: `${cardHeight}px` }}
       >
         {label && (
           <div className="text-white/60 text-xs font-bold bg-black/40 rounded px-2 py-1">{label}</div>
@@ -307,8 +312,8 @@ export function TrailCardDisplay({
       <div
         className="relative overflow-hidden"
         style={{
-          width: '140px',
-          height: '200px',
+          width: `${cardWidth}px`,
+          height: `${cardHeight}px`,
           borderRadius: '12px',
           border: '4px solid',
           borderImage: 'linear-gradient(145deg, #6a3093, #a044ff, #3a0d6e) 1',
@@ -375,33 +380,33 @@ export function TrailCardDisplay({
 
         {/* Speed limit badge - top left */}
         <div
-          className="absolute top-3 left-3 z-20 flex items-center gap-1"
+          className={`absolute ${compact ? 'top-2 left-2' : 'top-3 left-3'} z-20 flex items-center gap-1`}
           style={{
             background: 'rgba(0,100,200,0.9)',
-            borderRadius: '6px',
-            padding: '3px 8px 3px 6px',
+            borderRadius: compact ? '4px' : '6px',
+            padding: compact ? '2px 5px 2px 4px' : '3px 8px 3px 6px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
             border: '1px solid rgba(100,180,255,0.5)',
           }}
         >
           {/* Mountain/chevron icon */}
-          <svg width="18" height="14" viewBox="0 0 18 14" className="flex-shrink-0">
+          <svg width={compact ? 12 : 18} height={compact ? 10 : 14} viewBox="0 0 18 14" className="flex-shrink-0">
             <path d="M2 12 L9 3 L16 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M6 12 L9 7 L12 12" fill="none" stroke="rgba(100,200,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="text-white font-bold text-lg leading-none">{card.speedLimit}</span>
+          <span className={`text-white font-bold ${compact ? 'text-sm' : 'text-lg'} leading-none`}>{card.speedLimit}</span>
         </div>
 
         {/* Row check indicators - right side */}
-        <div className="absolute right-3 top-8 bottom-6 z-20 flex flex-col justify-between items-center" style={{ width: '28px' }}>
+        <div className={`absolute ${compact ? 'right-2 top-6 bottom-4' : 'right-3 top-8 bottom-6'} z-20 flex flex-col justify-between items-center`} style={{ width: compact ? '22px' : '28px' }}>
           {rowData.map(({ row, isChecked, targetLane }) => (
             <div key={row} className="relative flex items-center">
               {isChecked ? (
                 <div
-                  className="flex items-center justify-center rounded-full font-bold text-white text-xs"
+                  className={`flex items-center justify-center rounded-full font-bold text-white ${compact ? 'text-[9px]' : 'text-xs'}`}
                   style={{
-                    width: '24px',
-                    height: '24px',
+                    width: compact ? '18px' : '24px',
+                    height: compact ? '18px' : '24px',
                     background: 'radial-gradient(circle at 40% 35%, #4dd9f5, #00b4d8 60%, #0077b6)',
                     boxShadow: '0 2px 8px rgba(0,180,220,0.6), inset 0 1px 2px rgba(255,255,255,0.4)',
                     border: '1.5px solid rgba(200,240,255,0.6)',
@@ -425,7 +430,7 @@ export function TrailCardDisplay({
         </div>
 
         {/* Connecting line between checked rows */}
-        <svg className="absolute right-3 top-8 z-10 pointer-events-none" style={{ width: '28px', bottom: '24px', height: 'calc(100% - 56px)' }}>
+        <svg className={`absolute ${compact ? 'right-2 top-6' : 'right-3 top-8'} z-10 pointer-events-none`} style={{ width: compact ? '22px' : '28px', bottom: compact ? '16px' : '24px', height: compact ? 'calc(100% - 40px)' : 'calc(100% - 56px)' }}>
           {(() => {
             const checkedPositions = rowData
               .map((rd, i) => ({ ...rd, yPct: i / 4 }))
@@ -494,7 +499,7 @@ export function HandDisplay({
   }
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-2">
       {hand.map((card, i) => {
         const matchingObs = getMatchingObstacles(card.symbol);
         const hasMatch = matchingObs.length > 0;
@@ -507,12 +512,12 @@ export function HandDisplay({
             onClick={() => onPlay?.(i)}
             disabled={disabled}
             className={`playing-card text-left flex flex-col relative transition-all duration-150 ${
-              canPlay ? 'hover:-translate-y-1.5 hover:scale-105 cursor-pointer' : ''
+              canPlay ? 'hover:-translate-y-1 hover:scale-105 cursor-pointer' : ''
             } ${disabled ? 'opacity-60' : ''}`}
             style={{
-              width: '120px',
-              height: '170px',
-              padding: '8px',
+              width: '95px',
+              height: '125px',
+              padding: '6px',
               boxShadow: hasMatch
                 ? `0 0 12px ${SYMBOL_COLORS[card.symbol]}90, 0 0 4px ${SYMBOL_COLORS[card.symbol]}60`
                 : canPlay
@@ -540,8 +545,8 @@ export function HandDisplay({
               </div>
             )}
             {/* Symbol display - always visible */}
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-2xl">{SYMBOL_EMOJI[card.symbol]}</span>
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="text-lg">{SYMBOL_EMOJI[card.symbol]}</span>
               <div className="flex flex-col">
                 <span
                   className="inline-block w-3.5 h-3.5 rounded-full border border-white/30"
