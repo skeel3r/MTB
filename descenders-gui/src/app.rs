@@ -55,6 +55,7 @@ impl DescendersGuiApp {
             let game_logs_path = cwd.join("game-logs");
             if game_logs_path.is_dir() {
                 app.loader.start_loading(&game_logs_path);
+                app.game_viewer.set_game_logs_dir(&game_logs_path);
                 app.game_logs_path = Some(game_logs_path);
             }
         }
@@ -125,6 +126,9 @@ impl eframe::App for DescendersGuiApp {
                 self.cache_key.clear();
                 let batches = self.available_batches();
                 self.selected_batch = batches.into_iter().next().unwrap_or_else(|| "all".to_string());
+                if let Some(ref path) = self.game_logs_path {
+                    self.game_viewer.set_game_logs_dir(path);
+                }
             }
             LoadResult::Error(e) => {
                 self.load_error = Some(e);
