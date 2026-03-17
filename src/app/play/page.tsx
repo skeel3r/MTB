@@ -641,40 +641,6 @@ export default function PlayPage() {
               </div>
             )}
 
-            {/* Upgrade Shop during Stage Break */}
-            {game.phase === 'stage_break' && (
-              <div className="trail-card p-3">
-                <h3 className="text-xs font-bold mb-2">Upgrade Shop</h3>
-                {game.players.map((player, pi) => (
-                  <div key={player.id} className="mb-3">
-                    <div className="text-[10px] text-gray-400 mb-1">{player.name} — Flow: {player.flow}</div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {UPGRADES.map(upgrade => {
-                        const owned = player.upgrades.some(u => u.id === upgrade.id);
-                        const canAfford = player.flow >= upgrade.flowCost;
-                        return (
-                          <button
-                            key={upgrade.id}
-                            onClick={() => doAction({ type: 'buy_upgrade', payload: { upgradeId: upgrade.id } }, pi)}
-                            disabled={owned || !canAfford}
-                            className={`text-left p-1.5 text-[10px] transition-colors ${
-                              owned ? 'upgrade-card opacity-60' :
-                              canAfford ? 'upgrade-card' :
-                              'upgrade-card opacity-40'
-                            }`}
-                          >
-                            <div className="font-bold">{upgrade.name} <span className="text-yellow-400">({upgrade.flowCost}F)</span></div>
-                            <div className="text-gray-400">{upgrade.description}</div>
-                            {owned && <div className="text-emerald-400 text-[9px]">Owned</div>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Obstacles */}
             <div className="flex flex-col items-center gap-2">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Obstacles</h3>

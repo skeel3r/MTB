@@ -117,6 +117,10 @@ export interface PlayerState {
   totalCardsPlayed: number;
   /** Trail Read: set to true once the player draws a fresh obstacle, locking them out of revealed pool */
   drewFreshObstacle: boolean;
+  /** Trail Read: player ID whose obstacle line this player is committed to (null = uncommitted) */
+  trailReadCommittedPlayer: string | null;
+  /** Trail Read: index of the next obstacle to resolve in the committed player's line */
+  trailReadNextIndex: number;
   /** Momentum earned from obstacles this turn — applied at end of turn, not immediately */
   pendingMomentum: number;
 }

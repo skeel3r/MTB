@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Ensure cargo/wasm-pack are in PATH
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
 # Check if any Rust source files are staged for commit
 RUST_STAGED=$(git diff --cached --name-only -- 'descenders-core/' 'descenders-wasm/')
 

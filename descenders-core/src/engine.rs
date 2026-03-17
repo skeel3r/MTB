@@ -1155,9 +1155,6 @@ fn execute_stage_break(state: &mut GameState, rng: &mut impl Rng) {
     let drawn = draw_cards_with_rng(state, 2, rng);
     state.players[last_idx].hand.extend(drawn);
 
-    // Last place gains 1 flow
-    state.players[last_idx].flow += 1;
-
     // Repair: everyone discards 1 penalty
     for player in &mut state.players {
         if !player.penalties.is_empty() {

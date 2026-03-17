@@ -61,25 +61,42 @@ function tryReuseRevealedObstacles(state: GameState, playerIndex: number, maxReu
   let s = state;
   let reused = 0;
   const p = () => s.players[playerIndex];
+  const playerId = p().id;
 
   // Don't reuse if player already drew fresh
   if (p().drewFreshObstacle) return { state: s, reused: 0 };
 
-  for (let attempt = 0; attempt < maxReuse && !p().crashed && !p().turnEnded; attempt++) {
-    // Find a revealed obstacle the player can match
-    const revealed = s.roundRevealedObstacles;
-    let bestIdx = -1;
-    for (let i = 0; i < revealed.length; i++) {
-      const obs = revealed[i];
-      if (canMatchObstacle(p().hand, obs)) {
-        bestIdx = i;
-        break;
+  // Find the best player line to commit to:
+  // Pick the line with the most matchable obstacles
+  let bestPid: string | null = p().trailReadCommittedPlayer;
+
+  if (!bestPid) {
+    let bestMatchCount = 0;
+    for (const [pid, line] of Object.entries(s.playerObstacleLines)) {
+      if (pid === playerId) continue; // can't follow own line
+      let matchCount = 0;
+      for (const obs of line) {
+        if (canMatchObstacle(p().hand, obs)) matchCount++;
+      }
+      if (matchCount > bestMatchCount) {
+        bestMatchCount = matchCount;
+        bestPid = pid;
       }
     }
-    if (bestIdx < 0) break;
+    if (!bestPid || bestMatchCount === 0) return { state: s, reused: 0 };
+  }
 
-    // Reuse the revealed obstacle
-    s = processAction(s, playerIndex, { type: 'reuse_obstacle', payload: { revealedIndex: bestIdx } });
+  // Follow the committed player's line in order
+  for (let attempt = 0; attempt < maxReuse && !p().crashed && !p().turnEnded; attempt++) {
+    const line = s.playerObstacleLines[bestPid];
+    const nextIdx = p().trailReadNextIndex;
+    if (!line || nextIdx >= line.length) break;
+
+    // Check if we can match the next obstacle in order
+    const nextObs = line[nextIdx];
+    if (!canMatchObstacle(p().hand, nextObs)) break; // stop if we can't match the next one
+
+    s = processAction(s, playerIndex, { type: 'reuse_obstacle', payload: { targetPlayerId: bestPid } });
     s = resolveActiveObstacles(s, playerIndex);
     reused++;
   }

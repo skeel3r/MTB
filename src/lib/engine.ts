@@ -42,6 +42,8 @@ export function createPlayer(id: string, name: string): PlayerState {
     cannotBrake: false,
     totalCardsPlayed: 0,
     drewFreshObstacle: false,
+    trailReadCommittedPlayer: null,
+    trailReadNextIndex: 0,
     pendingMomentum: 0,
   };
 }
@@ -122,6 +124,8 @@ function clonePlayer(p: PlayerState): PlayerState {
     cannotBrake: p.cannotBrake,
     totalCardsPlayed: p.totalCardsPlayed,
     drewFreshObstacle: p.drewFreshObstacle,
+    trailReadCommittedPlayer: p.trailReadCommittedPlayer,
+    trailReadNextIndex: p.trailReadNextIndex,
     pendingMomentum: p.pendingMomentum,
   };
 }
@@ -338,6 +342,8 @@ export function advancePhase(state: GameState): GameState {
           p.cannotPedal = false;
           p.cannotBrake = false;
           p.drewFreshObstacle = false;
+          p.trailReadCommittedPlayer = null;
+          p.trailReadNextIndex = 0;
           p.pendingMomentum = 0;
         }
         // Turn order: leader goes first (highest progress, random tiebreak)
@@ -586,10 +592,6 @@ function executeStageBreak(state: GameState): GameState {
   const lastPlayer = s.players.find(p => p.id === last.id)!;
   lastPlayer.hand.push(...drawn);
   s.log.push(`Regroup: ${last.name} (last place) draws 2 cards.`);
-
-  // Flow: last place gains 1 (catch-up mechanic — leader already has positional advantage)
-  lastPlayer.flow++;
-  s.log.push(`Flow: ${last.name} (last place) gains 1 Flow.`);
 
   // Repair: everyone discards 1 penalty
   for (const player of s.players) {
@@ -873,30 +875,58 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'reuse_obstacle': {
-      // Trail Read: tackle an obstacle already revealed by a player ahead
-      // Only available if the player hasn't drawn a fresh obstacle yet this turn
+      // Trail Read: tackle an obstacle already revealed by a player ahead.
+      // Rules:
+      //   1. Can't reuse if player already drew a fresh obstacle this turn
+      //   2. Once committed to a player's line, must continue in order (can't switch)
+      //   3. Must resolve obstacles in the same order the original player resolved them
+      //   4. payload.targetPlayerId picks which player's line to follow (required if uncommitted)
+
       if (player.drewFreshObstacle) {
-        s.log.push(`${player.name}: Already drew a fresh obstacle \u2014 can't reuse revealed obstacles.`);
+        s.log.push(`${player.name}: Already drew a fresh obstacle — can't reuse revealed obstacles.`);
         break;
       }
-      const revealedIdx = (action.payload?.revealedIndex as number) ?? 0;
-      if (revealedIdx >= s.roundRevealedObstacles.length) {
-        s.log.push(`${player.name}: No revealed obstacle at index ${revealedIdx}.`);
-        break;
-      }
-      // Copy the revealed obstacle into active obstacles for this player to resolve
-      const reused = s.roundRevealedObstacles[revealedIdx];
-      // Find which player originally revealed this obstacle
-      let revealedBy = 'unknown';
-      for (const [pid, line] of Object.entries(s.playerObstacleLines)) {
-        if (line.includes(reused)) {
-          const revealerPlayer = s.players.find(p => p.id === pid);
-          if (revealerPlayer) { revealedBy = revealerPlayer.name; break; }
+
+      const targetPlayerId = action.payload?.targetPlayerId as string | undefined;
+
+      // Determine which player's line to use
+      let committedPid = player.trailReadCommittedPlayer;
+
+      if (!committedPid) {
+        // Not yet committed — must specify which player's line
+        if (!targetPlayerId || !s.playerObstacleLines[targetPlayerId]) {
+          s.log.push(`${player.name}: Must specify a valid player line to follow.`);
+          break;
         }
+        // Can't follow your own line
+        if (targetPlayerId === player.id) {
+          s.log.push(`${player.name}: Can't reuse your own obstacle line.`);
+          break;
+        }
+        committedPid = targetPlayerId;
+        player.trailReadCommittedPlayer = committedPid;
+        player.trailReadNextIndex = 0;
+      } else if (targetPlayerId && targetPlayerId !== committedPid) {
+        // Trying to switch lines — not allowed
+        const committedPlayer = s.players.find(p => p.id === committedPid);
+        s.log.push(`${player.name}: Already committed to ${committedPlayer?.name ?? committedPid}'s obstacle line — can't switch.`);
+        break;
       }
+
+      const line = s.playerObstacleLines[committedPid];
+      if (!line || player.trailReadNextIndex >= line.length) {
+        const committedPlayer = s.players.find(p => p.id === committedPid);
+        s.log.push(`${player.name}: No more obstacles in ${committedPlayer?.name ?? committedPid}'s line.`);
+        break;
+      }
+
+      // Must take the next obstacle in order
+      const reused = line[player.trailReadNextIndex];
+      player.trailReadNextIndex++;
+
       s.activeObstacles.push(reused);
-      const linesAvailable = Object.keys(s.playerObstacleLines).length;
-      s.log.push(`${player.name}: Trail Read \u2014 tackles "${getObstacleName(reused)}" from ${revealedBy}'s line (${linesAvailable} player line${linesAvailable !== 1 ? 's' : ''} visible)`);
+      const committedPlayerName = s.players.find(p => p.id === committedPid)?.name ?? committedPid;
+      s.log.push(`${player.name}: Trail Read — tackles "${getObstacleName(reused)}" (#${player.trailReadNextIndex} in ${committedPlayerName}'s line)`);
       break;
     }
 
