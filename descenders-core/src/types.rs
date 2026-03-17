@@ -195,7 +195,8 @@ pub enum FlowAction {
 
 // ── Choice (MCTS action representation) ──
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Choice {
     Pedal,
     Brake,
