@@ -10,7 +10,7 @@
     "build:wasm": "cd descenders-wasm && wasm-pack build --target web --out-dir ../src/ai/wasm-pkg",
     "bench": "vitest bench",
     "benchmark": "vitest bench",
-    "profile": "samply record cargo run --release --manifest-path descenders-runner/Cargo.toml -- --games 1 --iterations 10000 --threads 1",
+    "profile": "samply record cargo run --release --manifest-path descenders-runner/Cargo.toml -- --games 1 --iterations 20 --threads 1",
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
