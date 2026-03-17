@@ -1,0 +1,9 @@
+# Card renderer
+Pillow>=10.0
+
+# AI image generation (Gemini)
+google-genai>=1.0
+
+# Background removal (optional, for icon generation)
+rembg>=2.0
+onnxruntime>=1.16

@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Rust build artifacts
+/descenders-core/target/
+/descenders-wasm/target/
+/target/
+
+# Generated game logs
+/game-logs/
+
+# Card generation output & assets
+/scripts/card-gen/output/
+/scripts/card-gen/assets/
+/scripts/card-gen/.venv/
+/public/cards/

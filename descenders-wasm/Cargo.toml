@@ -1,0 +1,20 @@
+[package]
+name = "descenders-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+descenders-core = { path = "../descenders-core" }
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+serde_json = "1.0"
+getrandom = { version = "0.4", features = ["wasm_js"] }
+rand = "0.10"
+wyrand = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true

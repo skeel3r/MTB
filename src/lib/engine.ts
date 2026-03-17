@@ -1,9 +1,17 @@
 import {
-  GameState, PlayerState, GamePhase, GameAction, CardSymbol, TechniqueCard, ProgressObstacle,
+  GameState, PlayerState, GamePhase, GameAction, CardSymbol, TechniqueType, ObstacleType,
 } from './types';
 import {
-  createTechniqueDeck, createPenaltyDeck, createTrailDeck, createTrailHazards, createObstacleDeck, shuffle, UPGRADES, OBSTACLE_DEFINITIONS,
+  createTechniqueDeck, createPenaltyDeck, createTrailDeck, createTrailHazards, createObstacleDeck, shuffle,
+  getTechniqueSymbol, getTechniqueName, getTechniqueActionText,
+  getObstacleName, getObstacleSymbols, getObstacleMatchMode, getObstacleSendItCost, getObstaclePenaltyType, getObstacleBlowByText,
+  getPenaltyName, getPenaltyDescription,
+  getTrailStageName, getTrailStageSpeedLimit, getTrailStageCheckedRows, getTrailStageTargetLanes,
+  getTrailHazardName, getTrailHazardDescription,
+  UPGRADE_PROPERTIES, ALL_UPGRADE_TYPES,
+  TRAIL_HAZARD_PROPERTIES,
 } from './cards';
+import type { UpgradeType, TrailHazardType } from './types';
 
 // ── Create initial player state ──
 export function createPlayer(id: string, name: string): PlayerState {
@@ -34,6 +42,8 @@ export function createPlayer(id: string, name: string): PlayerState {
     cannotBrake: false,
     totalCardsPlayed: 0,
     drewFreshObstacle: false,
+    trailReadCommittedPlayer: null,
+    trailReadNextIndex: 0,
     pendingMomentum: 0,
   };
 }
@@ -100,8 +110,8 @@ function clonePlayer(p: PlayerState): PlayerState {
     momentum: p.momentum,
     flow: p.flow,
     progress: p.progress,
-    hand: p.hand.map(c => ({ ...c })),
-    penalties: p.penalties.map(c => ({ ...c })),
+    hand: [...p.hand],
+    penalties: [...p.penalties],
     upgrades: [...p.upgrades],
     hazardDice: p.hazardDice,
     actionsRemaining: p.actionsRemaining,
@@ -114,14 +124,16 @@ function clonePlayer(p: PlayerState): PlayerState {
     cannotBrake: p.cannotBrake,
     totalCardsPlayed: p.totalCardsPlayed,
     drewFreshObstacle: p.drewFreshObstacle,
+    trailReadCommittedPlayer: p.trailReadCommittedPlayer,
+    trailReadNextIndex: p.trailReadNextIndex,
     pendingMomentum: p.pendingMomentum,
   };
 }
 
 function cloneState(state: GameState): GameState {
-  const playerObstacleLines: Record<string, ProgressObstacle[]> = {};
+  const playerObstacleLines: Record<string, ObstacleType[]> = {};
   for (const key in state.playerObstacleLines) {
-    playerObstacleLines[key] = state.playerObstacleLines[key].map(o => ({ ...o }));
+    playerObstacleLines[key] = [...state.playerObstacleLines[key]];
   }
   return {
     players: state.players.map(clonePlayer),
@@ -130,19 +142,19 @@ function cloneState(state: GameState): GameState {
     trailLength: state.trailLength,
     trailId: state.trailId,
     phase: state.phase,
-    activeTrailCard: state.activeTrailCard ? { ...state.activeTrailCard, checkedRows: [...state.activeTrailCard.checkedRows], targetLanes: [...state.activeTrailCard.targetLanes] } : null,
-    queuedTrailCard: state.queuedTrailCard ? { ...state.queuedTrailCard, checkedRows: [...state.queuedTrailCard.checkedRows], targetLanes: [...state.queuedTrailCard.targetLanes] } : null,
-    trailDeck: state.trailDeck.map(c => ({ ...c, checkedRows: [...c.checkedRows], targetLanes: [...c.targetLanes] })),
-    techniqueDeck: state.techniqueDeck.map(c => ({ ...c })),
-    techniqueDiscard: state.techniqueDiscard.map(c => ({ ...c })),
-    penaltyDeck: state.penaltyDeck.map(c => ({ ...c })),
-    obstacleDeck: state.obstacleDeck.map(o => ({ ...o })),
-    obstacleDiscard: state.obstacleDiscard.map(o => ({ ...o })),
-    activeObstacles: state.activeObstacles.map(o => ({ ...o })),
+    activeTrailCard: state.activeTrailCard,
+    queuedTrailCard: state.queuedTrailCard,
+    trailDeck: [...state.trailDeck],
+    techniqueDeck: [...state.techniqueDeck],
+    techniqueDiscard: [...state.techniqueDiscard],
+    penaltyDeck: [...state.penaltyDeck],
+    obstacleDeck: [...state.obstacleDeck],
+    obstacleDiscard: [...state.obstacleDiscard],
+    activeObstacles: [...state.activeObstacles],
     trailHazards: state.trailHazards.map(h => ({ ...h })),
     currentHazards: state.currentHazards.map(h => ({ ...h })),
     playerObstacleLines,
-    roundRevealedObstacles: state.roundRevealedObstacles.map(o => ({ ...o })),
+    roundRevealedObstacles: [...state.roundRevealedObstacles],
     lastHazardRolls: state.lastHazardRolls.map(r => ({ ...r, rolls: [...r.rolls] })),
     log: [...state.log],
   };
@@ -164,17 +176,17 @@ function setToken(grid: boolean[][], row: number, col: number): void {
 }
 
 // ── Trail Read: add obstacle to a player's obstacle line and the shared pool ──
-function revealObstacle(state: GameState, playerId: string, obstacle: ProgressObstacle): void {
+function revealObstacle(state: GameState, playerId: string, obstacle: ObstacleType): void {
   if (!state.playerObstacleLines[playerId]) {
     state.playerObstacleLines[playerId] = [];
   }
-  state.playerObstacleLines[playerId].push({ ...obstacle });
-  state.roundRevealedObstacles.push({ ...obstacle });
+  state.playerObstacleLines[playerId].push(obstacle);
+  state.roundRevealedObstacles.push(obstacle);
 }
 
 // ── Draw cards from technique deck ──
-function drawCards(state: GameState, count: number): TechniqueCard[] {
-  const cards: TechniqueCard[] = [];
+function drawCards(state: GameState, count: number): TechniqueType[] {
+  const cards: TechniqueType[] = [];
   for (let i = 0; i < count; i++) {
     if (state.techniqueDeck.length === 0) {
       state.techniqueDeck = shuffle(state.techniqueDiscard);
@@ -191,21 +203,22 @@ function drawCards(state: GameState, count: number): TechniqueCard[] {
 // Returns card indices to discard, or null if no match possible.
 // "Forced Through": any 2 cards of the same symbol can substitute for 1 card of any other symbol.
 function findObstacleMatch(
-  hand: TechniqueCard[],
-  obstacle: ProgressObstacle,
+  hand: TechniqueType[],
+  obstacle: ObstacleType,
 ): number[] | null {
-  const mode = obstacle.matchMode ?? 'all';
+  const mode = getObstacleMatchMode(obstacle);
+  const symbols = getObstacleSymbols(obstacle);
 
   if (mode === 'any') {
     // Only need ONE matching symbol — try exact first
-    for (const sym of obstacle.symbols) {
-      const idx = hand.findIndex(c => c.symbol === sym);
+    for (const sym of symbols) {
+      const idx = hand.findIndex(c => getTechniqueSymbol(c) === sym);
       if (idx >= 0) return [idx];
     }
     // Try wild: any 2 cards of the same symbol
     const symbolGroups: Record<string, number[]> = {};
     for (let i = 0; i < hand.length; i++) {
-      const s = hand[i].symbol;
+      const s = getTechniqueSymbol(hand[i]);
       if (!symbolGroups[s]) symbolGroups[s] = [];
       symbolGroups[s].push(i);
     }
@@ -221,8 +234,8 @@ function findObstacleMatch(
   const unmatchedSymbols: CardSymbol[] = [];
 
   // Pass 1: exact matches
-  for (const sym of obstacle.symbols) {
-    const idx = hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+  for (const sym of symbols) {
+    const idx = hand.findIndex((c, i) => getTechniqueSymbol(c) === sym && !usedIndices.has(i));
     if (idx >= 0) {
       matchedIndices.push(idx);
       usedIndices.add(idx);
@@ -239,7 +252,7 @@ function findObstacleMatch(
     const available: Record<string, number[]> = {};
     for (let i = 0; i < hand.length; i++) {
       if (usedIndices.has(i)) continue;
-      const s = hand[i].symbol;
+      const s = getTechniqueSymbol(hand[i]);
       if (!available[s]) available[s] = [];
       available[s].push(i);
     }
@@ -263,20 +276,8 @@ function findObstacleMatch(
 }
 
 // ── Get affected rows for a hazard card ──
-function getHazardRows(hazardName: string): number[] {
-  switch (hazardName) {
-    case 'Camber Left':
-    case 'Camber Right':
-      return [0, 1, 2]; // Rows 1-3
-    case 'Brake Bumps':
-      return [0, 1]; // Rows 1-2
-    case 'Compression':
-      return [2, 3]; // Rows 3-4
-    case 'Loose Dirt':
-      return [4, 5]; // Rows 5-6
-    default:
-      return [0];
-  }
+function getHazardRows(hazardType: TrailHazardType): number[] {
+  return TRAIL_HAZARD_PROPERTIES[hazardType].rows;
 }
 
 // ── Phase transitions ──
@@ -296,15 +297,16 @@ export function advancePhase(state: GameState): GameState {
 
   if (s.phase === 'reckoning') {
     // Check for stage break (every 3 cards)
-    if (s.round > 0 && s.round % 3 === 0) {
-      s.phase = 'stage_break';
-      return executeStageBreak(s);
-    }
-    // Check for game over
+    // Check for game over (before stage break, so last round skips the shop)
     if (s.round >= s.trailLength) {
       s.phase = 'game_over';
       s.log.push('Game Over!');
       return s;
+    }
+    // Stage break every 3 rounds (but not the final round)
+    if (s.round > 0 && s.round % 3 === 0) {
+      s.phase = 'stage_break';
+      return executeStageBreak(s);
     }
     // Next round
     s.phase = 'scroll_descent';
@@ -341,6 +343,8 @@ export function advancePhase(state: GameState): GameState {
           p.cannotPedal = false;
           p.cannotBrake = false;
           p.drewFreshObstacle = false;
+          p.trailReadCommittedPlayer = null;
+          p.trailReadNextIndex = 0;
           p.pendingMomentum = 0;
         }
         // Turn order: leader goes first (highest progress, random tiebreak)
@@ -349,7 +353,7 @@ export function advancePhase(state: GameState): GameState {
             s.players.map((p, i) => ({ i, progress: p.progress }))
           );
           s.currentPlayerIndex = sorted[0].i;
-          s.log.push(`Sprint phase! Turn order: ${sorted.map(x => s.players[x.i].name).join(' → ')} (leader goes first).`);
+          s.log.push(`Sprint phase! Turn order: ${sorted.map(x => s.players[x.i].name).join(' \u2192 ')} (leader goes first).`);
         }
         break;
       case 'alignment':
@@ -366,15 +370,17 @@ export function advancePhase(state: GameState): GameState {
 function executeScrollDescent(state: GameState): GameState {
   const s = state;
   s.round++;
-  s.log.push(`── Round ${s.round} ──`);
+  s.log.push(`\u2500\u2500 Round ${s.round} \u2500\u2500`);
 
   // Discard active, move queued to active, flip new queue
   s.activeTrailCard = s.queuedTrailCard;
   s.queuedTrailCard = s.trailDeck.shift() || null;
 
-  s.log.push(`Active Trail: ${s.activeTrailCard?.name} (Speed Limit: ${s.activeTrailCard?.speedLimit})`);
+  if (s.activeTrailCard) {
+    s.log.push(`Active Trail: ${getTrailStageName(s.activeTrailCard)} (Speed Limit: ${getTrailStageSpeedLimit(s.activeTrailCard)})`);
+  }
   if (s.queuedTrailCard) {
-    s.log.push(`Queued: ${s.queuedTrailCard.name}`);
+    s.log.push(`Queued: ${getTrailStageName(s.queuedTrailCard)}`);
   }
 
   // Shift all tokens down 1 row
@@ -411,23 +417,23 @@ function executeEnvironment(state: GameState): GameState {
   }
   const hazard = s.trailHazards.shift()!;
   s.currentHazards.push(hazard);
-  s.log.push(`Hazard: ${hazard.name} — ${hazard.description}`);
+  s.log.push(`Hazard: ${getTrailHazardName(hazard.hazardType)} \u2014 ${getTrailHazardDescription(hazard.hazardType)}`);
 
-  // Determine which rows this hazard card affects based on its name
-  const hazardRows = getHazardRows(hazard.name);
+  // Determine which rows this hazard card affects based on its type
+  const hazardRows = getHazardRows(hazard.hazardType);
   for (const player of s.players) {
     for (const row of hazardRows) {
       const col = getTokenCol(player.grid, row);
       if (col < 0) continue;
 
       let dir: number;
-      if (hazard.name === 'Brake Bumps') {
+      if (hazard.hazardType === 'brake_bumps') {
         // Toward nearest edge
         dir = col >= 2 ? 1 : -1;
-      } else if (hazard.name === 'Compression') {
+      } else if (hazard.hazardType === 'compression') {
         // Toward center
         dir = col > 2 ? -1 : col < 2 ? 1 : 0;
-      } else if (hazard.name === 'Loose Dirt') {
+      } else if (hazard.hazardType === 'loose_dirt') {
         // Random direction
         dir = Math.random() < 0.5 ? -1 : 1;
       } else {
@@ -450,11 +456,14 @@ function executePreparation(state: GameState): GameState {
   for (const player of s.players) {
     // Momentum is effectively capped by the trail card speed limit
     // Excess momentum converts to hazard dice (speed trap)
-    if (s.activeTrailCard && player.momentum > s.activeTrailCard.speedLimit) {
-      const excess = player.momentum - s.activeTrailCard.speedLimit;
-      player.hazardDice += excess;
-      player.momentum = s.activeTrailCard.speedLimit;
-      s.log.push(`${player.name}: Speed Trap! Momentum capped to ${s.activeTrailCard.speedLimit}, +${excess} Hazard Dice.`);
+    if (s.activeTrailCard) {
+      const speedLimit = getTrailStageSpeedLimit(s.activeTrailCard);
+      if (player.momentum > speedLimit) {
+        const excess = player.momentum - speedLimit;
+        player.hazardDice += excess;
+        player.momentum = speedLimit;
+        s.log.push(`${player.name}: Speed Trap! Momentum capped to ${speedLimit}, +${excess} Hazard Dice.`);
+      }
     }
 
     const drawCount = Math.max(2, Math.min(6, player.momentum));
@@ -471,15 +480,16 @@ function executeAlignment(state: GameState): GameState {
   const s = state;
   if (!s.activeTrailCard) return s;
 
-  const card = s.activeTrailCard;
+  const checkedRows = getTrailStageCheckedRows(s.activeTrailCard);
+  const targetLanes = getTrailStageTargetLanes(s.activeTrailCard);
 
   for (const player of s.players) {
     let allPerfect = true;
     let anyPenalty = false;
 
-    for (let i = 0; i < card.checkedRows.length; i++) {
-      const row = card.checkedRows[i];
-      const targetLane = card.targetLanes[i];
+    for (let i = 0; i < checkedRows.length; i++) {
+      const row = checkedRows[i];
+      const targetLane = targetLanes[i];
       const playerLane = getTokenCol(player.grid, row);
 
       if (playerLane < 0) continue;
@@ -489,13 +499,13 @@ function executeAlignment(state: GameState): GameState {
         player.hazardDice++;
         anyPenalty = true;
         allPerfect = false;
-        s.log.push(`${player.name}: Row ${row + 1} misaligned (${distance} lanes off) → +1 Hazard Die`);
+        s.log.push(`${player.name}: Row ${row + 1} misaligned (${distance} lanes off) \u2192 +1 Hazard Die`);
       } else if (distance > 0) {
         allPerfect = false;
       }
     }
 
-    if (allPerfect && card.checkedRows.length > 0) {
+    if (allPerfect && checkedRows.length > 0) {
       player.flow++;
       player.perfectMatches++;
       s.log.push(`${player.name}: Perfect alignment! +1 Flow`);
@@ -536,8 +546,8 @@ function executeReckoning(state: GameState): GameState {
       if (s.penaltyDeck.length > 0) {
         const penaltyCard = s.penaltyDeck.shift()!;
         player.penalties.push(penaltyCard);
-        penaltyDrawn = penaltyCard.name;
-        s.log.push(`${player.name}: Rolled a 6! Penalty: ${penaltyCard.name} - ${penaltyCard.description}`);
+        penaltyDrawn = getPenaltyName(penaltyCard);
+        s.log.push(`${player.name}: Rolled a 6! Penalty: ${getPenaltyName(penaltyCard)} - ${getPenaltyDescription(penaltyCard)}`);
       }
     }
 
@@ -555,9 +565,9 @@ function executeReckoning(state: GameState): GameState {
       if (s.penaltyDeck.length > 0) {
         const crashPen = s.penaltyDeck.shift()!;
         player.penalties.push(crashPen);
-        s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) — Tokens reset, penalty: ${crashPen.name}`);
+        s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) \u2014 Tokens reset, penalty: ${getPenaltyName(crashPen)}`);
       } else {
-        s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) — Tokens reset to center.`);
+        s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) \u2014 Tokens reset to center.`);
       }
       // Lose momentum on crash
       player.momentum = Math.max(0, player.momentum - 3);
@@ -572,11 +582,10 @@ function executeReckoning(state: GameState): GameState {
 // ── Stage Break ──
 function executeStageBreak(state: GameState): GameState {
   const s = state;
-  s.log.push(`── Stage Break (after round ${s.round}) ──`);
+  s.log.push(`\u2500\u2500 Stage Break (after round ${s.round}) \u2500\u2500`);
 
   // Sort by progress
   const sorted = [...s.players].sort((a, b) => b.progress - a.progress);
-  const leader = sorted[0];
   const last = sorted[sorted.length - 1];
 
   // Regroup: last place draws 2
@@ -585,15 +594,11 @@ function executeStageBreak(state: GameState): GameState {
   lastPlayer.hand.push(...drawn);
   s.log.push(`Regroup: ${last.name} (last place) draws 2 cards.`);
 
-  // Flow: last place gains 1 (catch-up mechanic — leader already has positional advantage)
-  lastPlayer.flow++;
-  s.log.push(`Flow: ${last.name} (last place) gains 1 Flow.`);
-
   // Repair: everyone discards 1 penalty
   for (const player of s.players) {
     if (player.penalties.length > 0) {
       const removed = player.penalties.shift()!;
-      s.log.push(`Repair: ${player.name} discards penalty "${removed.name}".`);
+      s.log.push(`Repair: ${player.name} discards penalty "${getPenaltyName(removed)}".`);
     }
   }
 
@@ -623,7 +628,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       }
       player.actionsRemaining--;
       player.momentum++;
-      s.log.push(`${player.name}: Pedal → Momentum ${player.momentum}`);
+      s.log.push(`${player.name}: Pedal \u2192 Momentum ${player.momentum}`);
       break;
     }
 
@@ -638,7 +643,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       }
       player.actionsRemaining--;
       player.momentum = Math.max(0, player.momentum - 1);
-      s.log.push(`${player.name}: Brake → Momentum ${player.momentum}`);
+      s.log.push(`${player.name}: Brake \u2192 Momentum ${player.momentum}`);
       break;
     }
 
@@ -667,14 +672,14 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       if (cardIndex < player.hand.length) {
         const card = player.hand.splice(cardIndex, 1)[0];
         player.actionsRemaining--;
-        s.log.push(`${player.name}: Plays "${card.name}" - ${card.actionText}`);
+        s.log.push(`${player.name}: Plays "${getTechniqueName(card)}" - ${getTechniqueActionText(card)}`);
         s.techniqueDiscard.push(card);
 
         player.totalCardsPlayed++;
 
         // ── Apply base technique card effects ──
-        switch (card.name) {
-          case 'Inside Line':
+        switch (card) {
+          case 'inside_line':
             // Grip control: ignore grip penalties + shift any 1 token up to 2 lanes
             s.log.push(`${player.name}: Grip penalties ignored this turn.`);
             {
@@ -689,7 +694,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
               }
             }
             break;
-          case 'Manual': {
+          case 'manual': {
             // Air control: swap any 2 adjacent-row tokens
             const swapRow1 = (action.payload?.swapRow1 as number) ?? 0;
             const swapRow2 = swapRow1 + 1; // must be adjacent
@@ -701,12 +706,12 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
                 setToken(player.grid, swapRow2, col1);
                 s.log.push(`${player.name}: Swapped Row ${swapRow1 + 1} and Row ${swapRow2 + 1} tokens.`);
               } else if (col1 >= 0 && col2 >= 0) {
-                s.log.push(`${player.name}: Rows ${swapRow1 + 1} and ${swapRow2 + 1} already aligned — no swap needed.`);
+                s.log.push(`${player.name}: Rows ${swapRow1 + 1} and ${swapRow2 + 1} already aligned \u2014 no swap needed.`);
               }
             }
             break;
           }
-          case 'Flick': {
+          case 'flick': {
             // Agility: shift rows 1-3 (indices 0-2) toward center
             let moved = 0;
             for (const r of [0, 1, 2]) {
@@ -716,10 +721,10 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
                 if (dir !== 0) { setToken(player.grid, r, col + dir); moved++; }
               }
             }
-            s.log.push(`${player.name}: Flick — ${moved} token${moved !== 1 ? 's' : ''} shifted toward center (Rows 1-3).`);
+            s.log.push(`${player.name}: Flick \u2014 ${moved} token${moved !== 1 ? 's' : ''} shifted toward center (Rows 1-3).`);
             break;
           }
-          case 'Recover': {
+          case 'recover': {
             // Balance: remove 2 hazard dice (or repair penalty) + center any 1 token
             if (player.hazardDice >= 2) {
               player.hazardDice -= 2;
@@ -729,9 +734,9 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
               s.log.push(`${player.name}: Removed 1 Hazard Die.`);
             } else if (player.penalties.length > 0) {
               const removed = player.penalties.pop()!;
-              s.log.push(`${player.name}: No dice to remove — repaired "${removed.name}" instead!`);
+              s.log.push(`${player.name}: No dice to remove \u2014 repaired "${getPenaltyName(removed)}" instead!`);
             } else {
-              s.log.push(`${player.name}: Nothing to recover — already clean!`);
+              s.log.push(`${player.name}: Nothing to recover \u2014 already clean!`);
             }
             // Center any 1 token (regain composure)
             {
@@ -744,7 +749,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
             }
             break;
           }
-          case 'Pump': {
+          case 'pump': {
             // Air: shift rows 4-6 (indices 3-5) toward center — lower grid complement to Flick
             let moved = 0;
             for (const r of [3, 4, 5]) {
@@ -754,17 +759,17 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
                 if (dir !== 0) { setToken(player.grid, r, col + dir); moved++; }
               }
             }
-            s.log.push(`${player.name}: Pump — ${moved} token${moved !== 1 ? 's' : ''} shifted toward center (Rows 4-6).`);
+            s.log.push(`${player.name}: Pump \u2014 ${moved} token${moved !== 1 ? 's' : ''} shifted toward center (Rows 4-6).`);
             break;
           }
-          case 'Whip': {
+          case 'whip': {
             // Grip: move any 1 token directly to any lane — precision placement
             const whipRow = (action.payload?.targetRow as number) ?? 0;
             const whipLane = (action.payload?.targetLane as number) ?? 2;
             const clampedLane = Math.max(0, Math.min(4, whipLane));
             if (whipRow >= 0 && whipRow < 6) {
               setToken(player.grid, whipRow, clampedLane);
-              s.log.push(`${player.name}: Whip — placed Row ${whipRow + 1} token on lane ${clampedLane + 1}.`);
+              s.log.push(`${player.name}: Whip \u2014 placed Row ${whipRow + 1} token on lane ${clampedLane + 1}.`);
             }
             break;
           }
@@ -804,25 +809,25 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           if (player.flow >= 1) {
             player.flow--;
             player.hazardDice = 0; // simplified: reroll effectively clears
-            s.log.push(`${player.name}: Spent 1 Flow → Reroll hazard dice`);
+            s.log.push(`${player.name}: Spent 1 Flow \u2192 Reroll hazard dice`);
           }
           break;
         case 'brace':
           if (player.flow >= 1) {
             player.flow--;
-            s.log.push(`${player.name}: Spent 1 Flow → Brace (ignore 1 hazard push)`);
+            s.log.push(`${player.name}: Spent 1 Flow \u2192 Brace (ignore 1 hazard push)`);
           }
           break;
         case 'ghost_copy':
           if (player.flow >= 1) {
             player.flow--;
-            s.log.push(`${player.name}: Spent 1 Flow → Ghost Copy (duplicate symbol)`);
+            s.log.push(`${player.name}: Spent 1 Flow \u2192 Ghost Copy (duplicate symbol)`);
           }
           break;
         case 'scrub':
           if (player.flow >= 3) {
             player.flow -= 3;
-            s.log.push(`${player.name}: Spent 3 Flow → Scrub (ignore speed limit)`);
+            s.log.push(`${player.name}: Spent 3 Flow \u2192 Scrub (ignore speed limit)`);
           }
           break;
       }
@@ -830,20 +835,21 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'buy_upgrade': {
-      const upgradeId = action.payload?.upgradeId as string;
-      const upgrade = UPGRADES.find(u => u.id === upgradeId);
+      const upgrade = action.payload?.upgrade as UpgradeType | undefined;
       if (!upgrade) break;
-      if (player.upgrades.some(u => u.id === upgradeId)) {
-        s.log.push(`${player.name}: Already owns "${upgrade.name}".`);
+      const props = UPGRADE_PROPERTIES[upgrade];
+      if (!props) break;
+      if (player.upgrades.includes(upgrade)) {
+        s.log.push(`${player.name}: Already owns "${props.name}".`);
         break;
       }
-      if (player.flow < upgrade.flowCost) {
-        s.log.push(`${player.name}: Not enough Flow for "${upgrade.name}" (need ${upgrade.flowCost}, have ${player.flow}).`);
+      if (player.flow < props.flowCost) {
+        s.log.push(`${player.name}: Not enough Flow for "${props.name}" (need ${props.flowCost}, have ${player.flow}).`);
         break;
       }
-      player.flow -= upgrade.flowCost;
+      player.flow -= props.flowCost;
       player.upgrades.push(upgrade);
-      s.log.push(`${player.name}: Purchased "${upgrade.name}" for ${upgrade.flowCost} Flow!`);
+      s.log.push(`${player.name}: Purchased "${props.name}" for ${props.flowCost} Flow!`);
       break;
     }
 
@@ -865,35 +871,63 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       }
       const drawn = s.obstacleDeck.shift()!;
       s.activeObstacles.push(drawn);
-      s.log.push(`${player.name}: Flipped obstacle "${drawn.name}" (${drawn.symbols.map(sym => sym).join(', ')})`);
+      s.log.push(`${player.name}: Flipped obstacle "${getObstacleName(drawn)}" (${getObstacleSymbols(drawn).join(', ')})`);
       break;
     }
 
     case 'reuse_obstacle': {
-      // Trail Read: tackle an obstacle already revealed by a player ahead
-      // Only available if the player hasn't drawn a fresh obstacle yet this turn
+      // Trail Read: tackle an obstacle already revealed by a player ahead.
+      // Rules:
+      //   1. Can't reuse if player already drew a fresh obstacle this turn
+      //   2. Once committed to a player's line, must continue in order (can't switch)
+      //   3. Must resolve obstacles in the same order the original player resolved them
+      //   4. payload.targetPlayerId picks which player's line to follow (required if uncommitted)
+
       if (player.drewFreshObstacle) {
         s.log.push(`${player.name}: Already drew a fresh obstacle — can't reuse revealed obstacles.`);
         break;
       }
-      const revealedIdx = (action.payload?.revealedIndex as number) ?? 0;
-      if (revealedIdx >= s.roundRevealedObstacles.length) {
-        s.log.push(`${player.name}: No revealed obstacle at index ${revealedIdx}.`);
+
+      const targetPlayerId = action.payload?.targetPlayerId as string | undefined;
+
+      // Determine which player's line to use
+      let committedPid = player.trailReadCommittedPlayer;
+
+      if (!committedPid) {
+        // Not yet committed — must specify which player's line
+        if (!targetPlayerId || !s.playerObstacleLines[targetPlayerId]) {
+          s.log.push(`${player.name}: Must specify a valid player line to follow.`);
+          break;
+        }
+        // Can't follow your own line
+        if (targetPlayerId === player.id) {
+          s.log.push(`${player.name}: Can't reuse your own obstacle line.`);
+          break;
+        }
+        committedPid = targetPlayerId;
+        player.trailReadCommittedPlayer = committedPid;
+        player.trailReadNextIndex = 0;
+      } else if (targetPlayerId && targetPlayerId !== committedPid) {
+        // Trying to switch lines — not allowed
+        const committedPlayer = s.players.find(p => p.id === committedPid);
+        s.log.push(`${player.name}: Already committed to ${committedPlayer?.name ?? committedPid}'s obstacle line — can't switch.`);
         break;
       }
-      // Copy the revealed obstacle into active obstacles for this player to resolve
-      const reused = { ...s.roundRevealedObstacles[revealedIdx] };
-      // Find which player originally revealed this obstacle
-      let revealedBy = 'unknown';
-      for (const [pid, line] of Object.entries(s.playerObstacleLines)) {
-        if (line.some(o => o.id === reused.id)) {
-          const revealerPlayer = s.players.find(p => p.id === pid);
-          if (revealerPlayer) { revealedBy = revealerPlayer.name; break; }
-        }
+
+      const line = s.playerObstacleLines[committedPid];
+      if (!line || player.trailReadNextIndex >= line.length) {
+        const committedPlayer = s.players.find(p => p.id === committedPid);
+        s.log.push(`${player.name}: No more obstacles in ${committedPlayer?.name ?? committedPid}'s line.`);
+        break;
       }
+
+      // Must take the next obstacle in order
+      const reused = line[player.trailReadNextIndex];
+      player.trailReadNextIndex++;
+
       s.activeObstacles.push(reused);
-      const linesAvailable = Object.keys(s.playerObstacleLines).length;
-      s.log.push(`${player.name}: Trail Read — tackles "${reused.name}" from ${revealedBy}'s line (${linesAvailable} player line${linesAvailable !== 1 ? 's' : ''} visible)`);
+      const committedPlayerName = s.players.find(p => p.id === committedPid)?.name ?? committedPid;
+      s.log.push(`${player.name}: Trail Read — tackles "${getObstacleName(reused)}" (#${player.trailReadNextIndex} in ${committedPlayerName}'s line)`);
       break;
     }
 
@@ -906,15 +940,16 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       const obstacle = s.activeObstacles[obstacleIndex];
 
       // Step 1: Terrain effect ALWAYS fires
-      s.log.push(`${player.name}: Hits "${obstacle.name}" — ${obstacle.blowByText}`);
+      s.log.push(`${player.name}: Hits "${getObstacleName(obstacle)}" \u2014 ${getObstacleBlowByText(obstacle)}`);
       applyObstaclePenalty(player, obstacle, s);
 
       // Step 2: Try to match with cards
       const matchCardIndices = findObstacleMatch(player.hand, obstacle);
 
       if (matchCardIndices) {
-        const usedWilds = matchCardIndices.length > obstacle.symbols.length ||
-          (obstacle.matchMode === 'any' && matchCardIndices.length > 1);
+        const symbols = getObstacleSymbols(obstacle);
+        const usedWilds = matchCardIndices.length > symbols.length ||
+          (getObstacleMatchMode(obstacle) === 'any' && matchCardIndices.length > 1);
 
         const sortedIndices = [...matchCardIndices].sort((a, b) => b - a);
         for (const idx of sortedIndices) {
@@ -926,11 +961,11 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.pendingMomentum++; // Deferred — applied at end of turn
         player.obstaclesCleared++;
         const wildNote = usedWilds ? ' (Forced Through!)' : '';
-        s.log.push(`${player.name}: Matched "${obstacle.name}"${wildNote}! +${resolveProgressGain} Progress, +1 Pending Momentum (${player.obstaclesCleared} cleared)`);
+        s.log.push(`${player.name}: Matched "${getObstacleName(obstacle)}"${wildNote}! +${resolveProgressGain} Progress, +1 Pending Momentum (${player.obstaclesCleared} cleared)`);
       } else {
         // Can't match — this shouldn't happen if UI is correct (should use send_it instead)
         // Force crash
-        s.log.push(`${player.name}: Cannot match "${obstacle.name}" and no momentum — CRASH!`);
+        s.log.push(`${player.name}: Cannot match "${getObstacleName(obstacle)}" and no momentum \u2014 CRASH!`);
         player.crashed = true;
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
@@ -968,13 +1003,13 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         s.log.push(`${player.name}: No active obstacle to Send It through.`);
         break;
       }
-      const sendCost = s.activeObstacles[sendObstacleIdx].sendItCost ?? 2;
+      const sendCost = getObstacleSendItCost(s.activeObstacles[sendObstacleIdx]);
       if (player.momentum < sendCost) {
         // Can't send it — force crash
         const crashObs = s.activeObstacles[sendObstacleIdx];
-        s.log.push(`${player.name}: Hits "${crashObs.name}" — ${crashObs.blowByText}`);
+        s.log.push(`${player.name}: Hits "${getObstacleName(crashObs)}" \u2014 ${getObstacleBlowByText(crashObs)}`);
         applyObstaclePenalty(player, crashObs, s);
-        s.log.push(`${player.name}: Can't match or Send It — CRASH!`);
+        s.log.push(`${player.name}: Can't match or Send It \u2014 CRASH!`);
         player.crashed = true;
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
@@ -992,17 +1027,17 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       const sentObstacle = s.activeObstacles[sendObstacleIdx];
 
       // Step 1: Terrain effect ALWAYS fires
-      s.log.push(`${player.name}: Hits "${sentObstacle.name}" — ${sentObstacle.blowByText}`);
+      s.log.push(`${player.name}: Hits "${getObstacleName(sentObstacle)}" \u2014 ${getObstacleBlowByText(sentObstacle)}`);
       applyObstaclePenalty(player, sentObstacle, s);
 
       // Step 2: Pay momentum cost + hazard die, earn progress
-      const thisSendCost = sentObstacle.sendItCost ?? 2;
+      const thisSendCost = getObstacleSendItCost(sentObstacle);
       player.momentum -= thisSendCost;
       player.hazardDice++;
       const sendProgressGain = player.commitment === 'pro' ? 2 : 1;
       player.progress += sendProgressGain;
       player.obstaclesCleared++;
-      s.log.push(`${player.name}: SENDS IT through "${sentObstacle.name}"! -${thisSendCost} Momentum, +1 Hazard Die, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
+      s.log.push(`${player.name}: SENDS IT through "${getObstacleName(sentObstacle)}"! -${thisSendCost} Momentum, +1 Hazard Die, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
 
       s.activeObstacles.splice(sendObstacleIdx, 1);
       revealObstacle(s, player.id, sentObstacle);
@@ -1028,7 +1063,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       // Apply deferred momentum from obstacle matches
       if (player.pendingMomentum > 0) {
         player.momentum = Math.min(player.momentum + player.pendingMomentum, 12);
-        s.log.push(`${player.name}: +${player.pendingMomentum} deferred Momentum from obstacles → Momentum ${player.momentum}`);
+        s.log.push(`${player.name}: +${player.pendingMomentum} deferred Momentum from obstacles \u2192 Momentum ${player.momentum}`);
         player.pendingMomentum = 0;
       }
 
@@ -1050,8 +1085,9 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
 }
 
 // ── Obstacle Blow-By Penalties ──
-function applyObstaclePenalty(player: PlayerState, obstacle: ProgressObstacle, state: GameState): void {
-  switch (obstacle.penaltyType) {
+function applyObstaclePenalty(player: PlayerState, obstacle: ObstacleType, state: GameState): void {
+  const penaltyType = getObstaclePenaltyType(obstacle);
+  switch (penaltyType) {
     case 'Slide Out': {
       // Row 1 token shifts 2 lanes randomly
       const col = getTokenCol(player.grid, 0);

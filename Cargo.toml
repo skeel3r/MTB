@@ -1,0 +1,3 @@
+[workspace]
+members = ["descenders-core", "descenders-wasm", "descenders-runner", "descenders-gui"]
+resolver = "2"

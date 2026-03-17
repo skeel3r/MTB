@@ -1,54 +1,90 @@
 // ── Symbol types used on cards and obstacles ──
 export type CardSymbol = 'grip' | 'air' | 'agility' | 'balance';
 
-// ── Progress Obstacles ──
-export interface ProgressObstacle {
-  id: string;
-  name: string;
-  /** Symbols that can be matched */
-  symbols: CardSymbol[];
-  /** 'all' = need every symbol, 'any' = need just one. Defaults to 'all' */
-  matchMode?: 'all' | 'any';
-  /** Momentum cost to Send It through this obstacle. Defaults to 2 */
-  sendItCost?: number;
-  penaltyType: string;
-  blowByText: string;
-}
+// ── Enum string types matching Rust serde(rename_all = "snake_case") ──
 
-// ── Upgrades (Shop) ──
-export interface Upgrade {
-  id: string;
-  name: string;
-  flowCost: number;
-  description: string;
-}
+export type TechniqueType =
+  | 'inside_line'
+  | 'manual'
+  | 'flick'
+  | 'recover'
+  | 'pump'
+  | 'whip';
 
-// ── Card definitions ──
-export interface TechniqueCard {
-  id: string;
-  name: string;
-  symbol: CardSymbol;
-  actionText: string;
-  /** Effect function applied during play */
-  effect?: (state: PlayerState) => PlayerState;
-}
+export type PenaltyType =
+  | 'bent_derailleur'
+  | 'snapped_brake'
+  | 'tacoed_rim'
+  | 'blown_seals'
+  | 'dropped_chain'
+  | 'arm_pump'
+  | 'slipped_pedal'
+  | 'loose_headset'
+  | 'flat_tire'
+  | 'muddy_goggles'
+  | 'stretched_cable'
+  | 'bent_bars';
 
-export interface PenaltyCard {
-  id: string;
-  name: string;
-  description: string;
-  effect?: (state: PlayerState) => PlayerState;
-}
+export type ObstacleType =
+  | 'loose_scree'
+  | 'the_mud_bog'
+  | 'double_jump'
+  | 'the_10ft_drop'
+  | 'tight_trees'
+  | 'rapid_berms'
+  | 'log_skinny'
+  | 'granite_slab'
+  | 'rooty_drop'
+  | 'slippery_berm'
+  | 'the_canyon_gap'
+  | 'rock_garden'
+  | 'gnarly_root_web'
+  | 'steep_chute';
 
-export interface MainTrailCard {
-  id: number;
-  name: string;
-  speedLimit: number;
-  /** Which rows to check during Alignment (0-indexed) */
-  checkedRows: number[];
-  /** Target lane for each checked row (0-4, where 2 is center) */
-  targetLanes: number[];
-}
+export type UpgradeType =
+  | 'high_engagement_hubs'
+  | 'oversized_rotors'
+  | 'carbon_frame'
+  | 'electronic_shifting'
+  | 'telemetry_system'
+  | 'factory_suspension';
+
+export type TrailStage =
+  | 'start_gate'
+  | 'right_hip'
+  | 'lower_bridge'
+  | 'rock_drop'
+  | 'berms_left'
+  | 'the_tabletop'
+  | 'shark_fin'
+  | 'ski_jumps'
+  | 'moon_booter'
+  | 'merchant_link'
+  | 'tech_woods'
+  | 'brake_bumps'
+  | 'tombstone'
+  | 'high_berms'
+  | 'hero_shot'
+  // Tiger Mountain stages
+  | 'the_high_traverse'
+  | 'root_garden_entry'
+  | 'the_vertical_chute'
+  | 'needle_eye_gap'
+  | 'loamy_switchbacks'
+  | 'the_waterfall'
+  | 'mossy_slab'
+  | 'brake_bump_gully'
+  | 'the_cedar_gap'
+  | 'final_tech_sprint'
+  | 'the_stump_jump'
+  | 'exit_woods';
+
+export type TrailHazardType =
+  | 'camber_left'
+  | 'camber_right'
+  | 'brake_bumps'
+  | 'compression'
+  | 'loose_dirt';
 
 // ── Player state ──
 export interface PlayerState {
@@ -59,8 +95,8 @@ export interface PlayerState {
   momentum: number;
   flow: number;
   progress: number;
-  hand: TechniqueCard[];
-  penalties: PenaltyCard[];
+  hand: TechniqueType[];
+  penalties: PenaltyType[];
   hazardDice: number;
   actionsRemaining: number;
   commitment: 'main' | 'pro';
@@ -73,7 +109,7 @@ export interface PlayerState {
   /** Whether turn has ended early */
   turnEnded: boolean;
   /** Purchased upgrades */
-  upgrades: Upgrade[];
+  upgrades: UpgradeType[];
   /** Flags for symbol penalties */
   cannotPedal: boolean;
   cannotBrake: boolean;
@@ -81,6 +117,10 @@ export interface PlayerState {
   totalCardsPlayed: number;
   /** Trail Read: set to true once the player draws a fresh obstacle, locking them out of revealed pool */
   drewFreshObstacle: boolean;
+  /** Trail Read: player ID whose obstacle line this player is committed to (null = uncommitted) */
+  trailReadCommittedPlayer: string | null;
+  /** Trail Read: index of the next obstacle to resolve in the committed player's line */
+  trailReadNextIndex: number;
   /** Momentum earned from obstacles this turn — applied at end of turn, not immediately */
   pendingMomentum: number;
 }
@@ -99,9 +139,7 @@ export type GamePhase =
   | 'game_over';
 
 export interface TrailHazard {
-  id: string;
-  name: string;
-  description: string;
+  hazardType: TrailHazardType;
   /** Which row to push, and direction (-1 left, +1 right) */
   targetRow: number;
   pushDirection: -1 | 1;
@@ -117,21 +155,21 @@ export interface GameState {
   /** Which trail pack is being played */
   trailId: string;
   phase: GamePhase;
-  activeTrailCard: MainTrailCard | null;
-  queuedTrailCard: MainTrailCard | null;
-  trailDeck: MainTrailCard[];
-  techniqueDeck: TechniqueCard[];
-  techniqueDiscard: TechniqueCard[];
-  penaltyDeck: PenaltyCard[];
-  obstacleDeck: ProgressObstacle[];
-  obstacleDiscard: ProgressObstacle[];
-  activeObstacles: ProgressObstacle[];
+  activeTrailCard: TrailStage | null;
+  queuedTrailCard: TrailStage | null;
+  trailDeck: TrailStage[];
+  techniqueDeck: TechniqueType[];
+  techniqueDiscard: TechniqueType[];
+  penaltyDeck: PenaltyType[];
+  obstacleDeck: ObstacleType[];
+  obstacleDiscard: ObstacleType[];
+  activeObstacles: ObstacleType[];
   trailHazards: TrailHazard[];
   currentHazards: TrailHazard[];
   /** Trail Read: each player's obstacle line — keyed by player id, built up as players take turns */
-  playerObstacleLines: Record<string, ProgressObstacle[]>;
+  playerObstacleLines: Record<string, ObstacleType[]>;
   /** Trail Read: flat list of all revealed obstacles (derived from playerObstacleLines for convenience) */
-  roundRevealedObstacles: ProgressObstacle[];
+  roundRevealedObstacles: ObstacleType[];
   /** Last hazard roll results per player (set during reckoning) */
   lastHazardRolls: { playerName: string; rolls: number[]; penaltyDrawn: string | null }[];
   log: string[];
@@ -146,7 +184,7 @@ export interface GameAction {
 export interface SimulationConfig {
   playerCount: number;
   gamesCount: number;
-  strategy: 'aggressive' | 'balanced' | 'conservative' | 'smart' | 'random' | 'adaptive';
+  strategy: 'aggressive' | 'balanced' | 'conservative' | 'smart' | 'random' | 'adaptive' | 'mcts';
 }
 
 export interface SimulationResult {

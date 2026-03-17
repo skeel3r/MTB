@@ -1,5 +1,6 @@
-import { GameState } from './types';
+import { GameState, TechniqueType, ObstacleType } from './types';
 import { processAction } from './engine';
+import { getTechniqueSymbol, getTechniqueName, getObstacleSymbols, getObstacleMatchMode } from './cards';
 
 /**
  * Get the column of the token in a given row.
@@ -15,18 +16,19 @@ function getTokenCol(grid: boolean[][], row: number): number {
  * Check if the player can match a given obstacle with their current hand.
  */
 function canMatchObstacle(
-  hand: { symbol: string }[],
-  symbols: string[],
-  matchMode: 'all' | 'any',
+  hand: TechniqueType[],
+  obstacle: ObstacleType,
 ): boolean {
+  const symbols = getObstacleSymbols(obstacle);
+  const matchMode = getObstacleMatchMode(obstacle);
   const usedIndices = new Set<number>();
   if (matchMode === 'any') {
     return symbols.some(sym =>
-      hand.some((c, i) => c.symbol === sym && !usedIndices.has(i) && (usedIndices.add(i), true)),
+      hand.some((c, i) => getTechniqueSymbol(c) === sym && !usedIndices.has(i) && (usedIndices.add(i), true)),
     );
   }
   return symbols.every(sym => {
-    const idx = hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+    const idx = hand.findIndex((c, i) => getTechniqueSymbol(c) === sym && !usedIndices.has(i));
     if (idx >= 0) { usedIndices.add(idx); return true; }
     return false;
   });
@@ -41,8 +43,7 @@ function resolveActiveObstacles(state: GameState, playerIndex: number): GameStat
   while (s.activeObstacles.length > 0 && !s.players[playerIndex].crashed && !s.players[playerIndex].turnEnded) {
     const obs = s.activeObstacles[0];
     const player = s.players[playerIndex];
-    const mode = obs.matchMode ?? 'all';
-    const hasMatch = canMatchObstacle(player.hand, obs.symbols, mode);
+    const hasMatch = canMatchObstacle(player.hand, obs);
     const choice = hasMatch ? 'match' : 'take_penalty';
     s = processAction(s, playerIndex, {
       type: 'resolve_obstacle',
@@ -60,26 +61,42 @@ function tryReuseRevealedObstacles(state: GameState, playerIndex: number, maxReu
   let s = state;
   let reused = 0;
   const p = () => s.players[playerIndex];
+  const playerId = p().id;
 
   // Don't reuse if player already drew fresh
   if (p().drewFreshObstacle) return { state: s, reused: 0 };
 
-  for (let attempt = 0; attempt < maxReuse && !p().crashed && !p().turnEnded; attempt++) {
-    // Find a revealed obstacle the player can match
-    const revealed = s.roundRevealedObstacles;
-    let bestIdx = -1;
-    for (let i = 0; i < revealed.length; i++) {
-      const obs = revealed[i];
-      const mode = obs.matchMode ?? 'all';
-      if (canMatchObstacle(p().hand, obs.symbols, mode)) {
-        bestIdx = i;
-        break;
+  // Find the best player line to commit to:
+  // Pick the line with the most matchable obstacles
+  let bestPid: string | null = p().trailReadCommittedPlayer;
+
+  if (!bestPid) {
+    let bestMatchCount = 0;
+    for (const [pid, line] of Object.entries(s.playerObstacleLines)) {
+      if (pid === playerId) continue; // can't follow own line
+      let matchCount = 0;
+      for (const obs of line) {
+        if (canMatchObstacle(p().hand, obs)) matchCount++;
+      }
+      if (matchCount > bestMatchCount) {
+        bestMatchCount = matchCount;
+        bestPid = pid;
       }
     }
-    if (bestIdx < 0) break;
+    if (!bestPid || bestMatchCount === 0) return { state: s, reused: 0 };
+  }
 
-    // Reuse the revealed obstacle
-    s = processAction(s, playerIndex, { type: 'reuse_obstacle', payload: { revealedIndex: bestIdx } });
+  // Follow the committed player's line in order
+  for (let attempt = 0; attempt < maxReuse && !p().crashed && !p().turnEnded; attempt++) {
+    const line = s.playerObstacleLines[bestPid];
+    const nextIdx = p().trailReadNextIndex;
+    if (!line || nextIdx >= line.length) break;
+
+    // Check if we can match the next obstacle in order
+    const nextObs = line[nextIdx];
+    if (!canMatchObstacle(p().hand, nextObs)) break; // stop if we can't match the next one
+
+    s = processAction(s, playerIndex, { type: 'reuse_obstacle', payload: { targetPlayerId: bestPid } });
     s = resolveActiveObstacles(s, playerIndex);
     reused++;
   }
@@ -142,7 +159,7 @@ export function aiPlaySprint(state: GameState, playerIndex: number): GameState {
       let bestIndex = 0;
       // Play Recover if high hazard dice, Flick/Manual if off-center
       if (player.hazardDice >= 3) {
-        const recoverIdx = player.hand.findIndex(c => c.name === 'Recover');
+        const recoverIdx = player.hand.findIndex(c => c === 'recover');
         if (recoverIdx >= 0) bestIndex = recoverIdx;
       } else {
         // Check if tokens are off center
@@ -152,7 +169,7 @@ export function aiPlaySprint(state: GameState, playerIndex: number): GameState {
           if (col >= 0 && col !== 2) offCenter++;
         }
         if (offCenter >= 2) {
-          const flickIdx = player.hand.findIndex(c => c.name === 'Flick');
+          const flickIdx = player.hand.findIndex(c => c === 'flick');
           if (flickIdx >= 0) bestIndex = flickIdx;
         }
       }

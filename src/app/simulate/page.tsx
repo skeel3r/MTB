@@ -8,6 +8,7 @@ import {
   computeObstacleMatchProbabilities, ObstacleMatchProbability,
   computeGiniAnalysis, GiniAnalysis,
   runSensitivityAnalysis, SensitivityResult, SENSITIVITY_PARAMS,
+  ensureMctsWasm,
 } from '@/lib/simulation';
 
 export default function SimulatePage() {
@@ -129,7 +130,15 @@ export default function SimulatePage() {
     return report;
   }, [results, balance, mcResult, gini, sensitivity, obsProbabilities, config]);
 
-  const run = useCallback(() => {
+  const run = useCallback(async () => {
+    if (config.strategy === 'mcts') {
+      try {
+        await ensureMctsWasm();
+      } catch (e) {
+        alert('Failed to initialize MCTS WASM module: ' + e);
+        return;
+      }
+    }
     setRunning(true);
     setResults([]);
     setAllSnapshots([]);
@@ -174,35 +183,22 @@ export default function SimulatePage() {
     cancelRef.current = true;
   }, []);
 
-  const runMC = useCallback(() => {
+  const runMC = useCallback(async () => {
     setMcRunning(true);
     setMcResult(null);
     setMcProgress(0);
     mcCancelRef.current = false;
 
-    // Run in batches to keep UI responsive
-    let done = 0;
+    try {
+      await ensureMctsWasm();
+    } catch (e) {
+      alert('Failed to initialize MCTS WASM module: ' + e);
+      setMcRunning(false);
+      return;
+    }
+
     const total = mcGames;
-    const batchSize = 10;
     const playerCount = config.playerCount;
-
-    // We run the full MC in chunks via setTimeout
-    const partialResults: { result: ReturnType<typeof runSingleGame>['result']; snapshots: RoundSnapshot[] }[] = [];
-
-    const runBatch = () => {
-      if (mcCancelRef.current || done >= total) {
-        // Compute final result
-        const result = runMonteCarlo(playerCount, total);
-        setMcResult(result);
-        setMcRunning(false);
-        return;
-      }
-      // Just update progress; the actual computation happens in runMonteCarlo at the end
-      done += batchSize;
-      if (done > total) done = total;
-      setMcProgress(done);
-      setTimeout(runBatch, 0);
-    };
 
     // Since runMonteCarlo is synchronous, run it in one shot after a yield
     setTimeout(() => {
@@ -276,9 +272,17 @@ export default function SimulatePage() {
       setTimeout(runSimNext, 0);
     };
 
-    const runMCStep = () => {
+    const runMCStep = async () => {
       if (cancelRef.current) { setRunAllActive(false); return; }
       setMcRunning(true);
+      try {
+        await ensureMctsWasm();
+      } catch (e) {
+        alert('Failed to initialize MCTS WASM module: ' + e);
+        setMcRunning(false);
+        setRunAllActive(false);
+        return;
+      }
       setTimeout(() => {
         const mcRes = runMonteCarlo(config.playerCount, mcGames);
         setMcResult(mcRes);
@@ -345,6 +349,7 @@ export default function SimulatePage() {
               <option value="aggressive">Aggressive (Pro Line)</option>
               <option value="balanced">Balanced (uses Smart AI)</option>
               <option value="conservative">Conservative</option>
+              <option value="mcts">MCTS (Rust WASM)</option>
             </select>
           </div>
         </div>
@@ -798,7 +803,8 @@ export default function SimulatePage() {
                           className={`h-full rounded-full transition-all ${
                             s.strategy === 'aggressive' ? 'bg-red-600' :
                             s.strategy === 'conservative' ? 'bg-blue-600' :
-                            s.strategy === 'smart' ? 'bg-purple-600' : 'bg-emerald-600'
+                            s.strategy === 'smart' ? 'bg-purple-600' :
+                            s.strategy === 'mcts' ? 'bg-amber-600' : 'bg-emerald-600'
                           }`}
                           style={{ width: `${s.rate * 100}%` }}
                         />

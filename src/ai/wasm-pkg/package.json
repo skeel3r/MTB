@@ -1,0 +1,15 @@
+{
+  "name": "descenders-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "descenders_wasm_bg.wasm",
+    "descenders_wasm.js",
+    "descenders_wasm.d.ts"
+  ],
+  "main": "descenders_wasm.js",
+  "types": "descenders_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

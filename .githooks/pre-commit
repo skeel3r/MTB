@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Ensure cargo/wasm-pack are in PATH
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
+# Check if any Rust source files are staged for commit
+RUST_STAGED=$(git diff --cached --name-only -- 'descenders-core/' 'descenders-wasm/')
+
+if [ -z "$RUST_STAGED" ]; then
+    exit 0
+fi
+
+echo "Rust source files changed, rebuilding WASM..." >&2
+
+if ! npm run build:wasm; then
+    echo "ERROR: WASM build failed. Commit aborted." >&2
+    exit 1
+fi
+
+git add -f src/ai/wasm-pkg/*
+
+echo "WASM rebuild complete, output staged." >&2
+exit 0

@@ -6,7 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:wasm": "cd descenders-wasm && wasm-pack build --target web --out-dir ../src/ai/wasm-pkg",
+    "build:cards": "cd scripts/card-gen && source .venv/bin/activate && python3 render_cards.py --placeholder && cp -r output/* ../../public/cards/",
+    "copy:cards": "cp -r scripts/card-gen/output/* public/cards/",
+    "bench": "vitest bench",
+    "benchmark": "vitest bench",
+    "profile": "samply record cargo run --release --manifest-path descenders-runner/Cargo.toml -- --games 1 --iterations 20 --threads 1",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "next": "^16.1.6",
@@ -21,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.0"
   }
 }

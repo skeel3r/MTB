@@ -1,7 +1,12 @@
 'use client';
 
-import { PlayerState, ProgressObstacle, CardSymbol, MainTrailCard } from '@/lib/types';
-import { SYMBOL_COLORS, SYMBOL_EMOJI } from '@/lib/cards';
+import { PlayerState, ObstacleType, TechniqueType, TrailStage, CardSymbol } from '@/lib/types';
+import {
+  SYMBOL_COLORS, SYMBOL_EMOJI,
+  getTechniqueSymbol, getTechniqueName, getTechniqueActionText,
+  getObstacleSymbols, getObstacleName,
+  getTrailStageName, getTrailStageSpeedLimit, getTrailStageCheckedRows, getTrailStageTargetLanes,
+} from '@/lib/cards';
 
 interface GameBoardProps {
   player: PlayerState;
@@ -24,8 +29,8 @@ export default function GameBoard({
   selectedSteerRow, steerEnabled, onTokenSelect, onSteerTo,
 }: GameBoardProps) {
   // Sizes
-  const spotSize = compact ? 28 : 36;
-  const rowGap = compact ? 6 : 10;
+  const spotSize = compact ? 20 : 36;
+  const rowGap = compact ? 3 : 10;
   const cols = 5;
   const boardWidth = cols * spotSize + (cols - 1) * 4;
   const boardHeight = player.grid.length * (spotSize + rowGap) - rowGap;
@@ -53,7 +58,7 @@ export default function GameBoard({
 
   return (
     <div className="inline-block">
-      <div className="text-sm font-bold mb-1 text-center text-gray-800 tracking-wide">{player.name}</div>
+      <div className="text-sm font-bold mb-1 text-center text-amber-200 tracking-wide drop-shadow-md">{player.name}</div>
       <div
         className="relative rounded-lg overflow-hidden"
         style={{
@@ -267,16 +272,21 @@ export function TrailCardDisplay({
   card,
   label,
   faceDown,
+  compact,
 }: {
-  card: MainTrailCard | null;
+  card: TrailStage | null;
   label?: string;
   faceDown?: boolean;
+  compact?: boolean;
 }) {
+  const cardWidth = compact ? 100 : 140;
+  const cardHeight = compact ? 140 : 200;
+
   if (faceDown || !card) {
     return (
       <div
         className="card-back flex items-center justify-center"
-        style={{ width: '140px', height: '200px' }}
+        style={{ width: `${cardWidth}px`, height: `${cardHeight}px` }}
       >
         {label && (
           <div className="text-white/60 text-xs font-bold bg-black/40 rounded px-2 py-1">{label}</div>
@@ -285,17 +295,22 @@ export function TrailCardDisplay({
     );
   }
 
+  const cardName = getTrailStageName(card);
+  const speedLimit = getTrailStageSpeedLimit(card);
+  const cardCheckedRows = getTrailStageCheckedRows(card);
+  const cardTargetLanes = getTrailStageTargetLanes(card);
+
   // Map lane index to column label
   const colLabel = (lane: number) => `C${lane + 1}`;
 
   // Build row data: for each of rows 0-4, check if this row is checked and what its target lane is
   const rowData: { row: number; isChecked: boolean; targetLane: number }[] = [];
   for (let r = 0; r < 5; r++) {
-    const checkIdx = card.checkedRows.indexOf(r);
+    const checkIdx = cardCheckedRows.indexOf(r);
     rowData.push({
       row: r,
       isChecked: checkIdx >= 0,
-      targetLane: checkIdx >= 0 ? card.targetLanes[checkIdx] : -1,
+      targetLane: checkIdx >= 0 ? cardTargetLanes[checkIdx] : -1,
     });
   }
 
@@ -307,8 +322,8 @@ export function TrailCardDisplay({
       <div
         className="relative overflow-hidden"
         style={{
-          width: '140px',
-          height: '200px',
+          width: `${cardWidth}px`,
+          height: `${cardHeight}px`,
           borderRadius: '12px',
           border: '4px solid',
           borderImage: 'linear-gradient(145deg, #6a3093, #a044ff, #3a0d6e) 1',
@@ -375,33 +390,33 @@ export function TrailCardDisplay({
 
         {/* Speed limit badge - top left */}
         <div
-          className="absolute top-3 left-3 z-20 flex items-center gap-1"
+          className={`absolute ${compact ? 'top-2 left-2' : 'top-3 left-3'} z-20 flex items-center gap-1`}
           style={{
             background: 'rgba(0,100,200,0.9)',
-            borderRadius: '6px',
-            padding: '3px 8px 3px 6px',
+            borderRadius: compact ? '4px' : '6px',
+            padding: compact ? '2px 5px 2px 4px' : '3px 8px 3px 6px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
             border: '1px solid rgba(100,180,255,0.5)',
           }}
         >
           {/* Mountain/chevron icon */}
-          <svg width="18" height="14" viewBox="0 0 18 14" className="flex-shrink-0">
+          <svg width={compact ? 12 : 18} height={compact ? 10 : 14} viewBox="0 0 18 14" className="flex-shrink-0">
             <path d="M2 12 L9 3 L16 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M6 12 L9 7 L12 12" fill="none" stroke="rgba(100,200,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="text-white font-bold text-lg leading-none">{card.speedLimit}</span>
+          <span className={`text-white font-bold ${compact ? 'text-sm' : 'text-lg'} leading-none`}>{speedLimit}</span>
         </div>
 
         {/* Row check indicators - right side */}
-        <div className="absolute right-3 top-8 bottom-6 z-20 flex flex-col justify-between items-center" style={{ width: '28px' }}>
+        <div className={`absolute ${compact ? 'right-2 top-6 bottom-4' : 'right-3 top-8 bottom-6'} z-20 flex flex-col justify-between items-center`} style={{ width: compact ? '22px' : '28px' }}>
           {rowData.map(({ row, isChecked, targetLane }) => (
             <div key={row} className="relative flex items-center">
               {isChecked ? (
                 <div
-                  className="flex items-center justify-center rounded-full font-bold text-white text-xs"
+                  className={`flex items-center justify-center rounded-full font-bold text-white ${compact ? 'text-[9px]' : 'text-xs'}`}
                   style={{
-                    width: '24px',
-                    height: '24px',
+                    width: compact ? '18px' : '24px',
+                    height: compact ? '18px' : '24px',
                     background: 'radial-gradient(circle at 40% 35%, #4dd9f5, #00b4d8 60%, #0077b6)',
                     boxShadow: '0 2px 8px rgba(0,180,220,0.6), inset 0 1px 2px rgba(255,255,255,0.4)',
                     border: '1.5px solid rgba(200,240,255,0.6)',
@@ -425,7 +440,7 @@ export function TrailCardDisplay({
         </div>
 
         {/* Connecting line between checked rows */}
-        <svg className="absolute right-3 top-8 z-10 pointer-events-none" style={{ width: '28px', bottom: '24px', height: 'calc(100% - 56px)' }}>
+        <svg className={`absolute ${compact ? 'right-2 top-6' : 'right-3 top-8'} z-10 pointer-events-none`} style={{ width: compact ? '22px' : '28px', bottom: compact ? '16px' : '24px', height: compact ? 'calc(100% - 40px)' : 'calc(100% - 56px)' }}>
           {(() => {
             const checkedPositions = rowData
               .map((rd, i) => ({ ...rd, yPct: i / 4 }))
@@ -456,9 +471,9 @@ export function TrailCardDisplay({
             background: 'linear-gradient(0deg, rgba(0,0,0,0.85), rgba(0,0,0,0.5))',
           }}
         >
-          <div className="text-white font-bold text-xs tracking-wide drop-shadow-md">{card.name}</div>
+          <div className="text-white font-bold text-xs tracking-wide drop-shadow-md">{cardName}</div>
           <div className="text-[9px] text-cyan-300/70">
-            {card.checkedRows.length} row{card.checkedRows.length !== 1 ? 's' : ''} checked
+            {cardCheckedRows.length} row{cardCheckedRows.length !== 1 ? 's' : ''} checked
           </div>
         </div>
       </div>
@@ -473,59 +488,62 @@ export function HandDisplay({
   disabled,
   activeObstacles = [],
 }: {
-  hand: PlayerState['hand'];
+  hand: TechniqueType[];
   onPlay?: (index: number) => void;
   disabled?: boolean;
-  activeObstacles?: ProgressObstacle[];
+  activeObstacles?: ObstacleType[];
 }) {
   if (hand.length === 0) return <div className="text-sm" style={{ color: '#8a7a6a' }}>No cards in hand</div>;
 
   // Find which obstacle symbols are needed
   const neededSymbols = new Set<CardSymbol>();
   for (const obs of activeObstacles) {
-    for (const sym of obs.symbols) {
+    for (const sym of getObstacleSymbols(obs)) {
       neededSymbols.add(sym);
     }
   }
 
   // Find which obstacles each card symbol matches
-  function getMatchingObstacles(symbol: CardSymbol): ProgressObstacle[] {
-    return activeObstacles.filter(obs => obs.symbols.includes(symbol));
+  function getMatchingObstacles(symbol: CardSymbol): ObstacleType[] {
+    return activeObstacles.filter(obs => getObstacleSymbols(obs).includes(symbol));
   }
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-2">
       {hand.map((card, i) => {
-        const matchingObs = getMatchingObstacles(card.symbol);
+        const cardSymbol = getTechniqueSymbol(card);
+        const cardName = getTechniqueName(card);
+        const cardActionText = getTechniqueActionText(card);
+        const matchingObs = getMatchingObstacles(cardSymbol);
         const hasMatch = matchingObs.length > 0;
 
         const canPlay = !disabled && !!onPlay;
 
         return (
           <button
-            key={card.id}
+            key={`${card}-${i}`}
             onClick={() => onPlay?.(i)}
             disabled={disabled}
             className={`playing-card text-left flex flex-col relative transition-all duration-150 ${
-              canPlay ? 'hover:-translate-y-1.5 hover:scale-105 cursor-pointer' : ''
+              canPlay ? 'hover:-translate-y-1 hover:scale-105 cursor-pointer' : ''
             } ${disabled ? 'opacity-60' : ''}`}
             style={{
-              width: '120px',
-              height: '170px',
-              padding: '8px',
+              width: '95px',
+              height: '125px',
+              padding: '6px',
               boxShadow: hasMatch
-                ? `0 0 12px ${SYMBOL_COLORS[card.symbol]}90, 0 0 4px ${SYMBOL_COLORS[card.symbol]}60`
+                ? `0 0 12px ${SYMBOL_COLORS[cardSymbol]}90, 0 0 4px ${SYMBOL_COLORS[cardSymbol]}60`
                 : canPlay
                   ? `0 4px 12px rgba(0,0,0,0.3)`
                   : undefined,
-              border: hasMatch ? `2px solid ${SYMBOL_COLORS[card.symbol]}` : undefined,
+              border: hasMatch ? `2px solid ${SYMBOL_COLORS[cardSymbol]}` : undefined,
             }}
           >
             {/* Match indicator badge */}
             {hasMatch && (
               <div
                 className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white"
-                style={{ backgroundColor: SYMBOL_COLORS[card.symbol], boxShadow: `0 0 6px ${SYMBOL_COLORS[card.symbol]}` }}
+                style={{ backgroundColor: SYMBOL_COLORS[cardSymbol], boxShadow: `0 0 6px ${SYMBOL_COLORS[cardSymbol]}` }}
               >
                 MATCH
               </div>
@@ -534,40 +552,40 @@ export function HandDisplay({
             {canPlay && !hasMatch && (
               <div
                 className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
-                style={{ backgroundColor: SYMBOL_COLORS[card.symbol], color: 'white', boxShadow: `0 0 6px ${SYMBOL_COLORS[card.symbol]}80` }}
+                style={{ backgroundColor: SYMBOL_COLORS[cardSymbol], color: 'white', boxShadow: `0 0 6px ${SYMBOL_COLORS[cardSymbol]}80` }}
               >
                 PLAY
               </div>
             )}
             {/* Symbol display - always visible */}
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-2xl">{SYMBOL_EMOJI[card.symbol]}</span>
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="text-lg">{SYMBOL_EMOJI[cardSymbol]}</span>
               <div className="flex flex-col">
                 <span
                   className="inline-block w-3.5 h-3.5 rounded-full border border-white/30"
                   style={{
-                    backgroundColor: SYMBOL_COLORS[card.symbol],
-                    boxShadow: `0 0 4px ${SYMBOL_COLORS[card.symbol]}80`,
+                    backgroundColor: SYMBOL_COLORS[cardSymbol],
+                    boxShadow: `0 0 4px ${SYMBOL_COLORS[cardSymbol]}80`,
                   }}
                 />
               </div>
-              <span className="text-[10px] font-mono uppercase font-bold" style={{ color: SYMBOL_COLORS[card.symbol] }}>
-                {card.symbol}
+              <span className="text-[10px] font-mono uppercase font-bold" style={{ color: SYMBOL_COLORS[cardSymbol] }}>
+                {cardSymbol}
               </span>
             </div>
             {/* Card name */}
             <div className="font-bold text-xs leading-tight" style={{ color: '#1a1a1a' }}>
-              {card.name}
+              {cardName}
             </div>
             {/* Matching obstacle indicator */}
             {hasMatch && (
               <div className="flex flex-wrap gap-0.5 mt-1">
                 {matchingObs.map((obs, j) => (
                   <div key={j} className="flex items-center gap-0.5 rounded px-1 py-0.5" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }}>
-                    {obs.symbols.map((sym, k) => (
+                    {getObstacleSymbols(obs).map((sym, k) => (
                       <span key={k} className="text-xs">{SYMBOL_EMOJI[sym]}</span>
                     ))}
-                    <span className="text-[8px]" style={{ color: '#444' }}>{obs.name}</span>
+                    <span className="text-[8px]" style={{ color: '#444' }}>{getObstacleName(obs)}</span>
                   </div>
                 ))}
               </div>
@@ -576,11 +594,11 @@ export function HandDisplay({
             <div
               className={`text-[10px] leading-snug mt-auto rounded px-1 py-0.5 -mx-1 ${canPlay ? 'font-semibold' : ''}`}
               style={{
-                color: canPlay ? SYMBOL_COLORS[card.symbol] : '#5a5040',
-                backgroundColor: canPlay ? `${SYMBOL_COLORS[card.symbol]}12` : undefined,
+                color: canPlay ? SYMBOL_COLORS[cardSymbol] : '#5a5040',
+                backgroundColor: canPlay ? `${SYMBOL_COLORS[cardSymbol]}12` : undefined,
               }}
             >
-              {card.actionText}
+              {cardActionText}
             </div>
           </button>
         );
