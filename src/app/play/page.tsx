@@ -755,7 +755,7 @@ export default function PlayPage() {
           {/* Game Log */}
           <div className="min-w-[200px] w-full sm:w-auto sm:max-w-[300px]">
             <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Game Log</h3>
-            <div className="max-h-[200px]">
+            <div className="h-64">
               <GameLog log={game.log} />
             </div>
           </div>
