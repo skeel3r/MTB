@@ -143,8 +143,21 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
   const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, maxReuse);
   s = afterReuse;
 
-  // Determine how many fresh obstacles to draw (conservative only tackles revealed obstacles)
-  const targetObstacles = strategy === 'conservative' ? 0 : strategy === 'aggressive' ? 2 : Math.max(1, Math.min(2, 1 + linesAvailable));
+  // Determine how many fresh obstacles to draw
+  let targetObstacles: number;
+  if (strategy === 'conservative') {
+    // Conservative fresh obstacle logic:
+    // 1. Only draw if no reveals were available (e.g. P1 with no prior players)
+    // 2. Only draw on high momentum turns (at trail speed limit = good hand size)
+    // 3. Only draw if hand has 3+ cards (likely to match something)
+    const trailCard = s.activeTrailCard;
+    const atSpeedLimit = trailCard ? p().momentum >= trailCard.speedLimit : p().momentum >= 4;
+    const hasCards = p().hand.length >= 3;
+    const noRevealsAvailable = reused === 0 && s.roundRevealedObstacles.length === 0;
+    targetObstacles = (noRevealsAvailable && atSpeedLimit && hasCards) ? 1 : 0;
+  } else {
+    targetObstacles = strategy === 'aggressive' ? 2 : Math.max(1, Math.min(2, 1 + linesAvailable));
+  }
   const freshNeeded = Math.max(0, targetObstacles - reused);
 
   for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
