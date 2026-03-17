@@ -47,3 +47,9 @@ next-env.d.ts
 
 # Generated game logs
 /game-logs/
+
+# Card generation output & assets
+/scripts/card-gen/output/
+/scripts/card-gen/assets/
+/scripts/card-gen/.venv/
+/public/cards/

@@ -14,6 +14,7 @@ import {
 import { aiPlaySprint, aiCommit } from '@/lib/ai-player';
 import GameBoard, { PlayerStats, HandDisplay, TrailCardDisplay } from '@/components/GameBoard';
 import GameLog from '@/components/GameLog';
+import { obstacleCardImage } from '@/lib/card-images';
 
 const PHASE_LABELS: Record<string, string> = {
   setup: 'Setup',
@@ -427,17 +428,31 @@ export default function PlayPage() {
                 return (
                   <div
                     key={i}
-                    className="obstacle-card flex flex-col items-center justify-center"
-                    style={{ width: '120px', padding: '6px' }}
+                    className="relative flex flex-col items-center justify-end rounded-lg overflow-hidden"
+                    style={{ width: '120px', height: '160px' }}
                   >
-                    <div className="flex gap-1 mb-1">
-                      {obs.symbols.map((sym, j) => (
-                        <span key={j} className="text-2xl">{SYMBOL_EMOJI[sym]}</span>
-                      ))}
-                    </div>
-                    <div className="text-xs font-bold text-center leading-tight">{obs.name}</div>
-                    <div className="text-[9px] text-red-300/70 mt-0.5 text-center">{obs.penaltyType}</div>
-                    <div className="flex gap-1.5 mt-2 w-full flex-wrap">
+                    {/* Obstacle card rendered image */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={obstacleCardImage(obs.id.replace(/-\d+$/, ''), obs.name)}
+                      alt={obs.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    {/* CSS fallback */}
+                    <div className="obstacle-card absolute inset-0" style={{ zIndex: -1 }} />
+                    {/* Dark overlay for readability */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80" />
+                    {/* Content overlay */}
+                    <div className="relative z-10 p-1.5 w-full">
+                      <div className="flex gap-1 mb-0.5 justify-center">
+                        {obs.symbols.map((sym, j) => (
+                          <span key={j} className="text-xl drop-shadow-md">{SYMBOL_EMOJI[sym]}</span>
+                        ))}
+                      </div>
+                      <div className="text-[10px] font-bold text-center leading-tight text-white drop-shadow-md">{obs.name}</div>
+                      <div className="text-[8px] text-red-300/80 text-center">{obs.penaltyType}</div>
+                      <div className="flex gap-1.5 mt-1 w-full flex-wrap">
                       {canMatch ? (
                         <button
                           onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i } })}
@@ -463,6 +478,7 @@ export default function PlayPage() {
                           CRASH
                         </button>
                       ) : null}
+                      </div>
                     </div>
                   </div>
                 );
