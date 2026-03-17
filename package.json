@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "build:wasm": "cd descenders-wasm && wasm-pack build --target web --out-dir ../src/ai/wasm-pkg",
+    "bench": "vitest bench",
+    "benchmark": "vitest bench",
+    "profile": "samply record cargo run --release --manifest-path descenders-runner/Cargo.toml -- --games 1 --iterations 10000 --threads 1",
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
@@ -23,6 +26,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.0"
   }
 }

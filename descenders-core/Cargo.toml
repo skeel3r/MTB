@@ -9,3 +9,10 @@ serde_json = "1.0"
 rand = "0.10"
 wyrand = "0.4"
 rustc-hash = "2.1"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "ismcts_bench"
+harness = false
