@@ -5,7 +5,7 @@ export default function Home() {
     <div className="min-h-screen game-table text-white flex items-center justify-center">
       <div className="max-w-2xl mx-auto text-center px-4 sm:px-8 py-8">
         <h1 className="text-4xl sm:text-6xl font-bold mb-4 bg-gradient-to-r from-amber-300 to-yellow-500 bg-clip-text text-transparent drop-shadow-lg">
-          The Descent
+          Treadline
         </h1>
         <p className="text-lg sm:text-xl mb-8 sm:mb-12" style={{ color: '#a0c0a0' }}>
           A strategic downhill racing board game. Manage momentum, dodge hazards, and outpace your rivals.
