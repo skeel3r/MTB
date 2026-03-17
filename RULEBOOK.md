@@ -8,10 +8,10 @@
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| Technique Cards | 20 (5 per symbol) | 4 unique cards with grip, air, agility, or balance symbols |
-| Obstacle Cards | 30 (3 per type) | 10 unique obstacles requiring symbol matches |
+| Technique Cards | 52 (see table) | 6 unique cards with grip, air, agility, or balance symbols |
+| Obstacle Cards | 42 (3 per type) | 14 unique obstacles (10 standard + 4 hard) requiring symbol matches |
 | Penalty Cards | 24 (2 per type) | 12 unique mechanical failures |
-| Trail Cards | 15 | Define the course layout and speed limits |
+| Trail Cards | 12-15 per trail pack | Define the course layout and speed limits |
 | Trail Hazards | 30+ | Environmental effects that shift token positions |
 | Upgrade Cards | 6 | Purchasable bike improvements |
 | Player Grid | 1 per player | 6 rows x 5 columns (lanes C1-C5) |
@@ -25,8 +25,8 @@ All card data is defined in the `data/` directory as CSV files for easy editing 
 ## Setup
 
 1. Each player receives a **6x5 grid**. Place tokens in the **center lane (C3)** of Rows 1-5.
-2. Shuffle the **Technique Deck** (20 cards), **Obstacle Deck** (30 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
-3. Place the **Trail Deck** (15 cards) in order — these define the 15-round course.
+2. Shuffle the **Technique Deck** (52 cards), **Obstacle Deck** (42 cards), **Penalty Deck** (24 cards), and **Trail Hazard** deck.
+3. Choose a **Trail Pack** and place the **Trail Deck** in order — these define the course.
 4. Each player starts with:
    - **Momentum: 2**
    - **Flow: 0**
@@ -98,7 +98,8 @@ This makes going first a **disadvantage** — the leader blazes the trail blind 
 |--------|--------|
 | **Draw Obstacle** | Flip the top obstacle card face-up (locks you out of revealed pool) |
 | **Reuse Obstacle** | Tackle a revealed obstacle from a player ahead (only before drawing fresh) |
-| **Resolve Obstacle** | Match it with hand cards or take the blow-by penalty |
+| **Resolve Obstacle** | Match it with hand cards (including wilds) or take the blow-by penalty |
+| **Send It** | Spend 2-3 Momentum to force-clear an active obstacle (hard obstacles cost 3) |
 
 #### Flow Actions (spend Flow resource):
 
@@ -142,16 +143,20 @@ After rounds 3, 6, 9, and 12:
 
 ## Technique Cards
 
-There are 4 unique technique cards (5 copies each = 20 total). Each card has a **symbol** used for obstacle matching and an **action effect** when played.
+There are 6 unique technique cards (52 total). Each card has a **symbol** used for obstacle matching and an **action effect** when played.
 
-| Card | Symbol | Effect When Played |
-|------|--------|--------------------|
-| **Inside Line** | Grip (red) | Ignore all Grip penalties this turn. +1 Momentum. |
-| **Manual** | Air (blue) | Swap Row 1 and Row 2 tokens. Draw 1 card if they were in different lanes. |
-| **Flick** | Agility (green) | Shift tokens in Rows 1-2 one lane toward center. |
-| **Recover** | Balance (orange) | Remove 2 Hazard Dice. If at 0 dice: repair 1 Penalty Card. |
+| Card | Symbol | Copies | Effect When Played |
+|------|--------|--------|--------------------|
+| **Inside Line** | Grip (red) | 10 | Ignore Grip penalties this turn. **Shift any 1 token up to 2 lanes** in either direction. |
+| **Manual** | Air (blue) | 10 | **Swap any 2 adjacent-row tokens.** Choose which pair of adjacent rows. |
+| **Flick** | Agility (green) | 9 | **Shift tokens in Rows 1-3** one lane toward center. |
+| **Recover** | Balance (orange) | 9 | Remove 2 Hazard Dice (or repair 1 Penalty if at 0 dice). **Center any 1 token** (move to C3). |
+| **Pump** | Air (blue) | 7 | **Shift tokens in Rows 4-6** one lane toward center. Lower grid complement to Flick. |
+| **Whip** | Grip (red) | 7 | **Move any 1 token directly to any lane.** Precision placement. |
 
 Playing a technique card costs **1 Action** and discards the card. The card's symbol is consumed — it cannot also be used to match an obstacle.
+
+> **Design Note:** Technique cards are repositioning tools, not speed generators. Pedal is for momentum; cards are for fixing your line. Players use cards and steering actions to position tokens for alignment, then Pedal to build speed for the next round's card draw.
 
 ### The Combo System
 
@@ -161,14 +166,14 @@ Playing multiple technique cards in a single turn triggers combo bonuses. This c
 
 | Symbol Pair | Synergy Bonus |
 |-------------|---------------|
-| Grip x2 | +2 Momentum burst |
+| Grip x2 | Powerslide Rows 1-2 tokens 2 lanes toward center |
 | Air x2 | Recover 1 Action (the second card is effectively free) |
 | Agility x2 | Realign ALL tokens across all 6 rows toward center |
 | Balance x2 | Clear ALL Hazard Dice |
 
 #### Versatility (3 unique symbols in one turn)
 
-- +1 Momentum
+- +1 Flow
 
 #### Mastery (4 unique symbols in one turn)
 
@@ -176,7 +181,7 @@ Playing multiple technique cards in a single turn triggers combo bonuses. This c
 
 #### Pro Line Combo Bonus
 
-- Playing 2+ technique cards while on the Pro Line grants +1 Momentum.
+- Playing 2+ technique cards while on the Pro Line grants +1 Flow.
 
 ---
 
@@ -184,22 +189,49 @@ Playing multiple technique cards in a single turn triggers combo bonuses. This c
 
 Obstacles are flipped face-up during the Sprint phase as a free action. Players must then resolve each obstacle before taking other actions.
 
-### Matching an Obstacle
+### Resolving an Obstacle
 
+**The obstacle's penalty effect ALWAYS applies** — this represents the terrain itself affecting the rider. Whether you match, Send It, or blow by, the terrain hits you. Matching earns progress; failing earns additional punishment.
+
+**Step 1: Terrain Effect (always)**
+- The obstacle's specific penalty fires immediately (e.g., "Row 1 shifts 2 lanes randomly" for Loose Scree).
+
+**Step 2: Match, Send It, or Blow-By**
+
+#### Matching (Cards)
 - Check the obstacle's required **symbols** and **match mode**.
-- **"All" mode**: Player must discard cards matching ALL listed symbols (using different cards for each).
-- **"Any" mode**: Player needs just ONE card matching any listed symbol.
-- On success: **+1 Momentum**, **+1 Progress** (or +2 on Pro Line). Obstacle is discarded.
+- **"All" mode**: Discard cards matching ALL listed symbols (using different cards for each).
+- **"Any" mode**: Need just ONE card matching any listed symbol.
+- On success: **+1 Pending Momentum**, **+1 Progress** (or +2 on Pro Line). Obstacle is discarded.
+- **Deferred Momentum**: Momentum earned from matching obstacles is not available immediately. It accumulates as "pending momentum" and is added to your actual momentum at the **end of your turn**. This means you can't spend obstacle-earned momentum to Send It through later obstacles in the same turn.
 
-### Blow-By (Failing to Match)
+#### "Forced Through" — Wild Matching
 
-If you can't (or choose not to) match the obstacle:
+Any **2 cards of the same symbol** can substitute for **1 card of any other symbol** when matching. You're muscling through with raw technique even if it's not the ideal skill.
 
-1. **+1 Hazard Die** (always)
-2. **-1 Momentum**
-3. Apply the obstacle's specific **penalty effect**
-4. If on **Pro Line**: +1 additional Hazard Die and draw a Penalty Card
-5. **Crash Check**: If Hazard Dice reach 6+, you crash immediately (tokens reset to center, draw Penalty Card)
+- Example: Need a Grip card but only have 2 Agility cards? Discard both Agility cards to match the Grip requirement.
+- Multiple wilds can be stacked — 4 Balance cards could cover 2 different missing symbols.
+- Wild matches consume 2 cards each, so they cost more hand resources than exact matches.
+
+#### "Send It" — Momentum-Powered Clear
+
+Spend **Momentum** to force-clear any active obstacle, regardless of hand cards. This is a **free action** (no Action cost).
+
+- **Standard obstacles** cost **2 Momentum**. **Hard obstacles** cost **3 Momentum**.
+- On success: **+1 Progress** (or +2 on Pro Line). Obstacle is discarded and counts as cleared.
+- **+1 Hazard Die** — sending it through rough terrain without technique is risky.
+- **Does NOT grant** the usual +1 Momentum reward (you spent momentum, not cards).
+- Useful when your hand can't match but you've built up speed.
+
+#### Crash (Can't Match or Send It)
+
+If you cannot match the obstacle with cards (including wilds) **and** cannot or choose not to Send It, you **crash immediately**:
+
+1. All tokens reset to **center (C3)**
+2. Lose **3 Momentum**
+3. Draw **1 Penalty Card**
+4. **+1 Hazard Die**
+5. Your turn ends immediately
 
 ### Obstacle List
 
@@ -215,6 +247,12 @@ If you can't (or choose not to) match the obstacle:
 | Granite Slab | Balance | All | Locked | Row 1 token cannot move next turn |
 | Rooty Drop | Grip, Air | Any | Wipeout | +2 Hazard Dice, end turn immediately |
 | Slippery Berm | Grip, Agility | Any | Wash Out | Shift Rows 1-2 three lanes |
+| **The Canyon Gap** | **Air, Balance** | **All** | **Full Send** | **Shift Rows 1-2 two lanes from center** |
+| **Rock Garden** | **Grip, Agility** | **All** | **Pinball** | **Shift Rows 1-3 one lane from center** |
+| **Gnarly Root Web** | **Balance, Grip** | **All** | **Tangled** | **Shift Rows 2-4 one lane left** |
+| **Steep Chute** | **Air, Agility** | **All** | **Overshoot** | **Shift Row 1 two lanes + Row 3 one lane from center** |
+
+> **Hard Obstacles** (bold above): Require matching **both** symbols. Send It costs **3 Momentum** instead of 2. These obstacles appear less frequently in the deck (3 copies each like standard obstacles).
 
 ---
 
@@ -254,12 +292,17 @@ Purchased during **Stage Break** phases using Flow. Each upgrade can only be pur
 
 ---
 
-## Trail Cards
+## Trail Cards (Trail Packs)
 
-15 cards played in order, defining each round's course section. Each has:
+Trail cards are played in order, defining each round's course section. Each trail pack is a different real-world trail with its own length and character. The game length matches the number of stages in the selected trail.
 
+Each trail card has:
 - **Speed Limit**: Momentum is capped at this value each round during Preparation. Any excess converts to Hazard Dice. Players must brake during the Sprint to manage speed for upcoming trail sections.
 - **Target Lanes**: Specific lanes (C1-C5) for checked rows. Used during Alignment to determine matches.
+
+### Trail Pack 1: Whistler A-Line (Whistler, BC) — 15 stages
+
+The iconic jump trail. Big airs, fast berms, and hero moments.
 
 | # | Trail | Speed Limit | Checked Rows & Targets |
 |---|-------|-------------|----------------------|
@@ -278,6 +321,25 @@ Purchased during **Stage Break** phases using Flow. Each upgrade can only be pur
 | 13 | Tombstone | 4 | R1:C3, R2:C4, R3:C3, R4:C2 |
 | 14 | High Berms | 4 | R1:C1, R2:C1, R3:C1 |
 | 15 | Hero Shot | 6 | R1:C3, R2:C3, R3:C3, R4:C3, R5:C3 |
+
+### Trail Pack 2: Tiger Mountain "The Predator" (Issaquah, WA) — 12 stages
+
+A classic PNW steeps trail. Tight trees, root nests, and constant vertical drops.
+
+| # | Trail | Speed Limit | Checked Rows & Targets |
+|---|-------|-------------|----------------------|
+| 1 | The High Traverse | 4 | R1:C3, R2:C3, R3:C3 |
+| 2 | Root Garden Entry | 2 | R1:C3, R2:C2, R3:C1, R4:C2, R5:C3 |
+| 3 | The Vertical Chute | 5 | R1:C3, R2:C3, R3:C3 |
+| 4 | Needle Eye Gap | 4 | R1:C2, R2:C2, R3:C2, R4:C1 |
+| 5 | Loamy Switchbacks | 3 | R1:C1, R2:C2, R3:C3, R4:C4, R5:C5 |
+| 6 | The Waterfall | 2 | R1:C3, R2:C3, R3:C3, R4:C3, R5:C3 |
+| 7 | Mossy Slab | 4 | R1:C4, R2:C5, R3:C5, R4:C4 |
+| 8 | Brake Bump Gully | 3 | R1:C3, R2:C4, R3:C2, R4:C4 |
+| 9 | The Cedar Gap | 5 | R1:C3, R2:C3, R3:C3 |
+| 10 | Final Tech Sprint | 4 | R1:C3, R2:C2, R3:C1, R4:C2, R5:C3 |
+| 11 | The Stump Jump | 5 | R1:C3, R2:C3, R3:C4, R4:C5 |
+| 12 | Exit Woods | 4 | R1:C3, R2:C3, R3:C3 |
 
 ---
 
@@ -299,7 +361,7 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Rounds per game | 15 | Fixed course length |
+| Rounds per game | 12-15 | Matches trail pack stage count |
 | Actions per turn | 5 | Reset each sprint |
 | Starting Momentum | 2 | |
 | Max Momentum | 12 | Hard cap (also capped per trail card speed limit) |
@@ -311,8 +373,8 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 | Crash momentum penalty | -3 | Lost on crash |
 | Turn order | Leader first | Highest progress goes first each sprint |
 | Stage Break interval | Every 3 rounds | Rounds 3, 6, 9, 12 |
-| Technique deck size | 20 | 4 cards x 5 copies |
-| Obstacle deck size | 30 | 10 types x 3 copies |
+| Technique deck size | 52 | 6 unique cards (see Technique Cards table) |
+| Obstacle deck size | 42 | 14 types x 3 copies (10 standard + 4 hard) |
 | Penalty deck size | 24 | 12 types x 2 copies |
 
 ---

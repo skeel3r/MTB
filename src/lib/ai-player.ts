@@ -137,39 +137,23 @@ export function aiPlaySprint(state: GameState, playerIndex: number): GameState {
       continue;
     }
 
-    // Priority 3: Play a technique card — try to build combos
+    // Priority 3: Play a technique card — pick based on game state
     if (player.hand.length > 0) {
       let bestIndex = 0;
-      const played = player.cardsPlayedThisTurn || [];
-      if (played.length > 0) {
-        // Try to find a card that completes a synergy (same symbol as one already played)
-        const playedSymbols = played.map(c => c.symbol);
-        const synergyIdx = player.hand.findIndex(c => playedSymbols.includes(c.symbol));
-        if (synergyIdx >= 0) {
-          bestIndex = synergyIdx;
-        } else {
-          // Try to diversify for versatility/mastery combos
-          const usedSymbols = new Set(playedSymbols);
-          const diverseIdx = player.hand.findIndex(c => !usedSymbols.has(c.symbol));
-          if (diverseIdx >= 0) bestIndex = diverseIdx;
-        }
+      // Play Recover if high hazard dice, Flick/Manual if off-center
+      if (player.hazardDice >= 3) {
+        const recoverIdx = player.hand.findIndex(c => c.name === 'Recover');
+        if (recoverIdx >= 0) bestIndex = recoverIdx;
       } else {
-        // First card: prioritize based on state
-        // Play Recover if high hazard dice, Flick/Manual if off-center, Inside Line for momentum
-        if (player.hazardDice >= 3) {
-          const recoverIdx = player.hand.findIndex(c => c.name === 'Recover');
-          if (recoverIdx >= 0) bestIndex = recoverIdx;
-        } else {
-          // Check if tokens are off center
-          let offCenter = 0;
-          for (let r = 0; r < 6; r++) {
-            const col = getTokenCol(player.grid, r);
-            if (col >= 0 && col !== 2) offCenter++;
-          }
-          if (offCenter >= 2) {
-            const flickIdx = player.hand.findIndex(c => c.name === 'Flick');
-            if (flickIdx >= 0) bestIndex = flickIdx;
-          }
+        // Check if tokens are off center
+        let offCenter = 0;
+        for (let r = 0; r < 6; r++) {
+          const col = getTokenCol(player.grid, r);
+          if (col >= 0 && col !== 2) offCenter++;
+        }
+        if (offCenter >= 2) {
+          const flickIdx = player.hand.findIndex(c => c.name === 'Flick');
+          if (flickIdx >= 0) bestIndex = flickIdx;
         }
       }
       s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: bestIndex } });

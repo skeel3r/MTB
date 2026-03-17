@@ -9,6 +9,8 @@ export interface ProgressObstacle {
   symbols: CardSymbol[];
   /** 'all' = need every symbol, 'any' = need just one. Defaults to 'all' */
   matchMode?: 'all' | 'any';
+  /** Momentum cost to Send It through this obstacle. Defaults to 2 */
+  sendItCost?: number;
   penaltyType: string;
   blowByText: string;
 }
@@ -75,15 +77,12 @@ export interface PlayerState {
   /** Flags for symbol penalties */
   cannotPedal: boolean;
   cannotBrake: boolean;
-  /** Technique cards played this sprint turn (for combo tracking) */
-  cardsPlayedThisTurn: { symbol: CardSymbol; name: string }[];
-  /** Combo bonuses earned this turn */
-  combosTriggered: string[];
   /** Cumulative stats across the whole game */
   totalCardsPlayed: number;
-  totalCombos: number;
   /** Trail Read: set to true once the player draws a fresh obstacle, locking them out of revealed pool */
   drewFreshObstacle: boolean;
+  /** Momentum earned from obstacles this turn — applied at end of turn, not immediately */
+  pendingMomentum: number;
 }
 
 // ── Game state ──
@@ -113,6 +112,10 @@ export interface GameState {
   players: PlayerState[];
   currentPlayerIndex: number;
   round: number;
+  /** Total rounds in this trail (matches trail deck length) */
+  trailLength: number;
+  /** Which trail pack is being played */
+  trailId: string;
   phase: GamePhase;
   activeTrailCard: MainTrailCard | null;
   queuedTrailCard: MainTrailCard | null;
@@ -136,19 +139,19 @@ export interface GameState {
 
 export interface GameAction {
   type: 'pedal' | 'brake' | 'steer' | 'technique' | 'tackle' | 'pass_duel' |
-        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle' | 'resolve_obstacle' | 'reuse_obstacle';
+        'commit_line' | 'roll_hazard' | 'flow_spend' | 'buy_upgrade' | 'next_phase' | 'end_turn' | 'draw_obstacle' | 'resolve_obstacle' | 'reuse_obstacle' | 'send_it';
   payload?: Record<string, unknown>;
 }
 
 export interface SimulationConfig {
   playerCount: number;
   gamesCount: number;
-  strategy: 'aggressive' | 'balanced' | 'conservative';
+  strategy: 'aggressive' | 'balanced' | 'conservative' | 'smart' | 'random' | 'adaptive';
 }
 
 export interface SimulationResult {
   gameNumber: number;
   winner: string;
-  finalStandings: { name: string; progress: number; perfectMatches: number; penalties: number; flow: number; momentum: number; combosTriggered: number; cardsPlayed: number }[];
+  finalStandings: { name: string; progress: number; perfectMatches: number; penalties: number; flow: number; momentum: number; cardsPlayed: number }[];
   totalRounds: number;
 }

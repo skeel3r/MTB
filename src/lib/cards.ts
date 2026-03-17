@@ -9,21 +9,22 @@ const SYMBOL_NAMES: Record<CardSymbol, string> = {
   balance: 'Level',
 };
 
-/** Official technique card definitions (one per symbol) */
-const TECHNIQUE_DEFS: { name: string; symbol: CardSymbol; actionText: string }[] = [
-  { name: 'Inside Line',  symbol: 'grip',    actionText: 'Ignore all Slide-Out (Grip) penalties for the rest of this turn.' },
-  { name: 'Manual',       symbol: 'air',     actionText: 'Swap your Row 1 token with your Row 2 token.' },
-  { name: 'Flick',        symbol: 'agility', actionText: 'Shift any two tokens on your grid 1 lane each for 1 Action.' },
-  { name: 'Recover',      symbol: 'balance', actionText: 'Discard 2 Hazard Dice from your pool.' },
+/** Official technique card definitions */
+const TECHNIQUE_DEFS: { name: string; symbol: CardSymbol; actionText: string; copies: number }[] = [
+  { name: 'Inside Line',  symbol: 'grip',    actionText: 'Ignore Grip penalties this turn. Shift any 1 token up to 2 lanes.', copies: 10 },
+  { name: 'Manual',       symbol: 'air',     actionText: 'Swap any 2 adjacent-row tokens.', copies: 10 },
+  { name: 'Flick',        symbol: 'agility', actionText: 'Shift tokens in Rows 1-3 one lane toward center.', copies: 9 },
+  { name: 'Recover',      symbol: 'balance', actionText: 'Remove 2 Hazard Dice (or repair 1 Penalty). Center any 1 token.', copies: 9 },
+  { name: 'Pump',         symbol: 'air',     actionText: 'Shift tokens in Rows 4-6 one lane toward center.', copies: 7 },
+  { name: 'Whip',         symbol: 'grip',    actionText: 'Move any 1 token directly to any lane.', copies: 7 },
 ];
 
 export function createTechniqueDeck(): TechniqueCard[] {
   const cards: TechniqueCard[] = [];
   let id = 0;
 
-  // 5 copies of each technique card = 20 total
   for (const def of TECHNIQUE_DEFS) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < def.copies; i++) {
       cards.push({
         id: `tech-${id++}`,
         name: def.name,
@@ -68,26 +69,62 @@ export function createPenaltyDeck(): PenaltyCard[] {
 const C1 = 0, C2 = 1, C3 = 2, C4 = 3, C5 = 4;
 
 /**
- * Fixed trail card definitions.
- * Each entry: [name, speedLimit, rowsChecked, targets (per row, -1 = not checked)]
+ * Trail pack definitions.
+ * Each entry: [name, speedLimit, targets (per row, -1 = not checked)]
  * Rows are R1-R5 (0-indexed as 0-4). Only rows with a target >= 0 are checked.
  */
-const TRAIL_DATA: [string, number, (number | -1)[]][] = [
-  ['Start Gate',     6, [C3, C3, C3, -1, -1]],
-  ['Right Hip',      4, [C3, C4, C5, C5, -1]],
-  ['Lower Bridge',   5, [C5, C4, C3, -1, -1]],
-  ['Rock Drop',      2, [C3, C3, C3, C3, C3]],
-  ['Berms (Left)',   3, [C3, C2, C1, C1, -1]],
-  ['The Tabletop',   6, [C1, C2, C3, -1, -1]],
-  ['Shark Fin',      4, [C3, C3, C4, C5, C5]],
-  ['Ski Jumps',      5, [C5, C4, C3, -1, -1]],
-  ['Moon Booter',    5, [C3, C3, C3, C3, C3]],
-  ['Merchant Link',  4, [C3, C3, C2, C1, -1]],
-  ['Tech Woods',     2, [C1, C1, C2, C3, C3]],
-  ['Brake Bumps',    3, [C3, C4, C2, C4, -1]],
-  ['Tombstone',      4, [C3, C4, C3, C2, -1]],
-  ['High Berms',     4, [C1, C1, C1, -1, -1]],
-  ['Hero Shot',      6, [C3, C3, C3, C3, C3]],
+export interface TrailPack {
+  id: string;
+  name: string;
+  location: string;
+  description: string;
+  stages: [string, number, (number | -1)[]][];
+}
+
+export const TRAIL_PACKS: TrailPack[] = [
+  {
+    id: 'whistler-a-line',
+    name: 'Whistler A-Line',
+    location: 'Whistler, BC',
+    description: 'The iconic jump trail. Big airs, fast berms, and hero moments.',
+    stages: [
+      ['Start Gate',     6, [C3, C3, C3, -1, -1]],
+      ['Right Hip',      4, [C3, C4, C5, C5, -1]],
+      ['Lower Bridge',   5, [C5, C4, C3, -1, -1]],
+      ['Rock Drop',      2, [C3, C3, C3, C3, C3]],
+      ['Berms (Left)',   3, [C3, C2, C1, C1, -1]],
+      ['The Tabletop',   6, [C1, C2, C3, -1, -1]],
+      ['Shark Fin',      4, [C3, C3, C4, C5, C5]],
+      ['Ski Jumps',      5, [C5, C4, C3, -1, -1]],
+      ['Moon Booter',    5, [C3, C3, C3, C3, C3]],
+      ['Merchant Link',  4, [C3, C3, C2, C1, -1]],
+      ['Tech Woods',     2, [C1, C1, C2, C3, C3]],
+      ['Brake Bumps',    3, [C3, C4, C2, C4, -1]],
+      ['Tombstone',      4, [C3, C4, C3, C2, -1]],
+      ['High Berms',     4, [C1, C1, C1, -1, -1]],
+      ['Hero Shot',      6, [C3, C3, C3, C3, C3]],
+    ],
+  },
+  {
+    id: 'tiger-mountain',
+    name: 'Tiger Mountain "The Predator"',
+    location: 'Issaquah, WA',
+    description: 'A classic PNW steeps trail. Tight trees, root nests, and constant vertical drops.',
+    stages: [
+      ['The High Traverse',  4, [C3, C3, C3, -1, -1]],
+      ['Root Garden Entry',  2, [C3, C2, C1, C2, C3]],
+      ['The Vertical Chute', 5, [C3, C3, C3, -1, -1]],
+      ['Needle Eye Gap',     4, [C2, C2, C2, C1, -1]],
+      ['Loamy Switchbacks',  3, [C1, C2, C3, C4, C5]],
+      ['The Waterfall',      2, [C3, C3, C3, C3, C3]],
+      ['Mossy Slab',         4, [C4, C5, C5, C4, -1]],
+      ['Brake Bump Gully',   3, [C3, C4, C2, C4, -1]],
+      ['The Cedar Gap',      5, [C3, C3, C3, -1, -1]],
+      ['Final Tech Sprint',  4, [C3, C2, C1, C2, C3]],
+      ['The Stump Jump',     5, [C3, C3, C4, C5, -1]],
+      ['Exit Woods',         4, [C3, C3, C3, -1, -1]],
+    ],
+  },
 ];
 
 // ── Progress Obstacles (fixed definitions) ──
@@ -102,6 +139,11 @@ export const OBSTACLE_DEFINITIONS: ProgressObstacle[] = [
   { id: 'obs-8',  name: 'Granite Slab',    symbols: ['balance'],           penaltyType: 'Locked',      blowByText: 'Your Row 1 token cannot move next turn.' },
   { id: 'obs-9',  name: 'Rooty Drop',      symbols: ['grip', 'air'],       matchMode: 'any', penaltyType: 'Wipeout',     blowByText: 'Take 2 Hazard Dice and end turn immediately.' },
   { id: 'obs-10', name: 'Slippery Berm',   symbols: ['grip', 'agility'],   matchMode: 'any', penaltyType: 'Wash Out',    blowByText: 'Shift Row 1 and Row 2 three lanes.' },
+  // ── Hard Obstacles (2-symbol "all" match, 3 momentum Send It cost) ──
+  { id: 'obs-11', name: 'The Canyon Gap',   symbols: ['air', 'balance'],    matchMode: 'all', sendItCost: 3, penaltyType: 'Full Send',   blowByText: 'Shift Rows 1 and 2 two lanes away from center.' },
+  { id: 'obs-12', name: 'Rock Garden',      symbols: ['grip', 'agility'],   matchMode: 'all', sendItCost: 3, penaltyType: 'Pinball',     blowByText: 'Shift Rows 1-3 one lane away from center.' },
+  { id: 'obs-13', name: 'Gnarly Root Web',  symbols: ['balance', 'grip'],   matchMode: 'all', sendItCost: 3, penaltyType: 'Tangled',     blowByText: 'Shift Rows 2-4 one lane left.' },
+  { id: 'obs-14', name: 'Steep Chute',      symbols: ['air', 'agility'],    matchMode: 'all', sendItCost: 3, penaltyType: 'Overshoot',   blowByText: 'Shift Row 1 two lanes and Row 3 one lane away from center.' },
 ];
 
 /** Create a shuffled obstacle deck (3 copies of each obstacle = 30 total) */
@@ -116,8 +158,9 @@ export function createObstacleDeck(): ProgressObstacle[] {
   return shuffle(deck);
 }
 
-export function createTrailDeck(): MainTrailCard[] {
-  return TRAIL_DATA.map(([name, speedLimit, targets], i) => {
+export function createTrailDeck(trailId?: string): MainTrailCard[] {
+  const pack = TRAIL_PACKS.find(p => p.id === trailId) ?? TRAIL_PACKS[0];
+  return pack.stages.map(([name, speedLimit, targets], i) => {
     const checkedRows: number[] = [];
     const targetLanes: number[] = [];
     for (let r = 0; r < targets.length; r++) {
@@ -182,7 +225,7 @@ export const UPGRADES: Upgrade[] = [
   { id: 'upgrade-3', name: 'Carbon Frame',          flowCost: 5, description: 'Max Momentum = 12; Min Hand Size = 4.' },
   { id: 'upgrade-4', name: 'Electronic Shifting',   flowCost: 5, description: '1 Steer action/turn is 0 Actions.' },
   { id: 'upgrade-5', name: 'Telemetry System',      flowCost: 6, description: 'Look at top 3 Obstacles at turn start; keep 1.' },
-  { id: 'upgrade-6', name: 'Factory Suspension',    flowCost: 8, description: 'Pro Line combos gain +2 Flow instead of 1.' },
+  { id: 'upgrade-6', name: 'Factory Suspension',    flowCost: 8, description: 'Pro Line obstacle clears gain +2 Flow instead of 1.' },
 ];
 
 export function shuffle<T>(array: T[]): T[] {

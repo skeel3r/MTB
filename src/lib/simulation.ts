@@ -1,25 +1,87 @@
 import { GameState, SimulationConfig, SimulationResult, ProgressObstacle, CardSymbol, TechniqueCard } from './types';
-import { initGame, advancePhase, processAction, getStandings } from './engine';
+import { initGame, advancePhase, processAction, getStandings, sortByProgressRandomTies } from './engine';
 import { OBSTACLE_DEFINITIONS } from './cards';
+import { smartAiPlaySprint, smartAiCommit } from './smart-ai';
 
 type Strategy = SimulationConfig['strategy'];
 
+/**
+ * Aggressive commitment: choose pro line when we can reasonably accomplish it.
+ * Pro line gives +2 progress per obstacle but can't brake.
+ * Choose pro when: hand is large enough to match obstacles AND momentum provides
+ * a safety net for send-it. Otherwise fall back to main.
+ */
+function aggressiveCommitLine(state: GameState, playerIndex: number): 'main' | 'pro' {
+  const player = state.players[playerIndex];
+  const handSize = player.hand.length;
+  const momentum = player.momentum;
+
+  // Count distinct symbols in hand — more diversity = better matching
+  const symbolSet = new Set(player.hand.map(c => c.symbol));
+  const diversity = symbolSet.size;
+
+  // Pro is worthwhile when we have enough resources to match/send-it obstacles:
+  // - Hand of 3+ cards with 2+ distinct symbols means we can likely match
+  // - Momentum of 3+ means we can send-it at least once if needed
+  // - Low hazard dice means we can absorb the risk of not braking
+  const canMatch = handSize >= 3 && diversity >= 2;
+  const canSendIt = momentum >= 3;
+  const lowRisk = player.hazardDice <= 3;
+
+  // Go pro if we can reasonably match OR send-it, and risk is acceptable
+  if ((canMatch || canSendIt) && lowRisk) return 'pro';
+  return 'main';
+}
+
+/** Check if hand can match obstacle (supports "Forced Through" wild matching) */
 function canMatchObstacle(
   hand: { symbol: string }[],
   symbols: string[],
   matchMode: 'all' | 'any',
 ): boolean {
   const usedIndices = new Set<number>();
+
   if (matchMode === 'any') {
-    return symbols.some(sym =>
-      hand.some((c, i) => c.symbol === sym && !usedIndices.has(i) && (usedIndices.add(i), true)),
-    );
+    // Exact match
+    if (symbols.some(sym => hand.some((c, i) => c.symbol === sym && !usedIndices.has(i) && (usedIndices.add(i), true)))) {
+      return true;
+    }
+    // Wild: any 2 cards of same symbol
+    const counts: Record<string, number> = {};
+    for (const c of hand) counts[c.symbol] = (counts[c.symbol] || 0) + 1;
+    return Object.values(counts).some(n => n >= 2);
   }
-  return symbols.every(sym => {
+
+  // mode === 'all': exact matches first, then wilds for remainder
+  const unmatched: string[] = [];
+  for (const sym of symbols) {
     const idx = hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
-    if (idx >= 0) { usedIndices.add(idx); return true; }
-    return false;
-  });
+    if (idx >= 0) usedIndices.add(idx);
+    else unmatched.push(sym);
+  }
+  if (unmatched.length === 0) return true;
+
+  // "Forced Through": 2 same-symbol cards = 1 wild match
+  for (const _sym of unmatched) {
+    const avail: Record<string, number[]> = {};
+    for (let i = 0; i < hand.length; i++) {
+      if (usedIndices.has(i)) continue;
+      const s = hand[i].symbol;
+      if (!avail[s]) avail[s] = [];
+      avail[s].push(i);
+    }
+    let found = false;
+    for (const indices of Object.values(avail)) {
+      if (indices.length >= 2) {
+        usedIndices.add(indices[0]);
+        usedIndices.add(indices[1]);
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
 }
 
 function resolveActiveObstacles(state: GameState, playerIndex: number): GameState {
@@ -29,16 +91,27 @@ function resolveActiveObstacles(state: GameState, playerIndex: number): GameStat
     const player = s.players[playerIndex];
     const mode = obs.matchMode ?? 'all';
     const hasMatch = canMatchObstacle(player.hand, obs.symbols, mode);
-    s = processAction(s, playerIndex, {
-      type: 'resolve_obstacle',
-      payload: { obstacleIndex: 0, choice: hasMatch ? 'match' : 'take_penalty' },
-    });
+
+    if (hasMatch) {
+      // Match with cards — progress + deferred momentum
+      s = processAction(s, playerIndex, {
+        type: 'resolve_obstacle',
+        payload: { obstacleIndex: 0 },
+      });
+    } else {
+      // Send It (variable momentum + 1 hazard die) or crash if insufficient
+      s = processAction(s, playerIndex, {
+        type: 'send_it',
+        payload: { obstacleIndex: 0 },
+      });
+    }
   }
   return s;
 }
 
 /**
  * Trail Read: try to reuse revealed obstacles the player can match.
+ * Evaluates all matchable revealed obstacles and picks the best ones.
  * Returns updated state and number reused.
  */
 function tryReuseRevealed(state: GameState, playerIndex: number, maxReuse: number): { state: GameState; reused: number } {
@@ -50,13 +123,32 @@ function tryReuseRevealed(state: GameState, playerIndex: number, maxReuse: numbe
 
   for (let attempt = 0; attempt < maxReuse && !p().crashed && !p().turnEnded; attempt++) {
     const revealed = s.roundRevealedObstacles;
+    const hand = p().hand;
     let bestIdx = -1;
+    let bestScore = -Infinity;
+
+    // Evaluate all matchable revealed obstacles and pick the best one
     for (let i = 0; i < revealed.length; i++) {
       const obs = revealed[i];
       const mode = obs.matchMode ?? 'all';
-      if (canMatchObstacle(p().hand, obs.symbols, mode)) {
+      if (!canMatchObstacle(hand, obs.symbols, mode)) continue;
+
+      // Score: prefer 'any' mode (cheaper), prefer symbols we have duplicates of
+      let score = 10;
+      if (mode === 'any') score += 3; // cheaper match
+      if (obs.symbols.length === 1) score += 2; // single symbol = easiest
+
+      const symbolCounts: Record<string, number> = {};
+      for (const c of hand) symbolCounts[c.symbol] = (symbolCounts[c.symbol] || 0) + 1;
+      for (const sym of obs.symbols) {
+        const count = symbolCounts[sym] || 0;
+        if (count >= 2) score += 1; // have duplicates, safe to spend
+        if (count <= 1 && mode === 'all') score -= 2; // using last copy
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
         bestIdx = i;
-        break;
       }
     }
     if (bestIdx < 0) break;
@@ -80,12 +172,37 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
   s = afterReuse;
 
   // Determine how many fresh obstacles to draw
-  const targetObstacles = strategy === 'aggressive' ? 2 : Math.max(1, Math.min(2, 1 + linesAvailable));
-  const freshNeeded = Math.max(0, targetObstacles - reused);
+  if (strategy === 'aggressive') {
+    // Aggressive: keep drawing obstacles as long as we have momentum to send it
+    // (can always match with cards if hand allows, or send it if momentum >= cost)
+    const maxFreshAggressive = 5; // safety cap
+    for (let i = 0; i < maxFreshAggressive && !p().crashed && !p().turnEnded; i++) {
+      // Default send_it cost is 2; stop if we can't afford to blow by
+      if (p().momentum < 2 && p().hand.length === 0) break;
+      s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+      s = resolveActiveObstacles(s, playerIndex);
+    }
+  } else {
+    let targetObstacles: number;
+    if (strategy === 'conservative') {
+      // Conservative fresh obstacle logic:
+      // 1. Only draw if no reveals were available (e.g. P1 with no prior players)
+      // 2. Only draw on high momentum turns (at trail speed limit = good hand size)
+      // 3. Only draw if hand has 3+ cards (likely to match something)
+      const trailCard = s.activeTrailCard;
+      const atSpeedLimit = trailCard ? p().momentum >= trailCard.speedLimit : p().momentum >= 4;
+      const hasCards = p().hand.length >= 3;
+      const noRevealsAvailable = reused === 0 && s.roundRevealedObstacles.length === 0;
+      targetObstacles = (noRevealsAvailable && atSpeedLimit && hasCards) ? 1 : 0;
+    } else {
+      targetObstacles = Math.max(1, Math.min(2, 1 + linesAvailable));
+    }
+    const freshNeeded = Math.max(0, targetObstacles - reused);
 
-  for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
-    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
-    s = resolveActiveObstacles(s, playerIndex);
+    for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
+      s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+      s = resolveActiveObstacles(s, playerIndex);
+    }
   }
 
   // Spend actions
@@ -94,33 +211,77 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
     const player = p();
 
     if (strategy === 'aggressive') {
-      if (player.momentum < 5 && !player.cannotPedal) {
+      // Priority 1: Pedal to regain as much momentum as possible
+      if (!player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else if (player.hand.length > 0) {
-        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: pickComboCard(player) } });
-      } else if (!player.cannotPedal) {
-        s = processAction(s, playerIndex, { type: 'pedal' });
+        // Priority 2: Play technique cards when we can't pedal
+        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
       } else {
-        break;
-      }
-    } else if (strategy === 'conservative') {
-      if (player.momentum > 3) {
-        s = processAction(s, playerIndex, { type: 'brake' });
-      } else {
-        // Steer toward center
+        // Priority 3: Steer only if a token is more than 2 lanes from its trail target
         let steered = false;
-        for (let r = 0; r < 6; r++) {
-          const col = getTokenCol(player.grid, r);
-          if (col >= 0 && col !== 2) {
-            const dir = col > 2 ? -1 : 1;
-            s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
-            steered = true;
-            break;
+        const trailCard = s.activeTrailCard;
+        if (trailCard) {
+          for (let i = 0; i < trailCard.checkedRows.length; i++) {
+            const row = trailCard.checkedRows[i];
+            const targetLane = trailCard.targetLanes[i];
+            const col = getTokenCol(player.grid, row);
+            if (col >= 0 && Math.abs(col - targetLane) > 2) {
+              const dir = col > targetLane ? -1 : 1;
+              s = processAction(s, playerIndex, { type: 'steer', payload: { row, direction: dir } });
+              steered = true;
+              break;
+            }
           }
         }
-        if (!steered && !player.cannotPedal) {
+        if (!steered) break;
+      }
+    } else if (strategy === 'conservative') {
+      // Conservative: match trail card's target lanes and speed limit
+      const trailCard = s.activeTrailCard;
+      const targetSpeed = trailCard?.speedLimit ?? 4;
+
+      // Priority 1: brake if over trail speed limit
+      if (player.momentum > targetSpeed && !player.cannotBrake && player.commitment !== 'pro') {
+        s = processAction(s, playerIndex, { type: 'brake' });
+      } else {
+        // Priority 2: steer tokens toward trail card target lanes (not just center)
+        let steered = false;
+        if (trailCard) {
+          for (let i = 0; i < trailCard.checkedRows.length; i++) {
+            const row = trailCard.checkedRows[i];
+            const targetLane = trailCard.targetLanes[i];
+            const col = getTokenCol(player.grid, row);
+            if (col >= 0 && col !== targetLane) {
+              const dir = col > targetLane ? -1 : 1;
+              s = processAction(s, playerIndex, { type: 'steer', payload: { row, direction: dir } });
+              steered = true;
+              break;
+            }
+          }
+        }
+        if (!steered) {
+          // Steer any off-center token toward center as fallback
+          for (let r = 0; r < 6; r++) {
+            const col = getTokenCol(player.grid, r);
+            if (col >= 0 && col !== 2) {
+              const dir = col > 2 ? -1 : 1;
+              s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
+              steered = true;
+              break;
+            }
+          }
+        }
+        if (steered) {
+          continue;
+        }
+        // Priority 3: play technique cards (use hand for obstacle matching or effects)
+        if (player.hand.length > 0) {
+          s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
+        } else if (player.momentum < targetSpeed && !player.cannotPedal) {
+          // Priority 4: pedal up to trail speed limit
           s = processAction(s, playerIndex, { type: 'pedal' });
-        } else if (!steered) {
+        } else {
           break;
         }
       }
@@ -141,7 +302,7 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
       if (player.momentum < 4 && !player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else if (player.hand.length > 0) {
-        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: pickComboCard(player) } });
+        s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
       } else if (!player.cannotPedal) {
         s = processAction(s, playerIndex, { type: 'pedal' });
       } else {
@@ -156,27 +317,136 @@ function aiTakeTurn(state: GameState, playerIndex: number, strategy: Strategy): 
   return s;
 }
 
-/** Pick the best card index for combo potential */
-function pickComboCard(player: { hand: { symbol: string; name: string }[]; cardsPlayedThisTurn: { symbol: string }[]; hazardDice: number; grid: boolean[][] }): number {
-  if (player.hand.length === 0) return 0;
-  const played = player.cardsPlayedThisTurn || [];
-  if (played.length > 0) {
-    // Try synergy first (same symbol)
-    const playedSymbols = played.map(c => c.symbol);
-    const synergyIdx = player.hand.findIndex(c => playedSymbols.includes(c.symbol));
-    if (synergyIdx >= 0) return synergyIdx;
-    // Then diversify
-    const usedSymbols = new Set(playedSymbols);
-    const diverseIdx = player.hand.findIndex(c => !usedSymbols.has(c.symbol));
-    if (diverseIdx >= 0) return diverseIdx;
+/**
+ * Random AI: picks legal actions uniformly at random.
+ * Serves as the "zero skill" baseline for agency measurement.
+ */
+function aiTakeTurnRandom(state: GameState, playerIndex: number): GameState {
+  let s = state;
+  const p = () => s.players[playerIndex];
+
+  // Randomly decide to draw 0-2 obstacles
+  const obsToDraw = Math.floor(Math.random() * 3);
+  for (let i = 0; i < obsToDraw && !p().crashed && !p().turnEnded; i++) {
+    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
   }
-  // First card: prioritize by state
-  if (player.hazardDice >= 3) {
-    const ri = player.hand.findIndex(c => c.name === 'Recover');
-    if (ri >= 0) return ri;
+
+  // Spend actions randomly
+  let safety = 20;
+  while (p().actionsRemaining > 0 && !p().crashed && !p().turnEnded && safety-- > 0) {
+    const player = p();
+    const options: (() => GameState)[] = [];
+
+    if (!player.cannotPedal) {
+      options.push(() => processAction(s, playerIndex, { type: 'pedal' }));
+    }
+    if (!player.cannotBrake && player.commitment !== 'pro' && player.momentum > 0) {
+      options.push(() => processAction(s, playerIndex, { type: 'brake' }));
+    }
+    // Random steer
+    for (let r = 0; r < 6; r++) {
+      const col = getTokenCol(player.grid, r);
+      if (col >= 0 && col < 4) {
+        options.push(() => processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: 1 } }));
+      }
+      if (col > 0) {
+        options.push(() => processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: -1 } }));
+      }
+    }
+    if (player.hand.length > 0) {
+      const ci = Math.floor(Math.random() * player.hand.length);
+      options.push(() => processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: ci } }));
+    }
+
+    if (options.length === 0) break;
+    // 10% chance to just end turn early (randomness)
+    if (Math.random() < 0.1) break;
+
+    s = options[Math.floor(Math.random() * options.length)]();
   }
-  return 0;
+
+  if (!p().turnEnded) {
+    s = processAction(s, playerIndex, { type: 'end_turn' });
+  }
+  return s;
 }
+
+/**
+ * Adaptive AI: checks its standing relative to opponents each turn.
+ * - When behind: plays balanced but draws more obstacles (catch up on clears)
+ * - When ahead: plays conservative (protect the lead)
+ * - When tied/middle: plays balanced
+ * Represents a "positionally aware" human player who adjusts risk tolerance.
+ */
+function aiTakeTurnAdaptive(state: GameState, playerIndex: number): GameState {
+  let s = { ...state };
+  const me = s.players[playerIndex];
+  const others = s.players.filter((_, i) => i !== playerIndex);
+  const p = () => s.players[playerIndex];
+
+  // Determine position: compare obstaclesCleared (primary standings metric)
+  const myScore = me.obstaclesCleared * 10 + me.progress;
+  const bestOther = Math.max(...others.map(p => p.obstaclesCleared * 10 + p.progress));
+  const worstOther = Math.min(...others.map(p => p.obstaclesCleared * 10 + p.progress));
+
+  const behind = myScore < worstOther;
+  const ahead = myScore > bestOther;
+
+  // Trail Read: always try to reuse
+  const linesAvailable = Object.keys(s.playerObstacleLines).length;
+  const maxReuse = Math.max(1, linesAvailable);
+  const { state: afterReuse, reused } = tryReuseRevealed(s, playerIndex, maxReuse);
+  s = afterReuse;
+
+  // When behind, draw more obstacles to catch up on clears; when ahead, draw fewer
+  const targetObstacles = behind ? 2 : ahead ? 1 : Math.max(1, Math.min(2, 1 + linesAvailable));
+  const freshNeeded = Math.max(0, targetObstacles - reused);
+  for (let i = 0; i < freshNeeded && !p().crashed && !p().turnEnded; i++) {
+    s = processAction(s, playerIndex, { type: 'draw_obstacle' });
+    s = resolveActiveObstacles(s, playerIndex);
+  }
+
+  // Spend actions: balanced play with risk-adjusted momentum target
+  const momentumTarget = behind ? 4 : ahead ? 3 : 4;
+  let safety = 20;
+  while (p().actionsRemaining > 0 && !p().crashed && !p().turnEnded && safety-- > 0) {
+    const player = p();
+
+    // Steer toward center first (reduces crash risk)
+    let steered = false;
+    for (let r = 0; r < 6; r++) {
+      const col = getTokenCol(player.grid, r);
+      if (col >= 0 && col !== 2) {
+        const dir = col > 2 ? -1 : 1;
+        s = processAction(s, playerIndex, { type: 'steer', payload: { row: r, direction: dir } });
+        steered = true;
+        break;
+      }
+    }
+    if (steered) continue;
+
+    // Play technique cards when available
+    if (player.hand.length > 0) {
+      s = processAction(s, playerIndex, { type: 'technique', payload: { cardIndex: 0 } });
+    } else if (player.momentum < momentumTarget && !player.cannotPedal) {
+      s = processAction(s, playerIndex, { type: 'pedal' });
+    } else if (ahead && player.momentum > 3 && !player.cannotBrake && player.commitment !== 'pro') {
+      s = processAction(s, playerIndex, { type: 'brake' });
+    } else if (!player.cannotPedal) {
+      s = processAction(s, playerIndex, { type: 'pedal' });
+    } else {
+      break;
+    }
+  }
+
+  if (!p().turnEnded) {
+    s = processAction(s, playerIndex, { type: 'end_turn' });
+  }
+  return s;
+}
+
+
 
 function getTokenCol(grid: boolean[][], row: number): number {
   for (let c = 0; c < 5; c++) {
@@ -235,22 +505,47 @@ export function runSingleGame(
   const playerNames = Array.from({ length: config.playerCount }, (_, i) => `Player ${i + 1}`);
   let state = initGame(playerNames);
   const roundSnapshots: RoundSnapshot[] = [];
+  const totalRounds = state.trailLength;
 
-  for (let round = 0; round < 15; round++) {
-    state = advancePhase(state);
-    state = advancePhase(state);
+  const useSmartAi = config.strategy === 'smart' || config.strategy === 'balanced';
+
+  for (let round = 0; round < totalRounds; round++) {
+    state = advancePhase(state); // scroll descent
+    state = advancePhase(state); // commitment phase
+
+    // Commitment: smart AI evaluates, heuristic uses strategy-based choice
     for (let i = 0; i < state.players.length; i++) {
-      const line = config.strategy === 'aggressive' ? 'pro' : 'main';
-      state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      if (useSmartAi) {
+        state = smartAiCommit(state, i);
+      } else {
+        const line = config.strategy === 'aggressive' ? aggressiveCommitLine(state, i) : 'main';
+        state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      }
     }
-    state = advancePhase(state);
-    state = advancePhase(state);
-    state = advancePhase(state);
-    for (let i = 0; i < state.players.length; i++) {
-      state = aiTakeTurn(state, i, config.strategy);
+
+    state = advancePhase(state); // environment
+    state = advancePhase(state); // preparation
+    state = advancePhase(state); // sprint start (sets currentPlayerIndex by standings)
+
+    // Sprint: leader goes first, random tiebreak
+    const turnOrder = sortByProgressRandomTies(
+      state.players.map((p, i) => ({ i, progress: p.progress }))
+    ).map(x => x.i);
+
+    for (const pi of turnOrder) {
+      if (useSmartAi) {
+        state = smartAiPlaySprint(state, pi);
+      } else if (config.strategy === 'random') {
+        state = aiTakeTurnRandom(state, pi);
+      } else if (config.strategy === 'adaptive') {
+        state = aiTakeTurnAdaptive(state, pi);
+      } else {
+        state = aiTakeTurn(state, pi, config.strategy);
+      }
     }
-    state = advancePhase(state);
-    state = advancePhase(state);
+
+    state = advancePhase(state); // alignment
+    state = advancePhase(state); // reckoning
 
     roundSnapshots.push({
       round: round + 1,
@@ -283,12 +578,91 @@ export function runSingleGame(
         penalties: s.penalties,
         flow: s.flow,
         momentum: s.momentum,
-        combosTriggered: s.totalCombos,
         cardsPlayed: s.totalCardsPlayed,
       })),
       totalRounds: state.round,
     },
     roundSnapshots,
+  };
+}
+
+/**
+ * Fast game runner — skips snapshot collection for Monte Carlo.
+ * Only returns the result + minimal round-5 leader info for snowball tracking.
+ */
+export function runSingleGameFast(
+  config: SimulationConfig,
+  gameNumber: number,
+): { result: SimulationResult; round5Leader: string | null } {
+  const playerNames = Array.from({ length: config.playerCount }, (_, i) => `Player ${i + 1}`);
+  let state = initGame(playerNames);
+  const totalRounds = state.trailLength;
+  let round5Leader: string | null = null;
+
+  const useSmartAi = config.strategy === 'smart' || config.strategy === 'balanced';
+
+  for (let round = 0; round < totalRounds; round++) {
+    state = advancePhase(state); // scroll descent
+    state = advancePhase(state); // commitment phase
+
+    for (let i = 0; i < state.players.length; i++) {
+      if (useSmartAi) {
+        state = smartAiCommit(state, i);
+      } else {
+        const line = config.strategy === 'aggressive' ? aggressiveCommitLine(state, i) : 'main';
+        state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      }
+    }
+
+    state = advancePhase(state); // environment
+    state = advancePhase(state); // preparation
+    state = advancePhase(state); // sprint start
+
+    const turnOrder = sortByProgressRandomTies(
+      state.players.map((p, i) => ({ i, progress: p.progress }))
+    ).map(x => x.i);
+
+    for (const pi of turnOrder) {
+      if (useSmartAi) {
+        state = smartAiPlaySprint(state, pi);
+      } else {
+        state = aiTakeTurn(state, pi, config.strategy);
+      }
+    }
+
+    state = advancePhase(state); // alignment
+    state = advancePhase(state); // reckoning
+
+    // Capture round-5 leader for snowball tracking (no snapshot needed)
+    if (round === 4) {
+      let maxProg = -1;
+      let leaderName: string | null = null;
+      for (const p of state.players) {
+        if (p.progress > maxProg) { maxProg = p.progress; leaderName = p.name; }
+      }
+      round5Leader = leaderName;
+    }
+  }
+
+  state.phase = 'game_over';
+  const standings = getStandings(state);
+
+  return {
+    result: {
+      gameNumber,
+      winner: standings[0].name,
+      finalStandings: standings.map(s => ({
+        name: s.name,
+        progress: s.progress,
+        perfectMatches: s.perfectMatches,
+        penalties: s.penalties,
+        flow: s.flow,
+        momentum: s.momentum,
+        cardsPlayed: s.totalCardsPlayed,
+      })),
+      totalRounds: state.round,
+    },
+    round5Leader,
   };
 }
 
@@ -320,10 +694,11 @@ export function computeBalanceSummary(
   let totalHandSize = 0;
   let totalPlayers = 0;
 
-  const progressByRound = new Array(15).fill(0);
-  const momentumByRound = new Array(15).fill(0);
-  const hazardByRound = new Array(15).fill(0);
-  const roundCounts = new Array(15).fill(0);
+  const maxRounds = 20; // support trails up to 20 stages
+  const progressByRound = new Array(maxRounds).fill(0);
+  const momentumByRound = new Array(maxRounds).fill(0);
+  const hazardByRound = new Array(maxRounds).fill(0);
+  const roundCounts = new Array(maxRounds).fill(0);
 
   const trailStats: Record<string, { penalties: number; progress: number; count: number }> = {};
   const playerTotals: Record<string, { progress: number; perfect: number; penalties: number; flow: number; momentum: number; count: number }> = {};
@@ -497,22 +872,27 @@ export function runMonteCarlo(
   totalGames: number,
   onProgress?: (done: number, total: number) => void,
 ): MonteCarloResult {
-  const strategies: Strategy[] = ['aggressive', 'balanced', 'conservative'];
+  const strategies: Strategy[] = ['aggressive', 'smart', 'conservative'];
   const gamesPerStrategy = Math.ceil(totalGames / strategies.length);
 
   const seatWins: Record<string, number> = {};
   const strategyData: Record<string, { wins: number; games: number }> = {};
   const convergencePoints: { games: number; p1WinRate: number }[] = [];
-  const winnerScores: number[] = [];
-  const loserScores: number[] = [];
 
-  // For snowball tracking
-  const earlyLeadWins: { hadLead: boolean; won: boolean }[] = [];
+  // Incremental stats — avoid storing all scores in arrays
+  let winnerScoreSum = 0, winnerScoreSqSum = 0, winnerCount = 0;
+  let loserScoreSum = 0, loserScoreSqSum = 0, loserCount = 0;
+
+  // For snowball tracking — incremental
+  let earlyLeadWinCount = 0;
+  let earlyLeadTotal = 0;
 
   let totalObstaclesCleared = 0;
   let totalObstaclesFlipped = 0;
   let gamesDone = 0;
   let p1Wins = 0;
+
+  const convergenceInterval = Math.max(1, Math.floor(totalGames / 50));
 
   for (const strategy of strategies) {
     if (!strategyData[strategy]) {
@@ -521,44 +901,43 @@ export function runMonteCarlo(
 
     for (let g = 0; g < gamesPerStrategy; g++) {
       const config: SimulationConfig = { playerCount, gamesCount: 1, strategy };
-      const { result, roundSnapshots } = runSingleGame(config, gamesDone + 1);
+      const { result, round5Leader } = runSingleGameFast(config, gamesDone + 1);
 
       // Track wins by seat
       seatWins[result.winner] = (seatWins[result.winner] || 0) + 1;
-      strategyData[strategy].wins += (result.winner === 'Player 1') ? 1 : 0;
+      strategyData[strategy].wins += result.finalStandings[0].progress;
       strategyData[strategy].games++;
 
       if (result.winner === 'Player 1') p1Wins++;
 
-      // Score distributions
-      winnerScores.push(result.finalStandings[0].progress);
+      // Incremental score distributions
+      const wScore = result.finalStandings[0].progress;
+      winnerScoreSum += wScore;
+      winnerScoreSqSum += wScore * wScore;
+      winnerCount++;
       if (result.finalStandings.length > 1) {
-        loserScores.push(result.finalStandings[result.finalStandings.length - 1].progress);
+        const lScore = result.finalStandings[result.finalStandings.length - 1].progress;
+        loserScoreSum += lScore;
+        loserScoreSqSum += lScore * lScore;
+        loserCount++;
       }
 
-      // Estimate obstacle match rate from progress vs penalties
+      // Estimate obstacle match rate
       for (const s of result.finalStandings) {
-        totalObstaclesCleared += s.progress; // rough proxy
-        totalObstaclesFlipped += s.progress + s.penalties; // cleared + blown by
+        totalObstaclesCleared += s.progress;
+        totalObstaclesFlipped += s.progress + s.penalties;
       }
 
-      // Snowball: check if leader at round 5 also won
-      if (roundSnapshots.length >= 5) {
-        const r5 = roundSnapshots[4];
-        const maxProg = Math.max(...r5.players.map(p => p.progress));
-        const leader = r5.players.find(p => p.progress === maxProg);
-        if (leader) {
-          earlyLeadWins.push({
-            hadLead: leader.name === result.winner,
-            won: true,
-          });
-        }
+      // Snowball: check if round-5 leader won
+      if (round5Leader) {
+        earlyLeadTotal++;
+        if (round5Leader === result.winner) earlyLeadWinCount++;
       }
 
       gamesDone++;
 
       // Convergence sampling
-      if (gamesDone % Math.max(1, Math.floor(totalGames / 50)) === 0 || gamesDone === 1) {
+      if (gamesDone % convergenceInterval === 0 || gamesDone === 1) {
         convergencePoints.push({
           games: gamesDone,
           p1WinRate: p1Wins / gamesDone,
@@ -602,17 +981,18 @@ export function runMonteCarlo(
     mean: p1Rate,
   };
 
-  // Score distributions
-  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-  const stdDev = (arr: number[], mean: number) =>
-    arr.length > 1 ? Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / (arr.length - 1)) : 0;
-  const wAvg = avg(winnerScores);
-  const lAvg = avg(loserScores);
+  // Score distributions — computed from incremental sums
+  const wAvg = winnerCount > 0 ? winnerScoreSum / winnerCount : 0;
+  const wStdDev = winnerCount > 1
+    ? Math.sqrt((winnerScoreSqSum - winnerScoreSum * winnerScoreSum / winnerCount) / (winnerCount - 1))
+    : 0;
+  const lAvg = loserCount > 0 ? loserScoreSum / loserCount : 0;
+  const lStdDev = loserCount > 1
+    ? Math.sqrt((loserScoreSqSum - loserScoreSum * loserScoreSum / loserCount) / (loserCount - 1))
+    : 0;
 
   // Snowball correlation
-  const snowballRate = earlyLeadWins.length > 0
-    ? earlyLeadWins.filter(e => e.hadLead).length / earlyLeadWins.length
-    : 0;
+  const snowballRate = earlyLeadTotal > 0 ? earlyLeadWinCount / earlyLeadTotal : 0;
 
   // Strategy dominance
   const bestStrat = strategyWinRates.reduce((a, b) => a.rate > b.rate ? a : b);
@@ -639,15 +1019,330 @@ export function runMonteCarlo(
     p1Confidence,
     scoreDistribution: {
       winnerAvg: wAvg,
-      winnerStdDev: stdDev(winnerScores, wAvg),
+      winnerStdDev: wStdDev,
       loserAvg: lAvg,
-      loserStdDev: stdDev(loserScores, lAvg),
+      loserStdDev: lStdDev,
     },
     obstacleMatchRate: totalObstaclesFlipped > 0 ? totalObstaclesCleared / totalObstaclesFlipped : 0,
     snowballCorrelation: snowballRate,
     strategyDominance,
     fairnessVerdict,
   };
+}
+
+// ═══════════════════════════════════════════════════════════
+// Agency Analysis — does skill correlate with winning?
+// ═══════════════════════════════════════════════════════════
+
+type PerPlayerStrategy = Strategy;
+
+/**
+ * Run a single game where each player uses a different strategy.
+ * Strategies are assigned by index: strategies[0] → Player 1, etc.
+ */
+function runMixedStrategyGame(
+  strategies: PerPlayerStrategy[],
+  gameNumber: number,
+): SimulationResult {
+  const playerCount = strategies.length;
+  const playerNames = strategies.map((s, i) => `Player ${i + 1} (${s})`);
+  let state = initGame(playerNames);
+  const totalRounds = state.trailLength;
+
+  for (let round = 0; round < totalRounds; round++) {
+    state = advancePhase(state); // scroll descent
+    state = advancePhase(state); // commitment
+
+    for (let i = 0; i < state.players.length; i++) {
+      const strat = strategies[i];
+      if (strat === 'smart' || strat === 'balanced') {
+        state = smartAiCommit(state, i);
+      } else {
+        const line = strat === 'aggressive' ? aggressiveCommitLine(state, i) : 'main';
+        state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      }
+    }
+
+    state = advancePhase(state); // environment
+    state = advancePhase(state); // preparation
+    state = advancePhase(state); // sprint start
+
+    const turnOrder = sortByProgressRandomTies(
+      state.players.map((p, i) => ({ i, progress: p.progress }))
+    ).map(x => x.i);
+
+    for (const pi of turnOrder) {
+      const strat = strategies[pi];
+      if (strat === 'smart' || strat === 'balanced') {
+        state = smartAiPlaySprint(state, pi);
+      } else if (strat === 'random') {
+        state = aiTakeTurnRandom(state, pi);
+      } else if (strat === 'adaptive') {
+        state = aiTakeTurnAdaptive(state, pi);
+      } else {
+        state = aiTakeTurn(state, pi, strat);
+      }
+    }
+
+    state = advancePhase(state); // alignment
+    state = advancePhase(state); // reckoning
+  }
+
+  state.phase = 'game_over';
+  const standings = getStandings(state);
+
+  return {
+    gameNumber,
+    winner: standings[0].name,
+    finalStandings: standings.map(s => ({
+      name: s.name,
+      progress: s.progress,
+      perfectMatches: s.perfectMatches,
+      penalties: s.penalties,
+      flow: s.flow,
+      momentum: s.momentum,
+      cardsPlayed: s.totalCardsPlayed,
+    })),
+    totalRounds: state.round,
+  };
+}
+
+export interface AgencyResult {
+  /** Total games run */
+  totalGames: number;
+  /** Win rate per strategy across all matchups */
+  strategyWinRates: { strategy: string; wins: number; games: number; winRate: number }[];
+  /** Average final progress per strategy */
+  strategyAvgProgress: { strategy: string; avgProgress: number }[];
+  /** Head-to-head: smart vs each other strategy */
+  headToHead: { opponent: string; smartWinRate: number; opponentWinRate: number; games: number }[];
+  /** Skill gap: how much better does smart do vs random? (0=no agency, 1=total agency) */
+  skillGap: number;
+  /** Decision quality: correlation between obstacles cleared and final rank */
+  decisionQualityCorrelation: number;
+  /** Perfect match bonus correlation: do perfect matches predict wins? */
+  perfectMatchCorrelation: number;
+  /** Verdict */
+  verdict: string;
+}
+
+/**
+ * Run agency analysis: mixed-strategy tournament.
+ *
+ * Tests:
+ * 1. Smart vs 3x Conservative (does smart play beat safe play?)
+ * 2. Smart vs 3x Aggressive (does smart beat reckless play?)
+ * 3. Smart vs 3x Random (skill ceiling vs floor)
+ * 4. All-different: smart, aggressive, conservative, random
+ * 5. Rotates smart through all 4 seats to control for position
+ *
+ * Key metrics:
+ * - Strategy win rates across all matchups
+ * - Skill gap: smart win rate vs random win rate
+ * - Decision quality: obstacle-cleared → rank correlation
+ */
+export function runAgencyAnalysis(
+  gamesPerMatchup: number,
+  onProgress?: (done: number, total: number) => void,
+): AgencyResult {
+  const strategyWins: Record<string, { wins: number; games: number; totalProgress: number }> = {};
+  const headToHead: Record<string, { smartWins: number; opponentWins: number; games: number }> = {};
+
+  // For decision quality correlation
+  const decisionQualityData: { obstaclesCleared: number; rank: number }[] = [];
+  const perfectMatchData: { perfectMatches: number; rank: number }[] = [];
+
+  const matchups: { label: string; strategies: PerPlayerStrategy[] }[] = [
+    { label: 'conservative', strategies: ['smart', 'conservative', 'conservative', 'conservative'] },
+    { label: 'aggressive', strategies: ['smart', 'aggressive', 'aggressive', 'aggressive'] },
+    { label: 'random', strategies: ['smart', 'random', 'random', 'random'] },
+    { label: 'adaptive', strategies: ['smart', 'adaptive', 'adaptive', 'adaptive'] },
+    { label: 'mixed', strategies: ['smart', 'aggressive', 'conservative', 'random'] },
+    { label: 'full-mixed', strategies: ['smart', 'adaptive', 'aggressive', 'conservative'] },
+  ];
+
+  const totalWork = matchups.length * 4 * gamesPerMatchup; // 4 seat rotations per matchup
+  let done = 0;
+
+  function initStrategy(s: string) {
+    if (!strategyWins[s]) strategyWins[s] = { wins: 0, games: 0, totalProgress: 0 };
+  }
+
+  for (const matchup of matchups) {
+    if (!headToHead[matchup.label]) {
+      headToHead[matchup.label] = { smartWins: 0, opponentWins: 0, games: 0 };
+    }
+
+    // Rotate smart player through all 4 seats
+    for (let seat = 0; seat < 4; seat++) {
+      // Rotate strategies so smart is at position `seat`
+      const rotated = [...matchup.strategies];
+      // Move smart from position 0 to position `seat`
+      const smartStrat = rotated.splice(0, 1)[0];
+      rotated.splice(seat, 0, smartStrat);
+
+      for (let g = 0; g < gamesPerMatchup; g++) {
+        const result = runMixedStrategyGame(rotated, done + 1);
+
+        // Track wins and progress by strategy
+        for (let pi = 0; pi < result.finalStandings.length; pi++) {
+          const strat = rotated[pi];
+          const standing = result.finalStandings.find(s => s.name === `Player ${pi + 1} (${strat})`);
+          if (!standing) continue;
+
+          initStrategy(strat);
+          strategyWins[strat].games++;
+          strategyWins[strat].totalProgress += standing.progress;
+
+          // Rank = position in finalStandings (0 = winner)
+          const rank = result.finalStandings.indexOf(standing);
+          if (rank === 0) strategyWins[strat].wins++;
+
+          // Decision quality data
+          decisionQualityData.push({
+            obstaclesCleared: standing.progress, // progress ≈ obstacles cleared
+            rank: rank,
+          });
+          perfectMatchData.push({
+            perfectMatches: standing.perfectMatches,
+            rank: rank,
+          });
+        }
+
+        // Head-to-head tracking
+        const h2h = headToHead[matchup.label];
+        h2h.games++;
+        const winnerStrat = rotated[result.finalStandings.findIndex(s => s.name === result.winner) >= 0
+          ? (() => {
+            for (let pi = 0; pi < rotated.length; pi++) {
+              if (result.finalStandings[0].name === `Player ${pi + 1} (${rotated[pi]})`) return pi;
+            }
+            return 0;
+          })()
+          : 0];
+        if (winnerStrat === 'smart' || winnerStrat === 'balanced') {
+          h2h.smartWins++;
+        } else {
+          h2h.opponentWins++;
+        }
+
+        done++;
+        if (onProgress) onProgress(done, totalWork);
+      }
+    }
+  }
+
+  // Compute strategy win rates
+  const strategies = ['smart', 'adaptive', 'aggressive', 'conservative', 'random'];
+  const strategyWinRates = strategies.map(s => {
+    const d = strategyWins[s] || { wins: 0, games: 0, totalProgress: 0 };
+    return {
+      strategy: s,
+      wins: d.wins,
+      games: d.games,
+      winRate: d.games > 0 ? d.wins / d.games : 0,
+    };
+  });
+
+  const strategyAvgProgress = strategies.map(s => {
+    const d = strategyWins[s] || { totalProgress: 0, games: 0 };
+    return {
+      strategy: s,
+      avgProgress: d.games > 0 ? d.totalProgress / d.games : 0,
+    };
+  });
+
+  // Head-to-head results
+  const h2hResults = Object.entries(headToHead).map(([opponent, data]) => ({
+    opponent,
+    smartWinRate: data.games > 0 ? data.smartWins / data.games : 0,
+    opponentWinRate: data.games > 0 ? data.opponentWins / data.games : 0,
+    games: data.games,
+  }));
+
+  // Skill gap: normalized difference between smart and random win rates
+  const smartWR = strategyWinRates.find(s => s.strategy === 'smart')?.winRate || 0;
+  const randomWR = strategyWinRates.find(s => s.strategy === 'random')?.winRate || 0;
+  // Normalize: 0.25 = no difference (both at chance), 1.0 = smart wins everything
+  // skillGap: (smart - random) / (1 - random), clamped to [0, 1]
+  const skillGap = randomWR < 1 ? Math.max(0, Math.min(1, (smartWR - randomWR) / (1 - randomWR))) : 0;
+
+  // Decision quality: Spearman rank correlation between obstacles cleared and rank
+  // Higher obstacle count should correlate with lower rank (rank 0 = best)
+  const decisionQualityCorrelation = spearmanCorrelation(
+    decisionQualityData.map(d => d.obstaclesCleared),
+    decisionQualityData.map(d => -d.rank), // negate rank so positive correlation = good
+  );
+
+  const perfectMatchCorrelation = spearmanCorrelation(
+    perfectMatchData.map(d => d.perfectMatches),
+    perfectMatchData.map(d => -d.rank),
+  );
+
+  // Verdict
+  let verdict: string;
+  if (skillGap >= 0.4) {
+    verdict = `Strong agency (skill gap ${(skillGap * 100).toFixed(0)}%) — better strategy strongly predicts winning. Players feel rewarded for good decisions.`;
+  } else if (skillGap >= 0.2) {
+    verdict = `Moderate agency (skill gap ${(skillGap * 100).toFixed(0)}%) — strategy matters but luck plays a significant role. Good balance for a board game.`;
+  } else if (skillGap >= 0.1) {
+    verdict = `Weak agency (skill gap ${(skillGap * 100).toFixed(0)}%) — skill has some impact but outcomes feel mostly random. Consider adding more meaningful decisions.`;
+  } else {
+    verdict = `Minimal agency (skill gap ${(skillGap * 100).toFixed(0)}%) — strategy barely matters. Games feel like coin flips. Major design concern.`;
+  }
+
+  return {
+    totalGames: done,
+    strategyWinRates,
+    strategyAvgProgress,
+    headToHead: h2hResults,
+    skillGap,
+    decisionQualityCorrelation,
+    perfectMatchCorrelation,
+    verdict,
+  };
+}
+
+/**
+ * Spearman rank correlation coefficient.
+ * Returns -1 to 1, where 1 = perfect positive correlation.
+ */
+function spearmanCorrelation(x: number[], y: number[]): number {
+  const n = x.length;
+  if (n < 3) return 0;
+
+  // Assign ranks (average for ties)
+  function rankArray(arr: number[]): number[] {
+    const indexed = arr.map((v, i) => ({ v, i }));
+    indexed.sort((a, b) => a.v - b.v);
+    const ranks = new Array(n);
+    let i = 0;
+    while (i < n) {
+      let j = i;
+      while (j < n - 1 && indexed[j + 1].v === indexed[j].v) j++;
+      const avgRank = (i + j) / 2 + 1;
+      for (let k = i; k <= j; k++) ranks[indexed[k].i] = avgRank;
+      i = j + 1;
+    }
+    return ranks;
+  }
+
+  const rx = rankArray(x);
+  const ry = rankArray(y);
+
+  // Pearson correlation on ranks
+  const meanRx = rx.reduce((s, v) => s + v, 0) / n;
+  const meanRy = ry.reduce((s, v) => s + v, 0) / n;
+  let num = 0, denX = 0, denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = rx[i] - meanRx;
+    const dy = ry[i] - meanRy;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX * denY);
+  return den > 0 ? num / den : 0;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -658,17 +1353,24 @@ export function runMonteCarlo(
  * Uses hypergeometric probability to compute exact chance of matching
  * each obstacle given a hand size drawn from the technique deck.
  *
- * Deck: 20 cards — 5 grip, 5 air, 5 agility, 5 balance
+ * Deck: 52 cards — 17 grip, 17 air, 9 agility, 9 balance
  */
 
+const _chooseCache = new Map<number, number>();
 function choose(n: number, k: number): number {
   if (k < 0 || k > n) return 0;
   if (k === 0 || k === n) return 1;
+  const kk = k < n - k ? k : n - k;
+  const key = n * 1000 + kk;
+  const cached = _chooseCache.get(key);
+  if (cached !== undefined) return cached;
   let result = 1;
-  for (let i = 0; i < k; i++) {
+  for (let i = 0; i < kk; i++) {
     result = result * (n - i) / (i + 1);
   }
-  return Math.round(result);
+  const val = Math.round(result);
+  _chooseCache.set(key, val);
+  return val;
 }
 
 /** P(at least 1 card of a given symbol | hand of size h from deck of N with K of that symbol) */
@@ -697,8 +1399,8 @@ export interface ObstacleMatchProbability {
 }
 
 export function computeObstacleMatchProbabilities(): ObstacleMatchProbability[] {
-  const N = 20; // deck size
-  const symbolCounts: Record<string, number> = { grip: 5, air: 5, agility: 5, balance: 5 };
+  const N = 52; // deck size
+  const symbolCounts: Record<string, number> = { grip: 17, air: 17, agility: 9, balance: 9 };
 
   // Rough momentum distribution weights for hand sizes 2-6
   // (momentum typically 2-5, capped at 6)
@@ -810,8 +1512,9 @@ export function computeGiniAnalysis(
   const penaltyGini = giniCoefficient(allPenalties);
 
   // Gini by round (across all games)
+  const maxRoundsGini = 20; // support trails up to 20 stages
   const progressGiniByRound: number[] = [];
-  for (let round = 0; round < 15; round++) {
+  for (let round = 0; round < maxRoundsGini; round++) {
     const roundProgress: number[] = [];
     for (const snaps of allSnapshots) {
       if (snaps[round]) {
@@ -965,12 +1668,11 @@ function runSingleGameWithOverride(
     state.techniqueDeck = deck;
   }
 
-  for (let round = 0; round < 15; round++) {
+  for (let round = 0; round < state.trailLength; round++) {
     state = advancePhase(state); // scroll
     state = advancePhase(state); // commitment phase start
     for (let i = 0; i < state.players.length; i++) {
-      const line = config.strategy === 'aggressive' ? 'pro' : 'main';
-      state = processAction(state, i, { type: 'commit_line', payload: { line } });
+      state = smartAiCommit(state, i);
     }
     state = advancePhase(state); // environment
     state = advancePhase(state); // preparation
@@ -992,8 +1694,13 @@ function runSingleGameWithOverride(
     }
 
     state = advancePhase(state); // sprint start
-    for (let i = 0; i < state.players.length; i++) {
-      state = aiTakeTurn(state, i, config.strategy);
+
+    // Respect turn order (leader first, random tiebreak)
+    const sensTurnOrder = sortByProgressRandomTies(
+      state.players.map((p, i) => ({ i, progress: p.progress }))
+    ).map(x => x.i);
+    for (const pi of sensTurnOrder) {
+      state = smartAiPlaySprint(state, pi);
     }
     state = advancePhase(state); // alignment
 
@@ -1033,7 +1740,6 @@ function runSingleGameWithOverride(
         penalties: s.penalties,
         flow: s.flow,
         momentum: s.momentum,
-        combosTriggered: s.totalCombos,
         cardsPlayed: s.totalCardsPlayed,
       })),
       totalRounds: state.round,
