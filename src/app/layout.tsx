@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "The Descent - Board Game",
-  description: "Play and test The Descent board game",
+  title: "Treadline - Board Game",
+  description: "Play and test Treadline board game",
 };
 
 export default function RootLayout({

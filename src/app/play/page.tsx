@@ -136,7 +136,7 @@ export default function PlayPage() {
     return (
       <div className="min-h-screen game-table text-white p-4 sm:p-8">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">The Descent</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Treadline</h1>
           <p className="text-emerald-300/60 mb-6">Set up your game</p>
 
           <div className="trail-card p-6 mb-6">
@@ -277,7 +277,7 @@ export default function PlayPage() {
       <div className="bg-black/50 border-b border-emerald-900/50 px-3 py-1.5 backdrop-blur-sm z-10 flex-shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-base sm:text-lg font-bold">The Descent</h1>
+            <h1 className="text-base sm:text-lg font-bold">Treadline</h1>
             <span className="text-xs text-gray-400">
               Round {game.round}/15 &middot; {PHASE_LABELS[game.phase]}
             </span>
