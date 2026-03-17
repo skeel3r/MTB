@@ -14,7 +14,6 @@ import {
 import { aiPlaySprint, aiCommit } from '@/lib/ai-player';
 import GameBoard, { PlayerStats, HandDisplay, TrailCardDisplay } from '@/components/GameBoard';
 import GameLog from '@/components/GameLog';
-import { obstacleCardImage } from '@/lib/card-images';
 
 const PHASE_LABELS: Record<string, string> = {
   setup: 'Setup',
@@ -378,23 +377,23 @@ export default function PlayPage() {
               {game.activeObstacles.map((obs, i) => {
                 // Check exact match OR "Forced Through" wild match (2 same-symbol cards = 1 wild)
                 const canMatch = (() => {
-                  const mode = obs.matchMode ?? 'all';
+                  const mode = getObstacleMatchMode(obs) ?? 'all';
                   const hand = currentPlayer.hand;
 
                   if (mode === 'any') {
                     // Exact match: any 1 matching symbol
-                    if (obs.symbols.some(sym => hand.some(c => c.symbol === sym))) return true;
+                    if (getObstacleSymbols(obs).some(sym => hand.some(c => getTechniqueSymbol(c) === sym))) return true;
                     // Wild: any 2 cards of same symbol
                     const counts: Record<string, number> = {};
-                    for (const c of hand) counts[c.symbol] = (counts[c.symbol] || 0) + 1;
+                    for (const c of hand) counts[getTechniqueSymbol(c)] = (counts[getTechniqueSymbol(c)] || 0) + 1;
                     return Object.values(counts).some(n => n >= 2);
                   }
 
                   // mode === 'all': try exact + wild matching
                   const usedIndices = new Set<number>();
                   const unmatched: string[] = [];
-                  for (const sym of obs.symbols) {
-                    const idx = hand.findIndex((c, ci) => c.symbol === sym && !usedIndices.has(ci));
+                  for (const sym of getObstacleSymbols(obs)) {
+                    const idx = hand.findIndex((c, ci) => getTechniqueSymbol(c) === sym && !usedIndices.has(ci));
                     if (idx >= 0) usedIndices.add(idx);
                     else unmatched.push(sym);
                   }
@@ -404,7 +403,7 @@ export default function PlayPage() {
                     const avail: Record<string, number[]> = {};
                     for (let ci = 0; ci < hand.length; ci++) {
                       if (usedIndices.has(ci)) continue;
-                      const s = hand[ci].symbol;
+                      const s = getTechniqueSymbol(hand[ci]);
                       if (!avail[s]) avail[s] = [];
                       avail[s].push(ci);
                     }
@@ -422,7 +421,7 @@ export default function PlayPage() {
                   return true;
                 })();
 
-                const obsSendCost = obs.sendItCost ?? 2;
+                const obsSendCost = getObstacleSendItCost(obs) ?? 2;
                 const canSendIt = currentPlayer.momentum >= obsSendCost;
 
                 return (
@@ -434,8 +433,8 @@ export default function PlayPage() {
                     {/* Obstacle card rendered image */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={obstacleCardImage(obs.id.replace(/-\d+$/, ''), obs.name)}
-                      alt={obs.name}
+                      src={`/cards/obstacle/${obs}_${getObstacleName(obs).toLowerCase().replace(/[()]/g, '').replace(/\s+/g, '_')}.png`}
+                      alt={getObstacleName(obs)}
                       className="absolute inset-0 w-full h-full object-cover"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
@@ -446,12 +445,12 @@ export default function PlayPage() {
                     {/* Content overlay */}
                     <div className="relative z-10 p-1.5 w-full">
                       <div className="flex gap-1 mb-0.5 justify-center">
-                        {obs.symbols.map((sym, j) => (
+                        {getObstacleSymbols(obs).map((sym, j) => (
                           <span key={j} className="text-xl drop-shadow-md">{SYMBOL_EMOJI[sym]}</span>
                         ))}
                       </div>
-                      <div className="text-[10px] font-bold text-center leading-tight text-white drop-shadow-md">{obs.name}</div>
-                      <div className="text-[8px] text-red-300/80 text-center">{obs.penaltyType}</div>
+                      <div className="text-[10px] font-bold text-center leading-tight text-white drop-shadow-md">{getObstacleName(obs)}</div>
+                      <div className="text-[8px] text-red-300/80 text-center">{getObstaclePenaltyType(obs)}</div>
                       <div className="flex gap-1.5 mt-1 w-full flex-wrap">
                       {canMatch ? (
                         <button
