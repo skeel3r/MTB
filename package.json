@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "build:wasm": "cd descenders-wasm && wasm-pack build --target web --out-dir ../src/ai/wasm-pkg"
+    "build:wasm": "cd descenders-wasm && wasm-pack build --target web --out-dir ../src/ai/wasm-pkg",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "next": "^16.1.6",
