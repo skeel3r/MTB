@@ -972,7 +972,7 @@ export function runMonteCarlo(
 
       // Track wins by seat
       seatWins[result.winner] = (seatWins[result.winner] || 0) + 1;
-      strategyData[strategy].wins += result.finalStandings[0].progress;
+      strategyData[strategy].wins += 1;
       strategyData[strategy].games++;
 
       if (result.winner === 'Player 1') p1Wins++;
