@@ -1,9 +1,66 @@
-import { GameState, SimulationConfig, SimulationResult, ProgressObstacle, CardSymbol, TechniqueCard } from './types';
+import { GameState, GameAction, SimulationConfig, SimulationResult, ProgressObstacle, CardSymbol, TechniqueCard } from './types';
 import { initGame, advancePhase, processAction, getStandings, sortByProgressRandomTies } from './engine';
 import { OBSTACLE_DEFINITIONS } from './cards';
 import { smartAiPlaySprint, smartAiCommit } from './smart-ai';
 
 type Strategy = SimulationConfig['strategy'];
+
+// ── MCTS WASM integration ──
+// Lazily initialized WASM module for MCTS AI
+let wasmInitialized = false;
+let wasmRunIsmcts: ((json: string, player: number, iters: number) => string) | null = null;
+
+export async function ensureMctsWasm() {
+  if (wasmInitialized) return;
+  try {
+    const wasm = await import('../ai/wasm-pkg/descenders_wasm.js');
+    await wasm.default();
+    wasmRunIsmcts = wasm.wasm_run_ismcts;
+    wasmInitialized = true;
+  } catch (e) {
+    console.error('Failed to initialize MCTS WASM:', e);
+    throw e;
+  }
+}
+
+const MCTS_ITERATIONS = 500;
+
+/** MCTS AI: use Rust WASM ISMCTS for commitment decision */
+function mctsCommit(state: GameState, playerIndex: number): GameState {
+  if (!wasmRunIsmcts) throw new Error('MCTS WASM not initialized');
+  const json = JSON.stringify(state);
+  // Set the current player for the MCTS engine
+  const stateForMcts = { ...state, currentPlayerIndex: playerIndex };
+  const resultJson = wasmRunIsmcts(JSON.stringify(stateForMcts), playerIndex, MCTS_ITERATIONS);
+  const action: GameAction = JSON.parse(resultJson);
+  if ('error' in action) {
+    // Fallback to main line on error
+    return processAction(state, playerIndex, { type: 'commit_line', payload: { line: 'main' } });
+  }
+  return processAction(state, playerIndex, action);
+}
+
+/** MCTS AI: use Rust WASM ISMCTS for sprint turn */
+function mctsPlaySprint(state: GameState, playerIndex: number): GameState {
+  if (!wasmRunIsmcts) throw new Error('MCTS WASM not initialized');
+  let s = state;
+  let safety = 50; // prevent infinite loops
+  while (!s.players[playerIndex].turnEnded && !s.players[playerIndex].crashed && safety-- > 0) {
+    const stateForMcts = { ...s, currentPlayerIndex: playerIndex };
+    const resultJson = wasmRunIsmcts(JSON.stringify(stateForMcts), playerIndex, MCTS_ITERATIONS);
+    const action: GameAction = JSON.parse(resultJson);
+    if ('error' in action) {
+      // Fallback: end turn on error
+      s = processAction(s, playerIndex, { type: 'end_turn' });
+      break;
+    }
+    s = processAction(s, playerIndex, action);
+  }
+  if (!s.players[playerIndex].turnEnded) {
+    s = processAction(s, playerIndex, { type: 'end_turn' });
+  }
+  return s;
+}
 
 /**
  * Aggressive commitment: choose pro line when we can reasonably accomplish it.
@@ -508,6 +565,7 @@ export function runSingleGame(
   const totalRounds = state.trailLength;
 
   const useSmartAi = config.strategy === 'smart' || config.strategy === 'balanced';
+  const useMcts = config.strategy === 'mcts';
 
   for (let round = 0; round < totalRounds; round++) {
     state = advancePhase(state); // scroll descent
@@ -515,7 +573,9 @@ export function runSingleGame(
 
     // Commitment: smart AI evaluates, heuristic uses strategy-based choice
     for (let i = 0; i < state.players.length; i++) {
-      if (useSmartAi) {
+      if (useMcts) {
+        state = mctsCommit(state, i);
+      } else if (useSmartAi) {
         state = smartAiCommit(state, i);
       } else {
         const line = config.strategy === 'aggressive' ? aggressiveCommitLine(state, i) : 'main';
@@ -533,7 +593,9 @@ export function runSingleGame(
     ).map(x => x.i);
 
     for (const pi of turnOrder) {
-      if (useSmartAi) {
+      if (useMcts) {
+        state = mctsPlaySprint(state, pi);
+      } else if (useSmartAi) {
         state = smartAiPlaySprint(state, pi);
       } else if (config.strategy === 'random') {
         state = aiTakeTurnRandom(state, pi);
@@ -600,13 +662,16 @@ export function runSingleGameFast(
   let round5Leader: string | null = null;
 
   const useSmartAi = config.strategy === 'smart' || config.strategy === 'balanced';
+  const useMcts = config.strategy === 'mcts';
 
   for (let round = 0; round < totalRounds; round++) {
     state = advancePhase(state); // scroll descent
     state = advancePhase(state); // commitment phase
 
     for (let i = 0; i < state.players.length; i++) {
-      if (useSmartAi) {
+      if (useMcts) {
+        state = mctsCommit(state, i);
+      } else if (useSmartAi) {
         state = smartAiCommit(state, i);
       } else {
         const line = config.strategy === 'aggressive' ? aggressiveCommitLine(state, i) : 'main';
@@ -623,7 +688,9 @@ export function runSingleGameFast(
     ).map(x => x.i);
 
     for (const pi of turnOrder) {
-      if (useSmartAi) {
+      if (useMcts) {
+        state = mctsPlaySprint(state, pi);
+      } else if (useSmartAi) {
         state = smartAiPlaySprint(state, pi);
       } else {
         state = aiTakeTurn(state, pi, config.strategy);

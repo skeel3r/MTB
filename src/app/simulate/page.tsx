@@ -8,6 +8,7 @@ import {
   computeObstacleMatchProbabilities, ObstacleMatchProbability,
   computeGiniAnalysis, GiniAnalysis,
   runSensitivityAnalysis, SensitivityResult, SENSITIVITY_PARAMS,
+  ensureMctsWasm,
 } from '@/lib/simulation';
 
 export default function SimulatePage() {
@@ -129,7 +130,15 @@ export default function SimulatePage() {
     return report;
   }, [results, balance, mcResult, gini, sensitivity, obsProbabilities, config]);
 
-  const run = useCallback(() => {
+  const run = useCallback(async () => {
+    if (config.strategy === 'mcts') {
+      try {
+        await ensureMctsWasm();
+      } catch (e) {
+        alert('Failed to initialize MCTS WASM module: ' + e);
+        return;
+      }
+    }
     setRunning(true);
     setResults([]);
     setAllSnapshots([]);
@@ -345,6 +354,7 @@ export default function SimulatePage() {
               <option value="aggressive">Aggressive (Pro Line)</option>
               <option value="balanced">Balanced (uses Smart AI)</option>
               <option value="conservative">Conservative</option>
+              <option value="mcts">MCTS (Rust WASM)</option>
             </select>
           </div>
         </div>

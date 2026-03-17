@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:wasm": "cd descenders-wasm && wasm-pack build --target web --out-dir ../src/ai/wasm-pkg"
   },
   "dependencies": {
     "next": "^16.1.6",
