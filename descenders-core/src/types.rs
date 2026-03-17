@@ -291,3 +291,44 @@ impl Choice {
         }
     }
 }
+
+// ── Game log types (shared between runner and gui) ──
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameRunOutput {
+    pub version: u32,
+    pub game_started_at: String,
+    pub game_ended_at: String,
+    pub player_names: Vec<String>,
+    pub iterations: u32,
+    pub num_players: u32,
+    pub trail_id: String,
+    pub initial_state: GameState,
+    pub final_standings: Vec<FinalStanding>,
+    pub entries: Vec<StructuredLogEntry>,
+    pub duration_ms: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinalStanding {
+    pub name: String,
+    pub obstacles_cleared: i32,
+    pub progress: i32,
+    pub perfect_matches: i32,
+    pub penalties: i32,
+    pub flow: i32,
+    pub momentum: i32,
+    pub reward: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StructuredLogEntry {
+    pub seq: u32,
+    pub round: u32,
+    pub phase: String,
+    pub player_index: usize,
+    pub choice: Choice,
+}

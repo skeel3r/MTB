@@ -3,7 +3,6 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 use rand::prelude::*;
-use serde::Serialize;
 use wyrand::WyRand;
 
 use descenders_core::choices::enumerate_choices;
@@ -40,47 +39,6 @@ struct Args {
     /// Trail pack ID (e.g. "tiger-mountain")
     #[arg(long)]
     trail: Option<String>,
-}
-
-// ── Game log types ──
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct GameRunOutput {
-    version: u32,
-    game_started_at: String,
-    game_ended_at: String,
-    player_names: Vec<String>,
-    iterations: u32,
-    num_players: u32,
-    trail_id: String,
-    initial_state: GameState,
-    final_standings: Vec<FinalStanding>,
-    entries: Vec<StructuredLogEntry>,
-    duration_ms: u64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct FinalStanding {
-    name: String,
-    obstacles_cleared: i32,
-    progress: i32,
-    perfect_matches: i32,
-    penalties: i32,
-    flow: i32,
-    momentum: i32,
-    reward: f64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StructuredLogEntry {
-    seq: u32,
-    round: u32,
-    phase: String,
-    player_index: usize,
-    choice: Choice,
 }
 
 // ── Helpers ──

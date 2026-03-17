@@ -44,3 +44,6 @@ next-env.d.ts
 /descenders-core/target/
 /descenders-wasm/target/
 /target/
+
+# Generated game logs
+/game-logs/
