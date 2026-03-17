@@ -272,7 +272,7 @@ export default function PlayPage() {
   const activeTargetLanes = game.activeTrailCard ? getTrailStageTargetLanes(game.activeTrailCard) : undefined;
 
   return (
-    <div className="h-screen game-table text-white flex flex-col overflow-hidden">
+    <div className="min-h-screen game-table text-white flex flex-col overflow-auto">
       {/* Top bar - compact info strip */}
       <div className="bg-black/50 border-b border-emerald-900/50 px-3 py-1.5 backdrop-blur-sm z-10 flex-shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-2">
