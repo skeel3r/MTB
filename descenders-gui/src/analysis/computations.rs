@@ -162,8 +162,8 @@ pub fn compute_analysis(logs: &[&GameRunOutput]) -> AnalysisResults {
     for log in logs {
         for entry in &log.entries {
             if entry.phase == "stage_break" {
-                if let Choice::BuyUpgrade { upgrade_index } = &entry.choice {
-                    let label = format!("Upgrade #{}", upgrade_index);
+                if let Choice::BuyUpgrade { upgrade } = &entry.choice {
+                    let label = upgrade.name().to_string();
                     *upgrade_counts.entry(label).or_insert(0) += 1;
                 }
             }

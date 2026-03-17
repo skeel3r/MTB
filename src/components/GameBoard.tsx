@@ -1,7 +1,12 @@
 'use client';
 
-import { PlayerState, ProgressObstacle, CardSymbol, MainTrailCard } from '@/lib/types';
-import { SYMBOL_COLORS, SYMBOL_EMOJI } from '@/lib/cards';
+import { PlayerState, ObstacleType, TechniqueType, TrailStage, CardSymbol } from '@/lib/types';
+import {
+  SYMBOL_COLORS, SYMBOL_EMOJI,
+  getTechniqueSymbol, getTechniqueName, getTechniqueActionText,
+  getObstacleSymbols, getObstacleName,
+  getTrailStageName, getTrailStageSpeedLimit, getTrailStageCheckedRows, getTrailStageTargetLanes,
+} from '@/lib/cards';
 
 interface GameBoardProps {
   player: PlayerState;
@@ -269,7 +274,7 @@ export function TrailCardDisplay({
   faceDown,
   compact,
 }: {
-  card: MainTrailCard | null;
+  card: TrailStage | null;
   label?: string;
   faceDown?: boolean;
   compact?: boolean;
@@ -290,17 +295,22 @@ export function TrailCardDisplay({
     );
   }
 
+  const cardName = getTrailStageName(card);
+  const speedLimit = getTrailStageSpeedLimit(card);
+  const cardCheckedRows = getTrailStageCheckedRows(card);
+  const cardTargetLanes = getTrailStageTargetLanes(card);
+
   // Map lane index to column label
   const colLabel = (lane: number) => `C${lane + 1}`;
 
   // Build row data: for each of rows 0-4, check if this row is checked and what its target lane is
   const rowData: { row: number; isChecked: boolean; targetLane: number }[] = [];
   for (let r = 0; r < 5; r++) {
-    const checkIdx = card.checkedRows.indexOf(r);
+    const checkIdx = cardCheckedRows.indexOf(r);
     rowData.push({
       row: r,
       isChecked: checkIdx >= 0,
-      targetLane: checkIdx >= 0 ? card.targetLanes[checkIdx] : -1,
+      targetLane: checkIdx >= 0 ? cardTargetLanes[checkIdx] : -1,
     });
   }
 
@@ -394,7 +404,7 @@ export function TrailCardDisplay({
             <path d="M2 12 L9 3 L16 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M6 12 L9 7 L12 12" fill="none" stroke="rgba(100,200,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className={`text-white font-bold ${compact ? 'text-sm' : 'text-lg'} leading-none`}>{card.speedLimit}</span>
+          <span className={`text-white font-bold ${compact ? 'text-sm' : 'text-lg'} leading-none`}>{speedLimit}</span>
         </div>
 
         {/* Row check indicators - right side */}
@@ -461,9 +471,9 @@ export function TrailCardDisplay({
             background: 'linear-gradient(0deg, rgba(0,0,0,0.85), rgba(0,0,0,0.5))',
           }}
         >
-          <div className="text-white font-bold text-xs tracking-wide drop-shadow-md">{card.name}</div>
+          <div className="text-white font-bold text-xs tracking-wide drop-shadow-md">{cardName}</div>
           <div className="text-[9px] text-cyan-300/70">
-            {card.checkedRows.length} row{card.checkedRows.length !== 1 ? 's' : ''} checked
+            {cardCheckedRows.length} row{cardCheckedRows.length !== 1 ? 's' : ''} checked
           </div>
         </div>
       </div>
@@ -478,37 +488,40 @@ export function HandDisplay({
   disabled,
   activeObstacles = [],
 }: {
-  hand: PlayerState['hand'];
+  hand: TechniqueType[];
   onPlay?: (index: number) => void;
   disabled?: boolean;
-  activeObstacles?: ProgressObstacle[];
+  activeObstacles?: ObstacleType[];
 }) {
   if (hand.length === 0) return <div className="text-sm" style={{ color: '#8a7a6a' }}>No cards in hand</div>;
 
   // Find which obstacle symbols are needed
   const neededSymbols = new Set<CardSymbol>();
   for (const obs of activeObstacles) {
-    for (const sym of obs.symbols) {
+    for (const sym of getObstacleSymbols(obs)) {
       neededSymbols.add(sym);
     }
   }
 
   // Find which obstacles each card symbol matches
-  function getMatchingObstacles(symbol: CardSymbol): ProgressObstacle[] {
-    return activeObstacles.filter(obs => obs.symbols.includes(symbol));
+  function getMatchingObstacles(symbol: CardSymbol): ObstacleType[] {
+    return activeObstacles.filter(obs => getObstacleSymbols(obs).includes(symbol));
   }
 
   return (
     <div className="flex flex-wrap gap-2">
       {hand.map((card, i) => {
-        const matchingObs = getMatchingObstacles(card.symbol);
+        const cardSymbol = getTechniqueSymbol(card);
+        const cardName = getTechniqueName(card);
+        const cardActionText = getTechniqueActionText(card);
+        const matchingObs = getMatchingObstacles(cardSymbol);
         const hasMatch = matchingObs.length > 0;
 
         const canPlay = !disabled && !!onPlay;
 
         return (
           <button
-            key={card.id}
+            key={`${card}-${i}`}
             onClick={() => onPlay?.(i)}
             disabled={disabled}
             className={`playing-card text-left flex flex-col relative transition-all duration-150 ${
@@ -519,18 +532,18 @@ export function HandDisplay({
               height: '125px',
               padding: '6px',
               boxShadow: hasMatch
-                ? `0 0 12px ${SYMBOL_COLORS[card.symbol]}90, 0 0 4px ${SYMBOL_COLORS[card.symbol]}60`
+                ? `0 0 12px ${SYMBOL_COLORS[cardSymbol]}90, 0 0 4px ${SYMBOL_COLORS[cardSymbol]}60`
                 : canPlay
                   ? `0 4px 12px rgba(0,0,0,0.3)`
                   : undefined,
-              border: hasMatch ? `2px solid ${SYMBOL_COLORS[card.symbol]}` : undefined,
+              border: hasMatch ? `2px solid ${SYMBOL_COLORS[cardSymbol]}` : undefined,
             }}
           >
             {/* Match indicator badge */}
             {hasMatch && (
               <div
                 className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white"
-                style={{ backgroundColor: SYMBOL_COLORS[card.symbol], boxShadow: `0 0 6px ${SYMBOL_COLORS[card.symbol]}` }}
+                style={{ backgroundColor: SYMBOL_COLORS[cardSymbol], boxShadow: `0 0 6px ${SYMBOL_COLORS[cardSymbol]}` }}
               >
                 MATCH
               </div>
@@ -539,40 +552,40 @@ export function HandDisplay({
             {canPlay && !hasMatch && (
               <div
                 className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
-                style={{ backgroundColor: SYMBOL_COLORS[card.symbol], color: 'white', boxShadow: `0 0 6px ${SYMBOL_COLORS[card.symbol]}80` }}
+                style={{ backgroundColor: SYMBOL_COLORS[cardSymbol], color: 'white', boxShadow: `0 0 6px ${SYMBOL_COLORS[cardSymbol]}80` }}
               >
                 PLAY
               </div>
             )}
             {/* Symbol display - always visible */}
             <div className="flex items-center gap-1 mb-0.5">
-              <span className="text-lg">{SYMBOL_EMOJI[card.symbol]}</span>
+              <span className="text-lg">{SYMBOL_EMOJI[cardSymbol]}</span>
               <div className="flex flex-col">
                 <span
                   className="inline-block w-3.5 h-3.5 rounded-full border border-white/30"
                   style={{
-                    backgroundColor: SYMBOL_COLORS[card.symbol],
-                    boxShadow: `0 0 4px ${SYMBOL_COLORS[card.symbol]}80`,
+                    backgroundColor: SYMBOL_COLORS[cardSymbol],
+                    boxShadow: `0 0 4px ${SYMBOL_COLORS[cardSymbol]}80`,
                   }}
                 />
               </div>
-              <span className="text-[10px] font-mono uppercase font-bold" style={{ color: SYMBOL_COLORS[card.symbol] }}>
-                {card.symbol}
+              <span className="text-[10px] font-mono uppercase font-bold" style={{ color: SYMBOL_COLORS[cardSymbol] }}>
+                {cardSymbol}
               </span>
             </div>
             {/* Card name */}
             <div className="font-bold text-xs leading-tight" style={{ color: '#1a1a1a' }}>
-              {card.name}
+              {cardName}
             </div>
             {/* Matching obstacle indicator */}
             {hasMatch && (
               <div className="flex flex-wrap gap-0.5 mt-1">
                 {matchingObs.map((obs, j) => (
                   <div key={j} className="flex items-center gap-0.5 rounded px-1 py-0.5" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }}>
-                    {obs.symbols.map((sym, k) => (
+                    {getObstacleSymbols(obs).map((sym, k) => (
                       <span key={k} className="text-xs">{SYMBOL_EMOJI[sym]}</span>
                     ))}
-                    <span className="text-[8px]" style={{ color: '#444' }}>{obs.name}</span>
+                    <span className="text-[8px]" style={{ color: '#444' }}>{getObstacleName(obs)}</span>
                   </div>
                 ))}
               </div>
@@ -581,11 +594,11 @@ export function HandDisplay({
             <div
               className={`text-[10px] leading-snug mt-auto rounded px-1 py-0.5 -mx-1 ${canPlay ? 'font-semibold' : ''}`}
               style={{
-                color: canPlay ? SYMBOL_COLORS[card.symbol] : '#5a5040',
-                backgroundColor: canPlay ? `${SYMBOL_COLORS[card.symbol]}12` : undefined,
+                color: canPlay ? SYMBOL_COLORS[cardSymbol] : '#5a5040',
+                backgroundColor: canPlay ? `${SYMBOL_COLORS[cardSymbol]}12` : undefined,
               }}
             >
-              {card.actionText}
+              {cardActionText}
             </div>
           </button>
         );

@@ -24,7 +24,7 @@ pub fn rollout(state: &mut GameState, max_steps: u32, rng: &mut impl Rng) -> Vec
                 if choices.is_empty() {
                     advance_phase(state, rng);
                 } else {
-                    let choice = choices.choose(rng).unwrap().clone();
+                    let choice = *choices.choose(rng).unwrap();
                     let player_idx = state.current_player_index;
                     process_action(state, player_idx, &choice, rng);
                 }
@@ -35,7 +35,7 @@ pub fn rollout(state: &mut GameState, max_steps: u32, rng: &mut impl Rng) -> Vec
                 if choices.is_empty() {
                     advance_phase(state, rng);
                 } else {
-                    let choice = choices.choose(rng).unwrap().clone();
+                    let choice = *choices.choose(rng).unwrap();
                     let player_idx = state.current_player_index;
                     process_action(state, player_idx, &choice, rng);
                 }
@@ -46,7 +46,7 @@ pub fn rollout(state: &mut GameState, max_steps: u32, rng: &mut impl Rng) -> Vec
                 if choices.is_empty() {
                     advance_phase(state, rng);
                 } else {
-                    let choice = choices.choose(rng).unwrap().clone();
+                    let choice = *choices.choose(rng).unwrap();
                     let player_idx = state.current_player_index;
                     process_action(state, player_idx, &choice, rng);
                 }

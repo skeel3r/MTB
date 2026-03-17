@@ -11,8 +11,13 @@
  * and expected value calculations for action selection.
  */
 
-import { GameState, PlayerState, CardSymbol, GameAction, ProgressObstacle, TechniqueCard } from './types';
+import { GameState, PlayerState, CardSymbol, GameAction, ObstacleType, TechniqueType } from './types';
 import { processAction } from './engine';
+import {
+  getTechniqueSymbol, getTechniqueName,
+  getObstacleSymbols, getObstacleMatchMode, getObstacleSendItCost,
+  getTrailStageSpeedLimit, getTrailStageCheckedRows, getTrailStageTargetLanes,
+} from './cards';
 
 // ═══════════════════════════════════════════════════════════
 // Utility helpers
@@ -27,27 +32,28 @@ function getTokenCol(grid: boolean[][], row: number): number {
 
 /** Check if hand can match obstacle (supports "Forced Through" wild matching) */
 function canMatchObstacle(
-  hand: { symbol: string }[],
-  symbols: string[],
-  matchMode: 'all' | 'any',
+  hand: TechniqueType[],
+  obstacle: ObstacleType,
 ): boolean {
+  const symbols = getObstacleSymbols(obstacle);
+  const matchMode = getObstacleMatchMode(obstacle);
   const usedIndices = new Set<number>();
 
   if (matchMode === 'any') {
     // Exact match
-    if (symbols.some(sym => hand.some((c, i) => c.symbol === sym && !usedIndices.has(i) && (usedIndices.add(i), true)))) {
+    if (symbols.some(sym => hand.some((c, i) => getTechniqueSymbol(c) === sym && !usedIndices.has(i) && (usedIndices.add(i), true)))) {
       return true;
     }
     // Wild: any 2 cards of same symbol
     const counts: Record<string, number> = {};
-    for (const c of hand) counts[c.symbol] = (counts[c.symbol] || 0) + 1;
+    for (const c of hand) counts[getTechniqueSymbol(c)] = (counts[getTechniqueSymbol(c)] || 0) + 1;
     return Object.values(counts).some(n => n >= 2);
   }
 
   // mode === 'all': exact matches first, then wilds for remainder
   const unmatched: string[] = [];
   for (const sym of symbols) {
-    const idx = hand.findIndex((c, i) => c.symbol === sym && !usedIndices.has(i));
+    const idx = hand.findIndex((c, i) => getTechniqueSymbol(c) === sym && !usedIndices.has(i));
     if (idx >= 0) usedIndices.add(idx);
     else unmatched.push(sym);
   }
@@ -58,7 +64,7 @@ function canMatchObstacle(
     const avail: Record<string, number[]> = {};
     for (let i = 0; i < hand.length; i++) {
       if (usedIndices.has(i)) continue;
-      const s = hand[i].symbol;
+      const s = getTechniqueSymbol(hand[i]);
       if (!avail[s]) avail[s] = [];
       avail[s].push(i);
     }
@@ -190,7 +196,7 @@ export function evaluateState(state: GameState, playerIndex: number): StateEval 
   components.perfectMatch = player.perfectMatches * W.perfectMatch;
 
   // Momentum value — beneficial up to speed limit, dangerous above
-  const speedLimit = state.activeTrailCard?.speedLimit ?? 6;
+  const speedLimit = state.activeTrailCard ? getTrailStageSpeedLimit(state.activeTrailCard) : 6;
   const safeM = Math.min(player.momentum, speedLimit);
   const excessM = Math.max(0, player.momentum - speedLimit);
   components.momentum = safeM * W.momentum + excessM * W.momentumOverSpeed;
@@ -215,12 +221,13 @@ export function evaluateState(state: GameState, playerIndex: number): StateEval 
 
   // Grid alignment quality (for the current trail card)
   if (state.activeTrailCard) {
-    const card = state.activeTrailCard;
+    const checkedRows = getTrailStageCheckedRows(state.activeTrailCard);
+    const targetLanes = getTrailStageTargetLanes(state.activeTrailCard);
     let alignScore = 0;
     let allPerfect = true;
-    for (let i = 0; i < card.checkedRows.length; i++) {
-      const row = card.checkedRows[i];
-      const target = card.targetLanes[i];
+    for (let i = 0; i < checkedRows.length; i++) {
+      const row = checkedRows[i];
+      const target = targetLanes[i];
       const col = getTokenCol(player.grid, row);
       if (col < 0) continue;
       const dist = Math.abs(col - target);
@@ -234,7 +241,7 @@ export function evaluateState(state: GameState, playerIndex: number): StateEval 
         allPerfect = false;
       }
     }
-    if (allPerfect && card.checkedRows.length > 0) {
+    if (allPerfect && checkedRows.length > 0) {
       alignScore += W.alignmentPerfect;
     }
     components.alignment = alignScore;
@@ -261,7 +268,8 @@ export function evaluateState(state: GameState, playerIndex: number): StateEval 
 function computeHandMatchPotential(player: PlayerState): number {
   const symbolCounts: Record<string, number> = {};
   for (const card of player.hand) {
-    symbolCounts[card.symbol] = (symbolCounts[card.symbol] || 0) + 1;
+    const sym = getTechniqueSymbol(card);
+    symbolCounts[sym] = (symbolCounts[sym] || 0) + 1;
   }
 
   // Check matchability against the obstacle distribution:
@@ -334,7 +342,7 @@ function getLegalActions(state: GameState, playerIndex: number): ScoredAction[] 
     actions.push({
       action: { type: 'technique', payload: { cardIndex: i } },
       score: 0,
-      label: `play ${player.hand[i].name} (${player.hand[i].symbol})`,
+      label: `play ${getTechniqueName(player.hand[i])} (${getTechniqueSymbol(player.hand[i])})`,
     });
   }
 
@@ -362,8 +370,10 @@ function pruneActions(actions: ScoredAction[], state: GameState, playerIndex: nu
   // Build a set of target lanes for quick lookup
   const targetMap = new Map<number, number>();
   if (trail) {
-    for (let i = 0; i < trail.checkedRows.length; i++) {
-      targetMap.set(trail.checkedRows[i], trail.targetLanes[i]);
+    const checkedRows = getTrailStageCheckedRows(trail);
+    const targetLanes = getTrailStageTargetLanes(trail);
+    for (let i = 0; i < checkedRows.length; i++) {
+      targetMap.set(checkedRows[i], targetLanes[i]);
     }
   }
 
@@ -428,56 +438,34 @@ function scoreActions(state: GameState, playerIndex: number): ScoredAction[] {
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Check if matching an obstacle is possible and worthwhile.
- * With the new rules, you MUST match or Send It (no optional blow-by),
- * so this always returns true if matching is possible.
- */
-function shouldMatchObstacle(
-  _state: GameState,
-  _playerIndex: number,
-  _obstacle: ProgressObstacle,
-): boolean {
-  // Always match if possible — alternative is spending 2 momentum + hazard die
-  return true;
-}
-
-/**
  * Decide whether using ghost_copy flow to match an otherwise unmatchable
  * obstacle is worth it.
  */
 function shouldGhostCopy(
   state: GameState,
   playerIndex: number,
-  obstacle: ProgressObstacle,
+  obstacle: ObstacleType,
 ): boolean {
   const player = state.players[playerIndex];
   if (player.flow < 1) return false;
 
-  const mode = obstacle.matchMode ?? 'all';
+  const mode = getObstacleMatchMode(obstacle);
   // Already matchable without ghost copy? Don't spend flow.
-  if (canMatchObstacle(player.hand, obstacle.symbols, mode)) return false;
+  if (canMatchObstacle(player.hand, obstacle)) return false;
 
-  // Check if ghost copy would enable the match.
-  // Ghost copy duplicates a symbol — effectively adds a wildcard.
-  // For 'any' mode obstacles: we need any one of the listed symbols.
-  // Ghost copy helps if we have 0 of all listed symbols but have something else to copy.
-  // Actually ghost copy duplicates an existing symbol, so it only helps for 'all' mode
-  // where we're missing one symbol but have extras of another.
-
-  // For simplicity: check if the obstacle needs one symbol we lack
-  // and we have at least 1 card in hand to "copy" as that symbol.
-  if (mode === 'any') {
-    // We need at least one of the listed symbols, and we have none.
-    // Ghost copy doesn't help here (it copies an existing symbol).
-    return false;
-  }
+  // For 'any' mode: ghost copy doesn't help (it copies an existing symbol).
+  if (mode === 'any') return false;
 
   // 'all' mode: find the missing symbol
+  const symbols = getObstacleSymbols(obstacle);
   const symbolsInHand: Record<string, number> = {};
-  for (const c of player.hand) symbolsInHand[c.symbol] = (symbolsInHand[c.symbol] || 0) + 1;
+  for (const c of player.hand) {
+    const sym = getTechniqueSymbol(c);
+    symbolsInHand[sym] = (symbolsInHand[sym] || 0) + 1;
+  }
 
   let missingCount = 0;
-  for (const sym of obstacle.symbols) {
+  for (const sym of symbols) {
     if ((symbolsInHand[sym] || 0) <= 0) {
       missingCount++;
     } else {
@@ -514,7 +502,7 @@ function shouldDrawFreshObstacle(
 
   // Calculate probability of matching a random obstacle with current hand
   const symbolsInHand: Record<string, number> = { grip: 0, air: 0, agility: 0, balance: 0 };
-  for (const c of player.hand) symbolsInHand[c.symbol]++;
+  for (const c of player.hand) symbolsInHand[getTechniqueSymbol(c)]++;
 
   // Average match probability across all obstacle types (14 total)
   // 8 single-symbol obstacles: P(match) = P(have at least 1 of that symbol)
@@ -567,28 +555,33 @@ function shouldDrawFreshObstacle(
  * Higher score = better to match with current hand.
  */
 function scoreRevealedObstacle(
-  obs: ProgressObstacle,
-  hand: TechniqueCard[],
+  obs: ObstacleType,
+  hand: TechniqueType[],
 ): number {
-  const mode = obs.matchMode ?? 'all';
-  if (!canMatchObstacle(hand, obs.symbols, mode)) return -Infinity;
+  if (!canMatchObstacle(hand, obs)) return -Infinity;
+
+  const mode = getObstacleMatchMode(obs);
+  const symbols = getObstacleSymbols(obs);
 
   const progressGain = 10; // base value
   let score = progressGain;
 
   if (mode === 'any') score += 3; // cheaper match (1 card)
-  if (obs.symbols.length === 1) score += 2; // single symbol = easiest
+  if (symbols.length === 1) score += 2; // single symbol = easiest
 
   // Check if matching would deplete symbols we need
   const symbolsInHand: Record<string, number> = {};
-  for (const c of hand) symbolsInHand[c.symbol] = (symbolsInHand[c.symbol] || 0) + 1;
+  for (const c of hand) {
+    const sym = getTechniqueSymbol(c);
+    symbolsInHand[sym] = (symbolsInHand[sym] || 0) + 1;
+  }
 
   if (mode === 'any') {
-    const available = obs.symbols.map(s => symbolsInHand[s] || 0);
+    const available = symbols.map(s => symbolsInHand[s] || 0);
     const maxAvailable = Math.max(...available);
     score += maxAvailable * 0.5; // prefer symbols we have plenty of
   } else {
-    for (const sym of obs.symbols) {
+    for (const sym of symbols) {
       const available = symbolsInHand[sym] || 0;
       if (available >= 3) score += 1; // plenty of this symbol
       else if (available <= 1) score -= 2; // using our last copy
@@ -635,13 +628,12 @@ function chooseCommitment(state: GameState, playerIndex: number): 'main' | 'pro'
   const player = state.players[playerIndex];
 
   // Calculate obstacle match probability from current deck state
-  const deckSize = state.techniqueDeck.length + state.techniqueDiscard.length;
   const symbolCounts: Record<string, number> = { grip: 0, air: 0, agility: 0, balance: 0 };
-  for (const c of state.techniqueDeck) symbolCounts[c.symbol]++;
-  for (const c of state.techniqueDiscard) symbolCounts[c.symbol]++;
+  for (const c of state.techniqueDeck) symbolCounts[getTechniqueSymbol(c)]++;
+  for (const c of state.techniqueDiscard) symbolCounts[getTechniqueSymbol(c)]++;
   // Count cards in all players' hands as part of the pool
   for (const p of state.players) {
-    for (const c of p.hand) symbolCounts[c.symbol]++;
+    for (const c of p.hand) symbolCounts[getTechniqueSymbol(c)]++;
   }
   const totalCards = Object.values(symbolCounts).reduce((a, b) => a + b, 0);
 
@@ -676,10 +668,9 @@ function resolveObstaclesSmart(state: GameState, playerIndex: number): GameState
   while (s.activeObstacles.length > 0 && !s.players[playerIndex].crashed && !s.players[playerIndex].turnEnded) {
     const obs = s.activeObstacles[0];
     const player = s.players[playerIndex];
-    const mode = obs.matchMode ?? 'all';
 
     // Check if ghost copy would help
-    if (!canMatchObstacle(player.hand, obs.symbols, mode) && shouldGhostCopy(s, playerIndex, obs)) {
+    if (!canMatchObstacle(player.hand, obs) && shouldGhostCopy(s, playerIndex, obs)) {
       s = processAction(s, playerIndex, { type: 'flow_spend', payload: { flowAction: 'ghost_copy' } });
       // After ghost copy, treat as matchable
       s = processAction(s, playerIndex, {
@@ -689,7 +680,7 @@ function resolveObstaclesSmart(state: GameState, playerIndex: number): GameState
       continue;
     }
 
-    if (canMatchObstacle(player.hand, obs.symbols, mode)) {
+    if (canMatchObstacle(player.hand, obs)) {
       // Match with cards — progress + deferred momentum
       s = processAction(s, playerIndex, {
         type: 'resolve_obstacle',
@@ -784,7 +775,7 @@ function flowManagement(state: GameState, playerIndex: number): GameState {
   }
 
   // Scrub: ignore speed limit for 3 flow — worth it if momentum is significantly over
-  const speedLimit = s.activeTrailCard?.speedLimit ?? 6;
+  const speedLimit = s.activeTrailCard ? getTrailStageSpeedLimit(s.activeTrailCard) : 6;
   if (p().flow >= 3 && p().momentum > speedLimit + 2) {
     s = processAction(s, playerIndex, { type: 'flow_spend', payload: { flowAction: 'scrub' } });
   }

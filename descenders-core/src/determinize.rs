@@ -7,9 +7,10 @@ use crate::types::*;
 /// is randomized while keeping the perspective player's hand intact.
 pub fn determinize(state: &GameState, perspective_player: usize, rng: &mut impl Rng) -> GameState {
     let mut det = state.clone();
+    det.last_hazard_rolls.clear();
 
     // 1. Pool technique cards: deck + discard + all opponents' hands
-    let mut pool: Vec<TechniqueCard> = Vec::new();
+    let mut pool: Vec<TechniqueType> = Vec::new();
     pool.extend(det.technique_deck.drain(..));
     pool.extend(det.technique_discard.drain(..));
 
@@ -33,16 +34,16 @@ pub fn determinize(state: &GameState, perspective_player: usize, rng: &mut impl 
     }
 
     // Remainder becomes the new technique deck; discard stays empty
-    det.technique_deck = pool;
+    det.technique_deck = pool.into();
 
     // 3. Shuffle obstacle deck
-    det.obstacle_deck.shuffle(rng);
+    det.obstacle_deck.make_contiguous().shuffle(rng);
 
     // 4. Shuffle penalty deck
-    det.penalty_deck.shuffle(rng);
+    det.penalty_deck.make_contiguous().shuffle(rng);
 
     // 5. Shuffle trail hazards
-    det.trail_hazards.shuffle(rng);
+    det.trail_hazards.make_contiguous().shuffle(rng);
 
     det
 }

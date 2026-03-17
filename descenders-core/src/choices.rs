@@ -22,20 +22,20 @@ fn get_token_col(grid: &[Vec<bool>], row: usize) -> Option<usize> {
 /// - "all" mode: for each required symbol, first try an exact match from hand;
 ///   remaining unmatched symbols can be covered by "forced through" wilds (two
 ///   cards of the same symbol = one wild match).
-pub fn can_match_obstacle(hand: &[TechniqueCard], obstacle: &ProgressObstacle) -> bool {
-    let mode = obstacle.effective_match_mode();
+pub fn can_match_obstacle(hand: &[TechniqueType], obstacle: &ObstacleType) -> bool {
+    let mode = obstacle.match_mode();
 
-    if mode == "any" {
+    if mode == MatchMode::Any {
         // Need ONE card that matches any of the obstacle symbols
         for card in hand {
-            if obstacle.symbols.contains(&card.symbol) {
+            if obstacle.symbols().contains(&card.symbol()) {
                 return true;
             }
         }
         // Or 2 cards of the same symbol (wild)
         let mut counts = [0u32; 4];
         for card in hand {
-            let idx = symbol_index(card.symbol);
+            let idx = symbol_index(card.symbol());
             counts[idx] += 1;
             if counts[idx] >= 2 {
                 return true;
@@ -44,7 +44,7 @@ pub fn can_match_obstacle(hand: &[TechniqueCard], obstacle: &ProgressObstacle) -
         false
     } else {
         // "all" mode: must match every symbol in the obstacle
-        can_match_all(hand, &obstacle.symbols)
+        can_match_all(hand, obstacle.symbols())
     }
 }
 
@@ -59,11 +59,11 @@ fn symbol_index(s: CardSymbol) -> usize {
 
 /// Check if the hand can satisfy ALL required symbols via exact matches and
 /// wild (2-for-1 forced-through) substitutions.
-fn can_match_all(hand: &[TechniqueCard], required: &[CardSymbol]) -> bool {
+fn can_match_all(hand: &[TechniqueType], required: &[CardSymbol]) -> bool {
     // Count available cards by symbol
     let mut available = [0u32; 4];
     for card in hand {
-        available[symbol_index(card.symbol)] += 1;
+        available[symbol_index(card.symbol())] += 1;
     }
 
     // First pass: exact matches
@@ -127,7 +127,7 @@ fn enumerate_obstacle_choices(state: &GameState, player: &PlayerState) -> Vec<Ch
     let mut choices = Vec::new();
 
     let can_resolve = can_match_obstacle(&player.hand, obstacle);
-    let can_send = player.momentum >= obstacle.effective_send_it_cost() as i32;
+    let can_send = player.momentum >= obstacle.send_it_cost() as i32;
 
     if can_resolve {
         choices.push(Choice::ResolveObstacle);
@@ -210,12 +210,9 @@ fn enumerate_stage_break_choices(state: &GameState) -> Vec<Choice> {
     let mut choices = Vec::new();
 
     // Check each upgrade for affordability and not already owned
-    let upgrades = crate::cards::get_upgrades();
-    for (upgrade_index, upgrade) in upgrades.iter().enumerate() {
-        if player.flow >= upgrade.flow_cost
-            && !player.upgrades.iter().any(|u| u.id == upgrade.id)
-        {
-            choices.push(Choice::BuyUpgrade { upgrade_index });
+    for &upgrade in UpgradeType::all() {
+        if player.flow >= upgrade.flow_cost() && !player.upgrades.contains(&upgrade) {
+            choices.push(Choice::BuyUpgrade { upgrade });
         }
     }
 

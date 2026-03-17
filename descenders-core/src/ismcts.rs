@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use rustc_hash::FxHashMap;
 
-use crate::choices::{choice_is_available, enumerate_choices};
+use crate::choices::enumerate_choices;
 use crate::determinize::determinize;
 use crate::engine::{advance_phase, process_action};
 use crate::rollout::rollout;
@@ -65,7 +65,7 @@ pub fn ismcts(
     root.children
         .values()
         .max_by(|a, b| a.games.partial_cmp(&b.games).unwrap())
-        .and_then(|node| node.choice.clone())
+        .and_then(|node| node.choice)
         .unwrap_or(Choice::EndTurn)
 }
 
@@ -97,7 +97,7 @@ fn iteration(
     expand(node, state, &choices, rng);
 
     // Select best child
-    let chosen_choice = select_choice(node, state);
+    let chosen_choice = select_choice(node, &choices);
     let current_player = state.current_player_index;
 
     // Apply the chosen action
@@ -111,8 +111,7 @@ fn iteration(
 
     let rewards = if child.games == 0.0 {
         // Leaf node: rollout
-        let mut rollout_state = state.clone();
-        let rewards = rollout(&mut rollout_state, MAX_ROLLOUT_STEPS, rng);
+        let rewards = rollout(state, MAX_ROLLOUT_STEPS, rng);
         record_outcome(child, &rewards);
         rewards
     } else {
@@ -139,7 +138,7 @@ fn expand(
 
     // Increment availability counts for all available choices
     for choice in choices {
-        *node.choice_availability_count.entry(choice.clone()).or_insert(0) += 1;
+        *node.choice_availability_count.entry(*choice).or_insert(0) += 1;
     }
 
     if node.is_root() {
@@ -147,8 +146,8 @@ fn expand(
         for choice in choices {
             if !node.children.contains_key(choice) {
                 node.children.insert(
-                    choice.clone(),
-                    MctsNode::new(active_player, Some(choice.clone())),
+                    *choice,
+                    MctsNode::new(active_player, Some(*choice)),
                 );
             }
         }
@@ -161,9 +160,9 @@ fn expand(
 
         if !unseen.is_empty() {
             unseen.shuffle(rng);
-            let choice = unseen[0].clone();
+            let choice = *unseen[0];
             node.children.insert(
-                choice.clone(),
+                choice,
                 MctsNode::new(active_player, Some(choice)),
             );
         }
@@ -172,16 +171,16 @@ fn expand(
 
 /// Select the child with the highest UCB1 value among available choices.
 /// Returns the chosen Choice (we need to look up the child mutably afterward).
-fn select_choice(node: &MctsNode, state: &GameState) -> Choice {
+fn select_choice(node: &MctsNode, choices: &[Choice]) -> Choice {
     node.children
         .iter()
-        .filter(|(choice, _)| choice_is_available(state, choice))
+        .filter(|(choice, _)| choices.contains(choice))
         .max_by(|(_, a), (_, b)| {
             let val_a = ucb1_value(node, a);
             let val_b = ucb1_value(node, b);
             val_a.partial_cmp(&val_b).unwrap()
         })
-        .map(|(choice, _)| choice.clone())
+        .map(|(choice, _)| *choice)
         .unwrap()
 }
 
