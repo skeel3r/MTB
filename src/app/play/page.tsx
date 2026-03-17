@@ -988,10 +988,9 @@ function PlayerSeat({
       onClick={onSelect}
       className="cursor-pointer rounded-xl p-3 transition-all border-2"
       style={isSelected
-        ? { borderColor: '#D4A847', background: 'rgba(212,168,71,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }
-        : { borderColor: '#8B5E3C', background: 'rgba(27,42,74,0.3)' }
+        ? { borderColor: '#D4A847', background: 'rgba(212,168,71,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '180px' }
+        : { borderColor: '#8B5E3C', background: 'rgba(27,42,74,0.3)', minWidth: '180px' }
       }
-      style={{ minWidth: '180px' }}
     >
       <GameBoard
         player={player}
