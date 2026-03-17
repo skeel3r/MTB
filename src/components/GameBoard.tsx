@@ -58,15 +58,15 @@ export default function GameBoard({
 
   return (
     <div className="inline-block">
-      <div className="text-sm font-bold mb-1 text-center text-amber-200 tracking-wide drop-shadow-md">{player.name}</div>
+      <div className="wpa-heading text-sm font-bold mb-1 text-center tracking-wide drop-shadow-md" style={{ color: '#D4A847' }}>{player.name}</div>
       <div
         className="relative rounded-lg overflow-hidden"
         style={{
           width: boardWidth + 8,
           height: boardHeight + 8,
           padding: '4px',
-          background: 'linear-gradient(180deg, #0f3a1c 0%, #1a5c2e 30%, #2a6b3a 50%, #1a5c2e 70%, #0a2812 100%)',
-          border: '3px solid #2a1a0a',
+          background: 'linear-gradient(180deg, #1A3A12 0%, #2D5016 30%, #3A6B35 50%, #2D5016 70%, #1A3A12 100%)',
+          border: '3px solid #D4A847',
           boxShadow: 'inset 0 0 30px rgba(0,0,0,0.4), 2px 3px 10px rgba(0,0,0,0.6)',
         }}
       >
@@ -87,7 +87,7 @@ export default function GameBoard({
                 y1={spotY(pos.row)}
                 x2={spotX(next.col)}
                 y2={spotY(next.row)}
-                stroke="rgba(180,160,120,0.3)"
+                stroke="rgba(212,168,71,0.3)"
                 strokeWidth={compact ? 3 : 4}
                 strokeLinecap="round"
                 strokeDasharray="6 4"
@@ -100,7 +100,7 @@ export default function GameBoard({
             y1={0}
             x2={spotX(2)}
             y2={boardHeight}
-            stroke="rgba(255,255,255,0.04)"
+            stroke="rgba(242,232,207,0.04)"
             strokeWidth={compact ? 14 : 20}
             strokeLinecap="round"
           />
@@ -155,23 +155,23 @@ export default function GameBoard({
                         background: hasToken
                           ? 'none'
                           : isValidSteerTarget
-                            ? 'radial-gradient(circle, rgba(59,130,246,0.25) 0%, transparent 70%)'
+                            ? 'radial-gradient(circle, rgba(107,173,224,0.25) 0%, transparent 70%)'
                             : isTarget
-                              ? 'radial-gradient(circle, rgba(212,175,55,0.2) 0%, transparent 70%)'
+                              ? 'radial-gradient(circle, rgba(212,168,71,0.2) 0%, transparent 70%)'
                               : isCenter
-                                ? 'radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%)'
+                                ? 'radial-gradient(circle, rgba(242,232,207,0.05) 0%, transparent 70%)'
                                 : 'none',
                         border: isValidSteerTarget
-                          ? '2px dashed rgba(96,165,250,0.6)'
+                          ? '2px dashed rgba(107,173,224,0.6)'
                           : isSelectedToken
-                            ? '2px solid rgba(250,204,21,0.7)'
+                            ? '2px solid rgba(212,168,71,0.7)'
                             : isTarget && !hasToken
-                              ? '1.5px dashed rgba(212,175,55,0.5)'
-                              : '1px solid rgba(255,255,255,0.06)',
+                              ? '1.5px dashed rgba(212,168,71,0.5)'
+                              : '1px solid rgba(242,232,207,0.06)',
                         boxShadow: isValidSteerTarget
-                          ? '0 0 8px rgba(59,130,246,0.3)'
+                          ? '0 0 8px rgba(107,173,224,0.3)'
                           : isSelectedToken
-                            ? '0 0 10px rgba(250,204,21,0.4)'
+                            ? '0 0 10px rgba(212,168,71,0.4)'
                             : 'none',
                       }}
                     >
@@ -182,11 +182,11 @@ export default function GameBoard({
                             width: spotSize - (compact ? 8 : 10),
                             height: spotSize - (compact ? 8 : 10),
                             background: isSelectedToken
-                              ? 'radial-gradient(circle at 35% 35%, #fde68a 0%, #facc15 40%, #ca8a04 100%)'
-                              : 'radial-gradient(circle at 35% 35%, #6ee7a0 0%, #10b981 40%, #047857 100%)',
-                            border: isSelectedToken ? '2px solid #fef08a' : '2px solid #a7f3d0',
+                              ? 'radial-gradient(circle at 35% 35%, #F2E8CF 0%, #D4A847 40%, #B8922E 100%)'
+                              : 'radial-gradient(circle at 35% 35%, #E07060 0%, #C35831 40%, #9A3A1A 100%)',
+                            border: isSelectedToken ? '2px solid #F2E8CF' : '2px solid #E0A090',
                             boxShadow: isSelectedToken
-                              ? '0 2px 10px rgba(250,204,21,0.6), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.4)'
+                              ? '0 2px 10px rgba(212,168,71,0.6), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.4)'
                               : '0 2px 6px rgba(0,0,0,0.5), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.3)',
                           }}
                         />
@@ -197,8 +197,8 @@ export default function GameBoard({
                           style={{
                             width: compact ? 10 : 14,
                             height: compact ? 10 : 14,
-                            background: 'rgba(96,165,250,0.4)',
-                            boxShadow: '0 0 8px rgba(59,130,246,0.3)',
+                            background: 'rgba(107,173,224,0.4)',
+                            boxShadow: '0 0 8px rgba(107,173,224,0.3)',
                           }}
                         />
                       )}
@@ -208,8 +208,8 @@ export default function GameBoard({
                           style={{
                             width: compact ? 8 : 10,
                             height: compact ? 8 : 10,
-                            background: 'rgba(212,175,55,0.4)',
-                            boxShadow: '0 0 4px rgba(212,175,55,0.3)',
+                            background: 'rgba(212,168,71,0.4)',
+                            boxShadow: '0 0 4px rgba(212,168,71,0.3)',
                           }}
                         />
                       )}
@@ -223,10 +223,10 @@ export default function GameBoard({
       </div>
       {/* Steer hint */}
       {steerEnabled && selectedSteerRow === null && (
-        <div className="text-[9px] text-center mt-1 text-blue-300/50">Click a token to steer</div>
+        <div className="text-[9px] text-center mt-1" style={{ color: 'rgba(107,173,224,0.5)' }}>Click a token to steer</div>
       )}
       {selectedSteerRow != null && (
-        <div className="text-[9px] text-center mt-1 text-yellow-300/70">Click adjacent cell to move &middot; Click token again to deselect</div>
+        <div className="text-[9px] text-center mt-1" style={{ color: 'rgba(212,168,71,0.7)' }}>Click adjacent cell to move &middot; Click token again to deselect</div>
       )}
     </div>
   );
@@ -238,21 +238,21 @@ export function PlayerStats({ player }: { player: PlayerState }) {
     <div
       className="rounded-lg p-3 text-sm space-y-1"
       style={{
-        background: 'linear-gradient(145deg, #3d2b1a 0%, #2a1c0e 50%, #1f150a 100%)',
-        border: '2px solid #5a3d20',
-        boxShadow: 'inset 0 1px 0 rgba(255,220,150,0.1), 2px 3px 8px rgba(0,0,0,0.5)',
+        background: 'linear-gradient(145deg, #2A1C0E 0%, #1F150A 50%, #150E06 100%)',
+        border: '2px solid #8B5E3C',
+        boxShadow: 'inset 0 1px 0 rgba(212,168,71,0.1), 2px 3px 8px rgba(0,0,0,0.5)',
       }}
     >
-      <div className="font-bold text-lg text-amber-200 drop-shadow-md">{player.name}</div>
+      <div className="wpa-heading font-bold text-lg drop-shadow-md" style={{ color: '#D4A847' }}>{player.name}</div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-        <StatRow label="Progress" value={player.progress} color="text-green-400" />
-        <StatRow label="Momentum" value={player.momentum} color="text-blue-400" />
-        <StatRow label="Flow" value={player.flow} color="text-purple-400" />
-        <StatRow label="Hazard Dice" value={player.hazardDice} color="text-red-400" />
-        <StatRow label="Actions" value={player.actionsRemaining} color="text-yellow-400" />
-        <StatRow label="Hand" value={player.hand.length} color="text-gray-300" />
-        <StatRow label="Penalties" value={player.penalties.length} color="text-orange-400" />
-        <StatRow label="Line" value={player.commitment === 'pro' ? 'PRO' : 'Main'} color={player.commitment === 'pro' ? 'text-red-400' : 'text-gray-300'} />
+        <StatRow label="Progress" value={player.progress} color="#7BC47F" />
+        <StatRow label="Momentum" value={player.momentum} color="#6BADE0" />
+        <StatRow label="Flow" value={player.flow} color="#B898D0" />
+        <StatRow label="Hazard Dice" value={player.hazardDice} color="#E07070" />
+        <StatRow label="Actions" value={player.actionsRemaining} color="#E0C860" />
+        <StatRow label="Hand" value={player.hand.length} color="#C0B8A8" />
+        <StatRow label="Penalties" value={player.penalties.length} color="#E0875C" />
+        <StatRow label="Line" value={player.commitment === 'pro' ? 'PRO' : 'Main'} color={player.commitment === 'pro' ? '#E07070' : '#C0B8A8'} />
       </div>
     </div>
   );
@@ -261,8 +261,8 @@ export function PlayerStats({ player }: { player: PlayerState }) {
 function StatRow({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
     <div className="flex justify-between">
-      <span style={{ color: '#b8a080' }}>{label}</span>
-      <span className={`font-mono font-bold ${color}`}>{value}</span>
+      <span style={{ color: '#A08A6A' }}>{label}</span>
+      <span className="font-mono font-bold" style={{ color }}>{value}</span>
     </div>
   );
 }
@@ -317,51 +317,46 @@ export function TrailCardDisplay({
   return (
     <div className="flex flex-col items-center gap-1">
       {label && (
-        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{label}</div>
+        <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#8A9A7A' }}>{label}</div>
       )}
       <div
         className="relative overflow-hidden"
         style={{
           width: `${cardWidth}px`,
           height: `${cardHeight}px`,
-          borderRadius: '12px',
-          border: '4px solid',
-          borderImage: 'linear-gradient(145deg, #6a3093, #a044ff, #3a0d6e) 1',
-          boxShadow: '0 4px 16px rgba(100,50,180,0.4), inset 0 0 0 2px rgba(60,140,255,0.5)',
+          borderRadius: '8px',
+          border: '3px solid #D4A847',
+          boxShadow: '0 4px 16px rgba(13,27,42,0.4), inset 0 0 0 1px rgba(212,168,71,0.3)',
         }}
       >
         {/* Inner dashed border */}
         <div
-          className="absolute inset-1 rounded-lg pointer-events-none z-10"
+          className="absolute inset-1 rounded-md pointer-events-none z-10"
           style={{
-            border: '2px dashed rgba(80,180,255,0.5)',
+            border: '1.5px dashed rgba(212,168,71,0.4)',
           }}
         />
 
-        {/* Forest trail background */}
+        {/* Forest landscape background — WPA poster style */}
         <div
           className="absolute inset-0"
           style={{
             background: `
               linear-gradient(180deg,
-                rgba(20,80,40,0.95) 0%,
-                rgba(40,100,50,0.85) 15%,
-                rgba(80,130,60,0.7) 30%,
-                rgba(140,120,70,0.8) 50%,
-                rgba(120,90,50,0.9) 65%,
-                rgba(80,60,30,0.95) 80%,
-                rgba(50,35,15,1) 100%
+                rgba(27,42,74,0.95) 0%,
+                rgba(58,107,53,0.9) 20%,
+                rgba(45,80,22,0.85) 40%,
+                rgba(92,61,46,0.8) 55%,
+                rgba(139,94,60,0.85) 70%,
+                rgba(92,61,46,0.95) 85%,
+                rgba(42,28,14,1) 100%
               )`,
           }}
         />
-        {/* Tree silhouettes at top */}
-        <div
-          className="absolute inset-x-0 top-0 h-16 pointer-events-none"
-          style={{
-            background: `
-              linear-gradient(180deg, rgba(10,40,15,0.9) 0%, transparent 100%)`,
-          }}
-        />
+        {/* Mountain silhouette at top */}
+        <svg className="absolute inset-x-0 top-0 w-full pointer-events-none" viewBox="0 0 140 40" preserveAspectRatio="none">
+          <path d="M0 40 L20 15 L50 30 L70 8 L100 25 L120 12 L140 40 Z" fill="rgba(13,27,42,0.7)" />
+        </svg>
         {/* Trail path line through middle */}
         <div
           className="absolute pointer-events-none"
@@ -370,7 +365,7 @@ export function TrailCardDisplay({
             left: '15%',
             right: '15%',
             height: '3px',
-            background: 'linear-gradient(90deg, transparent, rgba(200,180,140,0.6), rgba(200,180,140,0.4), transparent)',
+            background: 'linear-gradient(90deg, transparent, rgba(212,168,71,0.4), rgba(212,168,71,0.3), transparent)',
             borderRadius: '2px',
             transform: 'rotate(-5deg)',
           }}
@@ -382,7 +377,7 @@ export function TrailCardDisplay({
             left: '10%',
             right: '20%',
             height: '2px',
-            background: 'linear-gradient(90deg, transparent, rgba(180,160,120,0.4), rgba(180,160,120,0.3), transparent)',
+            background: 'linear-gradient(90deg, transparent, rgba(184,146,46,0.3), rgba(184,146,46,0.2), transparent)',
             borderRadius: '2px',
             transform: 'rotate(3deg)',
           }}
@@ -392,19 +387,19 @@ export function TrailCardDisplay({
         <div
           className={`absolute ${compact ? 'top-2 left-2' : 'top-3 left-3'} z-20 flex items-center gap-1`}
           style={{
-            background: 'rgba(0,100,200,0.9)',
+            background: 'rgba(27,42,74,0.9)',
             borderRadius: compact ? '4px' : '6px',
             padding: compact ? '2px 5px 2px 4px' : '3px 8px 3px 6px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-            border: '1px solid rgba(100,180,255,0.5)',
+            border: '1px solid rgba(212,168,71,0.5)',
           }}
         >
           {/* Mountain/chevron icon */}
           <svg width={compact ? 12 : 18} height={compact ? 10 : 14} viewBox="0 0 18 14" className="flex-shrink-0">
-            <path d="M2 12 L9 3 L16 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M6 12 L9 7 L12 12" fill="none" stroke="rgba(100,200,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 12 L9 3 L16 12" fill="none" stroke="#F2E8CF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M6 12 L9 7 L12 12" fill="none" stroke="rgba(212,168,71,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className={`text-white font-bold ${compact ? 'text-sm' : 'text-lg'} leading-none`}>{speedLimit}</span>
+          <span className={`font-bold ${compact ? 'text-sm' : 'text-lg'} leading-none`} style={{ color: '#F2E8CF' }}>{speedLimit}</span>
         </div>
 
         {/* Row check indicators - right side */}
@@ -413,13 +408,14 @@ export function TrailCardDisplay({
             <div key={row} className="relative flex items-center">
               {isChecked ? (
                 <div
-                  className={`flex items-center justify-center rounded-full font-bold text-white ${compact ? 'text-[9px]' : 'text-xs'}`}
+                  className={`flex items-center justify-center rounded-full font-bold ${compact ? 'text-[9px]' : 'text-xs'}`}
                   style={{
                     width: compact ? '18px' : '24px',
                     height: compact ? '18px' : '24px',
-                    background: 'radial-gradient(circle at 40% 35%, #4dd9f5, #00b4d8 60%, #0077b6)',
-                    boxShadow: '0 2px 8px rgba(0,180,220,0.6), inset 0 1px 2px rgba(255,255,255,0.4)',
-                    border: '1.5px solid rgba(200,240,255,0.6)',
+                    background: 'radial-gradient(circle at 40% 35%, #D4A847, #B8922E 60%, #8A6A1E)',
+                    boxShadow: '0 2px 8px rgba(212,168,71,0.5), inset 0 1px 2px rgba(255,255,255,0.3)',
+                    border: '1.5px solid rgba(242,232,207,0.6)',
+                    color: '#1B2A4A',
                   }}
                 >
                   {colLabel(targetLane)}
@@ -430,8 +426,8 @@ export function TrailCardDisplay({
                   style={{
                     width: '8px',
                     height: '8px',
-                    background: 'rgba(255,255,255,0.15)',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(242,232,207,0.15)',
+                    border: '1px solid rgba(242,232,207,0.1)',
                   }}
                 />
               )}
@@ -455,7 +451,7 @@ export function TrailCardDisplay({
                   y1={`${pos.yPct * 100}%`}
                   x2="14"
                   y2={`${next.yPct * 100}%`}
-                  stroke="rgba(80,200,240,0.5)"
+                  stroke="rgba(212,168,71,0.5)"
                   strokeWidth="2"
                   strokeDasharray="4 3"
                 />
@@ -468,11 +464,11 @@ export function TrailCardDisplay({
         <div
           className="absolute bottom-0 inset-x-0 z-20 text-center py-1.5 px-2"
           style={{
-            background: 'linear-gradient(0deg, rgba(0,0,0,0.85), rgba(0,0,0,0.5))',
+            background: 'linear-gradient(0deg, rgba(13,27,42,0.9), rgba(13,27,42,0.5))',
           }}
         >
-          <div className="text-white font-bold text-xs tracking-wide drop-shadow-md">{cardName}</div>
-          <div className="text-[9px] text-cyan-300/70">
+          <div className="wpa-heading font-bold text-xs tracking-wide drop-shadow-md" style={{ color: '#F2E8CF' }}>{cardName}</div>
+          <div className="text-[9px]" style={{ color: 'rgba(212,168,71,0.7)' }}>
             {cardCheckedRows.length} row{cardCheckedRows.length !== 1 ? 's' : ''} checked
           </div>
         </div>
@@ -493,7 +489,7 @@ export function HandDisplay({
   disabled?: boolean;
   activeObstacles?: ObstacleType[];
 }) {
-  if (hand.length === 0) return <div className="text-sm" style={{ color: '#8a7a6a' }}>No cards in hand</div>;
+  if (hand.length === 0) return <div className="text-sm" style={{ color: '#8B5E3C' }}>No cards in hand</div>;
 
   // Find which obstacle symbols are needed
   const neededSymbols = new Set<CardSymbol>();
@@ -534,7 +530,7 @@ export function HandDisplay({
               boxShadow: hasMatch
                 ? `0 0 12px ${SYMBOL_COLORS[cardSymbol]}90, 0 0 4px ${SYMBOL_COLORS[cardSymbol]}60`
                 : canPlay
-                  ? `0 4px 12px rgba(0,0,0,0.3)`
+                  ? `0 4px 12px rgba(13,27,42,0.3)`
                   : undefined,
               border: hasMatch ? `2px solid ${SYMBOL_COLORS[cardSymbol]}` : undefined,
             }}
@@ -574,18 +570,18 @@ export function HandDisplay({
               </span>
             </div>
             {/* Card name */}
-            <div className="font-bold text-xs leading-tight" style={{ color: '#1a1a1a' }}>
+            <div className="font-bold text-xs leading-tight" style={{ color: '#1B2A4A' }}>
               {cardName}
             </div>
             {/* Matching obstacle indicator */}
             {hasMatch && (
               <div className="flex flex-wrap gap-0.5 mt-1">
                 {matchingObs.map((obs, j) => (
-                  <div key={j} className="flex items-center gap-0.5 rounded px-1 py-0.5" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }}>
+                  <div key={j} className="flex items-center gap-0.5 rounded px-1 py-0.5" style={{ backgroundColor: 'rgba(27,42,74,0.08)' }}>
                     {getObstacleSymbols(obs).map((sym, k) => (
                       <span key={k} className="text-xs">{SYMBOL_EMOJI[sym]}</span>
                     ))}
-                    <span className="text-[8px]" style={{ color: '#444' }}>{getObstacleName(obs)}</span>
+                    <span className="text-[8px]" style={{ color: '#5C3D2E' }}>{getObstacleName(obs)}</span>
                   </div>
                 ))}
               </div>
@@ -594,7 +590,7 @@ export function HandDisplay({
             <div
               className={`text-[10px] leading-snug mt-auto rounded px-1 py-0.5 -mx-1 ${canPlay ? 'font-semibold' : ''}`}
               style={{
-                color: canPlay ? SYMBOL_COLORS[cardSymbol] : '#5a5040',
+                color: canPlay ? SYMBOL_COLORS[cardSymbol] : '#5C3D2E',
                 backgroundColor: canPlay ? `${SYMBOL_COLORS[cardSymbol]}12` : undefined,
               }}
             >

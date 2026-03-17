@@ -136,8 +136,8 @@ export default function PlayPage() {
     return (
       <div className="min-h-screen game-table text-white p-4 sm:p-8">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Treadline</h1>
-          <p className="text-emerald-300/60 mb-6">Set up your game</p>
+          <h1 className="wpa-heading text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#D4A847' }}>Treadline</h1>
+          <p className="mb-6" style={{ color: 'rgba(184,200,168,0.6)' }}>Set up your game</p>
 
           <div className="trail-card p-6 mb-6">
             <div className="space-y-3 mb-6">
@@ -150,7 +150,8 @@ export default function PlayPage() {
                       n[i] = e.target.value;
                       setPlayerNames(n);
                     }}
-                    className="flex-1 bg-black/30 border border-gray-600 rounded px-3 py-2 text-white"
+                    className="flex-1 bg-black/30 border rounded px-3 py-2 text-white"
+                    style={{ borderColor: '#3A6B35' }}
                     placeholder={`Player ${i + 1}`}
                   />
                   <button
@@ -159,11 +160,12 @@ export default function PlayPage() {
                       a[i] = !a[i];
                       setIsAI(a);
                     }}
-                    className={`px-3 py-2 rounded text-xs font-bold transition-colors ${
+                    className={`px-3 py-2 rounded text-xs font-bold transition-colors border ${
                       isAI[i]
-                        ? 'bg-cyan-700 hover:bg-cyan-600 text-cyan-100 border border-cyan-500'
-                        : 'bg-black/20 hover:bg-black/30 text-gray-400 border border-gray-600'
+                        ? 'text-white'
+                        : 'bg-black/20 hover:bg-black/30 text-gray-400'
                     }`}
+                    style={isAI[i] ? { background: '#2E6B62', borderColor: '#4A9A8E' } : { borderColor: '#3A6B35' }}
                   >
                     {isAI[i] ? 'AI' : 'Human'}
                   </button>
@@ -173,7 +175,8 @@ export default function PlayPage() {
                         setPlayerNames(playerNames.filter((_, j) => j !== i));
                         setIsAI(isAI.filter((_, j) => j !== i));
                       }}
-                      className="px-3 py-2 bg-red-900 rounded hover:bg-red-800"
+                      className="px-3 py-2 rounded hover:opacity-80"
+                      style={{ background: '#9A3A1A' }}
                     >
                       X
                     </button>
@@ -185,7 +188,8 @@ export default function PlayPage() {
             {playerNames.length < 6 && (
               <button
                 onClick={() => { setPlayerNames([...playerNames, `Rider ${playerNames.length + 1}`]); setIsAI([...isAI, false]); }}
-                className="w-full py-2 mb-4 bg-black/20 rounded hover:bg-black/30 border border-gray-600"
+                className="w-full py-2 mb-4 bg-black/20 rounded hover:bg-black/30 border"
+                style={{ borderColor: '#3A6B35', color: '#B8C8A8' }}
               >
                 + Add Player
               </button>
@@ -194,7 +198,7 @@ export default function PlayPage() {
 
           <button
             onClick={startGame}
-            className="w-full py-3 bg-emerald-700 rounded-lg font-bold text-lg hover:bg-emerald-600 transition-colors border border-emerald-500"
+            className="wpa-btn wpa-btn-primary w-full py-3 rounded-lg text-lg"
           >
             Start Game
           </button>
@@ -212,8 +216,8 @@ export default function PlayPage() {
     return (
       <div className="min-h-screen game-table text-white p-4 sm:p-8">
         <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-center">Game Over!</h1>
-          <p className="text-center text-emerald-400 text-lg sm:text-xl mb-6 sm:mb-8">
+          <h1 className="wpa-heading text-3xl sm:text-4xl font-bold mb-2 text-center" style={{ color: '#D4A847' }}>Game Over!</h1>
+          <p className="text-center text-lg sm:text-xl mb-6 sm:mb-8" style={{ color: '#7BC47F' }}>
             Winner: {standings[0].name}
           </p>
 
@@ -234,7 +238,7 @@ export default function PlayPage() {
               </thead>
               <tbody>
                 {standings.map(s => (
-                  <tr key={s.name} className={s.rank === 1 ? 'text-emerald-400 font-bold' : ''}>
+                  <tr key={s.name} className={s.rank === 1 ? 'font-bold' : ''} style={s.rank === 1 ? { color: '#D4A847' } : {}}>
                     <td className="py-1">{s.rank}</td>
                     <td>{s.name}</td>
                     <td className="text-center">{s.obstaclesCleared}</td>
@@ -253,7 +257,7 @@ export default function PlayPage() {
 
           <button
             onClick={() => setGame(null)}
-            className="mt-4 w-full py-3 bg-emerald-600 rounded-lg font-bold hover:bg-emerald-500"
+            className="wpa-btn wpa-btn-primary mt-4 w-full py-3 rounded-lg"
           >
             New Game
           </button>
@@ -274,10 +278,10 @@ export default function PlayPage() {
   return (
     <div className="min-h-screen game-table text-white flex flex-col overflow-auto">
       {/* Top bar - compact info strip */}
-      <div className="bg-black/50 border-b border-emerald-900/50 px-3 py-1.5 backdrop-blur-sm z-10 flex-shrink-0">
+      <div className="px-3 py-1.5 backdrop-blur-sm z-10 flex-shrink-0" style={{ background: 'rgba(13,27,42,0.7)', borderBottom: '2px solid #D4A847' }}>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-base sm:text-lg font-bold">Treadline</h1>
+            <h1 className="wpa-heading text-base sm:text-lg font-bold" style={{ color: '#D4A847' }}>Treadline</h1>
             <span className="text-xs text-gray-400">
               Round {game.round}/15 &middot; {PHASE_LABELS[game.phase]}
             </span>
@@ -287,7 +291,7 @@ export default function PlayPage() {
             {game.phase !== 'sprint' && (game.phase as string) !== 'game_over' && (
               <button
                 onClick={doAdvance}
-                className="px-3 py-1.5 bg-emerald-600 rounded font-bold text-xs hover:bg-emerald-500 transition-colors"
+                className="wpa-btn wpa-btn-primary px-3 py-1.5 rounded text-xs"
               >
                 Next Phase &rarr;
               </button>
@@ -295,7 +299,7 @@ export default function PlayPage() {
             {game.phase === 'sprint' && game.players.every(p => p.turnEnded || p.crashed) && (
               <button
                 onClick={doAdvance}
-                className="px-3 py-1.5 bg-emerald-600 rounded font-bold text-xs hover:bg-emerald-500 transition-colors"
+                className="wpa-btn wpa-btn-primary px-3 py-1.5 rounded text-xs"
               >
                 All done &rarr;
               </button>
@@ -333,7 +337,7 @@ export default function PlayPage() {
 
           {/* Trail Cards */}
           <div className="flex-shrink-0">
-            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Trail</h3>
+            <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#A08A6A' }}>Trail</h3>
             <div className="flex gap-2 items-start">
               <TrailCardDisplay card={game.activeTrailCard} label="Active" compact />
               <TrailCardDisplay card={game.queuedTrailCard} label="Next" compact />
@@ -455,7 +459,7 @@ export default function PlayPage() {
                       {canMatch ? (
                         <button
                           onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i } })}
-                          className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-emerald-700 hover:bg-emerald-600 transition-colors"
+                          className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold transition-colors text-white" style={{ background: '#3A6B35' }}
                         >
                           Match
                         </button>
@@ -463,7 +467,7 @@ export default function PlayPage() {
                       {canSendIt ? (
                         <button
                           onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                          className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-amber-700 hover:bg-amber-600 transition-colors"
+                          className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold transition-colors text-white" style={{ background: '#B8922E' }}
                           title="Spend 2 Momentum + 1 Hazard Die"
                         >
                           Send It (-{obsSendCost}M)
@@ -472,7 +476,7 @@ export default function PlayPage() {
                       {!canMatch && !canSendIt ? (
                         <button
                           onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                          className="w-full px-2 py-1.5 rounded text-[10px] font-bold bg-red-800 animate-pulse"
+                          className="w-full px-2 py-1.5 rounded text-[10px] font-bold animate-pulse text-white" style={{ background: '#9A3A1A' }}
                         >
                           CRASH
                         </button>
@@ -493,10 +497,10 @@ export default function PlayPage() {
 
           {/* Action Controls */}
           <div className="flex-1 min-w-[250px]">
-            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">
+            <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#A08A6A' }}>
               Actions &mdash; {currentPlayer.name}
               {game.phase === 'sprint' && (
-                <span className="text-yellow-400 ml-1">({currentPlayer.actionsRemaining} left)</span>
+                <span className="ml-1" style={{ color: '#D4A847' }}>({currentPlayer.actionsRemaining} left)</span>
               )}
             </h3>
 
@@ -508,23 +512,25 @@ export default function PlayPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => doAction({ type: 'commit_line', payload: { line: 'main' } })}
-                  className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 border border-gray-500"
+                  className="px-4 py-2 rounded-lg border"
+                  style={{ background: 'rgba(27,42,74,0.5)', borderColor: '#8B5E3C' }}
                 >
-                  <div className="font-bold text-sm">Main Line</div>
-                  <div className="text-[10px] text-gray-400">+1 Progress</div>
+                  <div className="font-bold text-sm" style={{ color: '#F2E8CF' }}>Main Line</div>
+                  <div className="text-[10px]" style={{ color: '#A08A6A' }}>+1 Progress</div>
                 </button>
                 <button
                   onClick={() => doAction({ type: 'commit_line', payload: { line: 'pro' } })}
-                  className="px-4 py-2 bg-red-900/50 rounded-lg hover:bg-red-900 border border-red-700"
+                  className="px-4 py-2 rounded-lg border"
+                  style={{ background: 'rgba(154,58,26,0.3)', borderColor: '#C35831' }}
                 >
-                  <div className="font-bold text-sm text-red-400">Pro Line</div>
-                  <div className="text-[10px] text-gray-400">+2 Prog, No Brake</div>
+                  <div className="font-bold text-sm" style={{ color: '#E07070' }}>Pro Line</div>
+                  <div className="text-[10px]" style={{ color: '#A08A6A' }}>+2 Prog, No Brake</div>
                 </button>
               </div>
             )}
 
             {game.phase === 'sprint' && hasPendingObstacle && (
-              <div className="text-yellow-400 text-xs font-bold mb-2 animate-pulse">
+              <div className="text-xs font-bold mb-2 animate-pulse" style={{ color: '#D4A847' }}>
                 Resolve the flipped obstacle before taking other actions!
               </div>
             )}
@@ -538,19 +544,22 @@ export default function PlayPage() {
                     label="Pedal (+1 Mtm)"
                     onClick={() => doAction({ type: 'pedal' })}
                     disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotPedal || currentPlayer.turnEnded}
-                    color="bg-blue-700 hover:bg-blue-600"
+                    color="text-white"
+                    style={{ background: '#1B2A4A', border: '1px solid #2E6B62' }}
                   />
                   <ActionButton
                     label="Brake (-1 Mtm)"
                     onClick={() => doAction({ type: 'brake' })}
                     disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotBrake || currentPlayer.commitment === 'pro' || currentPlayer.turnEnded}
-                    color="bg-orange-700 hover:bg-orange-600"
+                    color="text-white"
+                    style={{ background: '#C35831', border: '1px solid #9A3A1A' }}
                   />
                   <ActionButton
                     label="End Turn"
                     onClick={() => doAction({ type: 'end_turn' })}
                     disabled={hasPendingObstacle || currentPlayer.turnEnded}
-                    color="bg-gray-600 hover:bg-gray-500"
+                    color="text-white"
+                    style={{ background: '#5C3D2E', border: '1px solid #8B5E3C' }}
                   />
                 </div>
 
@@ -642,7 +651,7 @@ export default function PlayPage() {
 
             {/* Obstacles */}
             <div className="flex flex-col items-center gap-2">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Obstacles</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: '#A08A6A' }}>Obstacles</h3>
               <div className="flex gap-3 items-start">
                 {game.phase === 'sprint' && (
                   <button
@@ -704,16 +713,16 @@ export default function PlayPage() {
                       <div className="flex gap-1.5 mt-2 w-full flex-wrap">
                         {canMatch && (
                           <button onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i } })}
-                            className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-emerald-700 text-white hover:bg-emerald-600 transition-colors">Match</button>
+                            className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold text-white transition-colors" style={{ background: '#3A6B35' }}>Match</button>
                         )}
                         {canSendIt && (
                           <button onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                            className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-amber-700 text-white hover:bg-amber-600 transition-colors"
+                            className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold text-white transition-colors" style={{ background: '#B8922E' }}
                             title="Spend Momentum + 1 Hazard Die">Send It (-{obsSendCost}M)</button>
                         )}
                         {!canMatch && !canSendIt && (
                           <button onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                            className="w-full px-2 py-1.5 rounded text-[10px] font-bold bg-red-800 text-white animate-pulse">CRASH</button>
+                            className="w-full px-2 py-1.5 rounded text-[10px] font-bold text-white animate-pulse" style={{ background: '#9A3A1A' }}>CRASH</button>
                         )}
                       </div>
                     </div>
@@ -733,7 +742,7 @@ export default function PlayPage() {
               <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">
                 Actions &mdash; {currentPlayer.name}
                 {game.phase === 'sprint' && (
-                  <span className="text-amber-600 ml-1">({currentPlayer.actionsRemaining} left)</span>
+                  <span className="ml-1" style={{ color: '#D4A847' }}>({currentPlayer.actionsRemaining} left)</span>
                 )}
               </h3>
 
@@ -744,20 +753,22 @@ export default function PlayPage() {
               {game.phase === 'commitment' && (
                 <div className="flex gap-2">
                   <button onClick={() => doAction({ type: 'commit_line', payload: { line: 'main' } })}
-                    className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 border border-gray-300">
-                    <div className="font-bold text-sm text-gray-800">Main Line</div>
-                    <div className="text-[10px] text-gray-500">+1 Progress</div>
+                    className="px-4 py-2 rounded-lg border"
+                    style={{ background: 'rgba(27,42,74,0.5)', borderColor: '#8B5E3C' }}>
+                    <div className="font-bold text-sm" style={{ color: '#F2E8CF' }}>Main Line</div>
+                    <div className="text-[10px]" style={{ color: '#A08A6A' }}>+1 Progress</div>
                   </button>
                   <button onClick={() => doAction({ type: 'commit_line', payload: { line: 'pro' } })}
-                    className="px-4 py-2 bg-red-50 rounded-lg hover:bg-red-100 border border-red-300">
-                    <div className="font-bold text-sm text-red-600">Pro Line</div>
-                    <div className="text-[10px] text-gray-500">+2 Prog, No Brake</div>
+                    className="px-4 py-2 rounded-lg border"
+                    style={{ background: 'rgba(154,58,26,0.3)', borderColor: '#C35831' }}>
+                    <div className="font-bold text-sm" style={{ color: '#E07070' }}>Pro Line</div>
+                    <div className="text-[10px]" style={{ color: '#A08A6A' }}>+2 Prog, No Brake</div>
                   </button>
                 </div>
               )}
 
               {game.phase === 'sprint' && hasPendingObstacle && (
-                <div className="text-amber-600 text-xs font-bold mb-2 animate-pulse">
+                <div className="text-xs font-bold mb-2 animate-pulse" style={{ color: '#D4A847' }}>
                   Resolve the flipped obstacle before taking other actions!
                 </div>
               )}
@@ -767,13 +778,13 @@ export default function PlayPage() {
                   <div className="flex flex-wrap gap-2">
                     <ActionButton label="Pedal (+1 Mtm)" onClick={() => doAction({ type: 'pedal' })}
                       disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotPedal || currentPlayer.turnEnded}
-                      color="bg-blue-600 text-white hover:bg-blue-500" />
+                      color="text-white" style={{ background: '#1B2A4A', border: '1px solid #2E6B62' }} />
                     <ActionButton label="Brake (-1 Mtm)" onClick={() => doAction({ type: 'brake' })}
                       disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotBrake || currentPlayer.commitment === 'pro' || currentPlayer.turnEnded}
-                      color="bg-orange-600 text-white hover:bg-orange-500" />
+                      color="text-white" style={{ background: '#C35831', border: '1px solid #9A3A1A' }} />
                     <ActionButton label="End Turn" onClick={() => doAction({ type: 'end_turn' })}
                       disabled={hasPendingObstacle || currentPlayer.turnEnded}
-                      color="bg-gray-500 text-white hover:bg-gray-400" />
+                      color="text-white" style={{ background: '#5C3D2E', border: '1px solid #8B5E3C' }} />
                   </div>
                   {currentPlayer.flow > 0 && (
                     <div>
@@ -817,7 +828,7 @@ export default function PlayPage() {
                                 ))}
                               </div>
                               {hr.penaltyDrawn && <span className="text-red-500 text-xs font-bold">Penalty: {hr.penaltyDrawn}</span>}
-                              {!hr.penaltyDrawn && hr.rolls.length > 0 && <span className="text-emerald-600 text-xs">Safe!</span>}
+                              {!hr.penaltyDrawn && hr.rolls.length > 0 && <span className="text-xs" style={{ color: '#7BC47F' }}>Safe!</span>}
                             </div>
                           )}
                         </div>
@@ -845,9 +856,9 @@ export default function PlayPage() {
                               className={`text-left p-1.5 text-[10px] transition-colors ${
                                 owned ? 'upgrade-card opacity-60' : canAfford ? 'upgrade-card' : 'upgrade-card opacity-40'
                               }`}>
-                              <div className="font-bold">{props.name} <span className="text-amber-500">({props.flowCost}F)</span></div>
+                              <div className="font-bold">{props.name} <span className="text-[#D4A847]">({props.flowCost}F)</span></div>
                               <div className="text-gray-400">{props.description}</div>
-                              {owned && <div className="text-emerald-500 text-[9px]">Owned</div>}
+                              {owned && <div className="text-[9px]" style={{ color: '#7BC47F' }}>Owned</div>}
                             </button>
                           );
                         })}
@@ -904,7 +915,7 @@ export default function PlayPage() {
         <div className="flex flex-wrap gap-3 flex-shrink-0">
           {/* Player's Hand */}
           <div className="flex-1 min-w-[250px]">
-            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">
+            <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#A08A6A' }}>
               {currentPlayer.name}&apos;s Hand
               {game.phase === 'sprint' && <span className="text-gray-600 normal-case"> (Click to play = 1 Action)</span>}
             </h3>
@@ -919,7 +930,7 @@ export default function PlayPage() {
           {/* Penalties - shown for all players who have any */}
           {game.players.some(p => p.penalties.length > 0) && (
             <div className="min-w-[180px]">
-              <h3 className="text-xs font-bold mb-2 text-orange-400 uppercase tracking-wider">Penalty Cards</h3>
+              <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#E0875C' }}>Penalty Cards</h3>
               {game.players.map(player => {
                 if (player.penalties.length === 0) return null;
                 return (
@@ -929,15 +940,10 @@ export default function PlayPage() {
                       {player.penalties.map((pen, i) => (
                         <div
                           key={i}
-                          className="rounded-lg px-2.5 py-2 text-xs"
-                          style={{
-                            background: 'linear-gradient(135deg, #4a1a0a 0%, #2a0a00 100%)',
-                            border: '2px solid #8b4513',
-                            boxShadow: '0 2px 6px rgba(139,69,19,0.4), inset 0 1px 0 rgba(255,200,100,0.1)',
-                          }}
+                          className="penalty-card rounded-lg px-2.5 py-2 text-xs"
                         >
-                          <div className="font-bold text-orange-300">{getPenaltyName(pen)}</div>
-                          <div className="text-orange-200/60 text-[10px] mt-0.5">{getPenaltyDescription(pen)}</div>
+                          <div className="font-bold" style={{ color: '#D4A847' }}>{getPenaltyName(pen)}</div>
+                          <div className="text-[10px] mt-0.5" style={{ color: 'rgba(240,216,128,0.6)' }}>{getPenaltyDescription(pen)}</div>
                         </div>
                       ))}
                     </div>
@@ -949,7 +955,7 @@ export default function PlayPage() {
 
           {/* Game Log */}
           <div className="min-w-[180px] w-full sm:w-auto sm:max-w-[280px]">
-            <h3 className="text-xs font-bold mb-1 text-gray-400 uppercase tracking-wider">Game Log</h3>
+            <h3 className="text-xs font-bold mb-1 uppercase tracking-wider" style={{ color: '#A08A6A' }}>Game Log</h3>
             <div className="h-28">
               <GameLog log={game.log} />
             </div>
@@ -980,11 +986,11 @@ function PlayerSeat({
   return (
     <div
       onClick={onSelect}
-      className={`cursor-pointer rounded-xl p-3 transition-all border-2 ${
-        isSelected
-          ? 'border-emerald-500 bg-emerald-50 shadow-md'
-          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
-      }`}
+      className="cursor-pointer rounded-xl p-3 transition-all border-2"
+      style={isSelected
+        ? { borderColor: '#D4A847', background: 'rgba(212,168,71,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }
+        : { borderColor: '#8B5E3C', background: 'rgba(27,42,74,0.3)' }
+      }
       style={{ minWidth: '180px' }}
     >
       <GameBoard
@@ -999,14 +1005,14 @@ function PlayerSeat({
       />
       {/* Mini stats under each board */}
       <div className="grid grid-cols-4 gap-1 mt-2 text-center text-[10px]">
-        <div><span className="text-emerald-600 font-bold">{player.progress}</span> <span className="text-gray-400">Prog</span></div>
-        <div><span className="text-blue-600 font-bold">{player.momentum}</span> <span className="text-gray-400">Mtm</span></div>
-        <div><span className="text-purple-600 font-bold">{player.flow}</span> <span className="text-gray-400">Flow</span></div>
-        <div><span className="text-red-500 font-bold">{player.hazardDice}</span> <span className="text-gray-400">Haz</span></div>
+        <div><span className="font-bold" style={{ color: '#7BC47F' }}>{player.progress}</span> <span style={{ color: '#A08A6A' }}>Prog</span></div>
+        <div><span className="font-bold" style={{ color: '#6BADE0' }}>{player.momentum}</span> <span style={{ color: '#A08A6A' }}>Mtm</span></div>
+        <div><span className="font-bold" style={{ color: '#B898D0' }}>{player.flow}</span> <span style={{ color: '#A08A6A' }}>Flow</span></div>
+        <div><span className="font-bold" style={{ color: '#E07070' }}>{player.hazardDice}</span> <span style={{ color: '#A08A6A' }}>Haz</span></div>
       </div>
       {/* Line commitment indicator */}
       {player.commitment && (
-        <div className={`text-center text-[9px] mt-1 font-bold ${player.commitment === 'pro' ? 'text-red-500' : 'text-gray-400'}`}>
+        <div className="text-center text-[9px] mt-1 font-bold" style={{ color: player.commitment === 'pro' ? '#E07070' : '#A08A6A' }}>
           {player.commitment === 'pro' ? 'PRO LINE' : 'Main Line'}
         </div>
       )}
@@ -1019,17 +1025,20 @@ function ActionButton({
   onClick,
   disabled,
   color,
+  style,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
   color: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`px-3 py-1.5 rounded-lg font-bold text-xs ${color} disabled:opacity-30 disabled:cursor-not-allowed transition-colors`}
+      className={`wpa-btn px-3 py-1.5 rounded-lg text-xs ${color} disabled:opacity-30 disabled:cursor-not-allowed`}
+      style={style}
     >
       {label}
     </button>
@@ -1053,13 +1062,14 @@ function FlowButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="text-left p-2 rounded-lg bg-purple-900/60 hover:bg-purple-800/70 border border-purple-600/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      className="text-left p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      style={{ background: 'rgba(46,107,98,0.4)', border: '1px solid rgba(74,154,142,0.4)' }}
     >
       <div className="flex items-center justify-between mb-0.5">
-        <span className="font-bold text-xs text-purple-200">{label}</span>
-        <span className="text-[10px] font-mono text-purple-400">{cost}F</span>
+        <span className="font-bold text-xs" style={{ color: '#B8DDD8' }}>{label}</span>
+        <span className="text-[10px] font-mono" style={{ color: '#D4A847' }}>{cost}F</span>
       </div>
-      <div className="text-[9px] text-purple-300/60 leading-tight">{description}</div>
+      <div className="text-[9px] leading-tight" style={{ color: 'rgba(184,221,216,0.5)' }}>{description}</div>
     </button>
   );
 }
