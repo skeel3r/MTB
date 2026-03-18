@@ -66,7 +66,6 @@ fn shift_away_from_center(grid: &mut [Vec<bool>], row: usize) {
 // ── Crash ──
 
 /// Crash a player: reset grid to center, lose 3 momentum, draw penalty, end turn.
-/// Pro Line crashes draw 2 penalty cards instead of 1.
 pub fn crash(
     player: &mut PlayerState,
     penalty_deck: &mut VecDeque<PenaltyType>,
@@ -80,11 +79,8 @@ pub fn crash(
         player.grid[r][2] = true;
     }
     player.momentum = (player.momentum - 3).max(0);
-    let penalty_count = if player.commitment == Commitment::Pro { 2 } else { 1 };
-    for _ in 0..penalty_count {
-        if let Some(pen) = penalty_deck.pop_front() {
-            player.penalties.push(pen);
-        }
+    if let Some(pen) = penalty_deck.pop_front() {
+        player.penalties.push(pen);
     }
     player.crashed = true;
     player.turn_ended = true;
@@ -330,9 +326,9 @@ fn reveal_obstacle(state: &mut GameState, player_id: &str, obstacle: ObstacleTyp
 pub fn get_standings(state: &GameState) -> Vec<(usize, &PlayerState)> {
     let mut indexed: Vec<(usize, &PlayerState)> = state.players.iter().enumerate().collect();
     indexed.sort_by(|(_, a), (_, b)| {
-        b.obstacles_cleared
-            .cmp(&a.obstacles_cleared)
-            .then(b.progress.cmp(&a.progress))
+        b.progress
+            .cmp(&a.progress)
+            .then(b.obstacles_cleared.cmp(&a.obstacles_cleared))
             .then(b.perfect_matches.cmp(&a.perfect_matches))
             .then(a.penalties.len().cmp(&b.penalties.len()))
             .then(b.flow.cmp(&a.flow))

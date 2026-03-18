@@ -209,13 +209,6 @@ function drawPenalty(state: GameState, player: PlayerState): void {
   if (pen === 'snapped_brake') player.cannotBrake = true;
 }
 
-/** Draw crash penalty cards. Pro Line draws 2, Main Line draws 1. */
-function drawCrashPenalties(state: GameState, player: PlayerState): void {
-  const count = player.commitment === 'pro' ? 2 : 1;
-  for (let i = 0; i < count; i++) {
-    drawPenalty(state, player);
-  }
-}
 
 // ── Draw cards from technique deck ──
 function drawCards(state: GameState, count: number): TechniqueType[] {
@@ -596,7 +589,7 @@ function executeReckoning(state: GameState): GameState {
       }
       // Draw an extra penalty card for crashing
       s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) \u2014 Tokens reset to center.`);
-      drawCrashPenalties(s, player);
+      drawPenalty(s, player);
       // Lose momentum on crash
       player.momentum = Math.max(0, player.momentum - 3);
     }
@@ -1060,7 +1053,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
-        drawCrashPenalties(s, player);
+        drawPenalty(s, player);
       }
 
       s.activeObstacles.splice(obstacleIndex, 1);
@@ -1072,7 +1065,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.crashed = true;
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
-        drawCrashPenalties(s, player);
+        drawPenalty(s, player);
         player.momentum = Math.max(0, player.momentum - 3);
         s.log.push(`${player.name}: CRASH from hazard dice! Reset to center, penalty card drawn.`);
       }
@@ -1099,7 +1092,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
-        drawCrashPenalties(s, player);
+        drawPenalty(s, player);
         s.activeObstacles.splice(sendObstacleIdx, 1);
         revealObstacle(s, player.id, crashObs);
         s.obstacleDiscard.push(crashObs);
@@ -1138,7 +1131,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
-        drawCrashPenalties(s, player);
+        drawPenalty(s, player);
         s.log.push(`${player.name}: CRASH from hazard dice! Reset to center.`);
       }
       break;
@@ -1273,9 +1266,9 @@ export function getWinner(state: GameState): PlayerState | null {
 export function getStandings(state: GameState) {
   return [...state.players]
     .sort((a, b) => {
-      // Primary: most obstacles cleared wins
-      if (b.obstaclesCleared !== a.obstaclesCleared) return b.obstaclesCleared - a.obstaclesCleared;
+      // Primary: most progress wins
       if (b.progress !== a.progress) return b.progress - a.progress;
+      if (b.obstaclesCleared !== a.obstaclesCleared) return b.obstaclesCleared - a.obstaclesCleared;
       if (b.perfectMatches !== a.perfectMatches) return b.perfectMatches - a.perfectMatches;
       if (a.penalties.length !== b.penalties.length) return a.penalties.length - b.penalties.length;
       if (b.flow !== a.flow) return b.flow - a.flow;

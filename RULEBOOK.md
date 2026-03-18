@@ -54,7 +54,7 @@ Each player chooses a **line** for this round:
 | Line | Benefit | Restriction |
 |------|---------|-------------|
 | **Main Line** | +1 Progress when obstacles matched | Normal play |
-| **Pro Line** | +2 Progress when obstacles matched | Cannot Brake; extra +1 Hazard Die on Send It; crash draws 2 penalty cards |
+| **Pro Line** | +2 Progress when obstacles matched | Cannot Brake; extra +1 Hazard Die on Send It |
 
 ### Phase 3: Environment
 
@@ -229,7 +229,7 @@ If you cannot match the obstacle with cards (including wilds) **and** cannot or 
 
 1. All tokens reset to **center (C3)**
 2. Lose **3 Momentum**
-3. Draw **1 Penalty Card** (or **2 Penalty Cards** on Pro Line)
+3. Draw **1 Penalty Card**
 4. **+1 Hazard Die**
 5. Your turn ends immediately
 
@@ -258,7 +258,7 @@ If you cannot match the obstacle with cards (including wilds) **and** cannot or 
 
 ## Penalty Cards
 
-Drawn when rolling a 6 during Reckoning or from crashing. Pro Line crashes draw 2 penalty cards. Each represents mechanical damage. **2 copies** of each in the deck.
+Drawn when rolling a 6 during Reckoning or from crashing. Each represents mechanical damage. **2 copies** of each in the deck.
 
 | Penalty | Effect |
 |---------|--------|
@@ -381,10 +381,10 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 
 ## Winning the Game
 
-After 15 rounds, the player with the most **obstacles cleared** wins.
+After 15 rounds, the player with the most **progress** wins.
 
 **Tiebreakers** (in order):
-1. Most progress points
+1. Most obstacles cleared
 2. Most perfect alignment matches
 3. Fewest penalty cards
 4. Most Flow remaining
