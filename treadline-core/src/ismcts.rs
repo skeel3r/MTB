@@ -83,83 +83,62 @@ pub fn ismcts_with_policy(
         .unwrap_or(Choice::EndTurn)
 }
 
-/// One ISMCTS iteration: select → expand → rollout, then backpropagate.
-/// Uses an iterative descent with an explicit path stack instead of recursion
-/// to avoid stack overflow at high iteration counts.
+/// One ISMCTS iteration: select, expand, rollout/recurse, backpropagate.
 fn iteration(
-    root: &mut MctsNode,
+    node: &mut MctsNode,
     state: &mut GameState,
     policy: RolloutPolicy,
     rng: &mut impl Rng,
 ) -> Vec<f64> {
-    // Path of choices taken during descent (for backpropagation)
-    let mut path: Vec<Choice> = Vec::new();
+    // Terminal check
+    if state.phase == GamePhase::GameOver {
+        let rewards = compute_terminal_rewards(state);
+        record_outcome(node, &rewards);
+        return rewards;
+    }
 
-    // --- Descent phase: walk down the tree selecting children ---
-    let mut current = root as *mut MctsNode;
-    loop {
-        let node = unsafe { &mut *current };
+    // Get legal choices in this state
+    let choices = enumerate_choices(state);
 
-        // Terminal check
-        if state.phase == GamePhase::GameOver {
-            let rewards = compute_terminal_rewards(state);
-            record_outcome(node, &rewards);
-            backpropagate(root, &path, &rewards);
-            return rewards;
-        }
-
-        // Get legal choices
-        let choices = enumerate_choices(state);
-
-        // No choices: advance through non-decision phases
-        if choices.is_empty() {
-            advance_phase(state, rng);
-            advance_to_decision_phase(state, rng);
-            continue;
-        }
-
-        // Expand
-        expand(node, state, &choices, rng);
-
-        // Select best child
-        let chosen_choice = select_choice(node, &choices);
-        let current_player = state.current_player_index;
-
-        // Refine and apply
-        let concrete_choice = refine_choice(state, &chosen_choice, rng);
-        process_action(state, current_player, &concrete_choice, rng);
+    // If no choices available (non-decision phase), advance and recurse
+    if choices.is_empty() {
+        advance_phase(state, rng);
+        // Continue advancing through non-decision phases
         advance_to_decision_phase(state, rng);
-
-        // Get child
-        let child = node.children.get_mut(&chosen_choice).unwrap();
-
-        if child.games == 0.0 {
-            // Leaf node: rollout
-            let rewards = rollout(state, MAX_ROLLOUT_STEPS, policy, rng);
-            record_outcome(child, &rewards);
-            record_outcome(node, &rewards);
-            backpropagate(root, &path, &rewards);
-            return rewards;
-        }
-
-        // Internal node: continue descent
-        path.push(chosen_choice);
-        current = child as *mut MctsNode;
+        return iteration(node, state, policy, rng);
     }
-}
 
-/// Walk back up the path and record the outcome at each ancestor.
-fn backpropagate(root: &mut MctsNode, path: &[Choice], rewards: &[f64]) {
-    record_outcome(root, rewards);
-    let mut node = root;
-    for choice in path {
-        if let Some(child) = node.children.get_mut(choice) {
-            record_outcome(child, rewards);
-            node = child;
-        } else {
-            break;
-        }
-    }
+    // Expand
+    expand(node, state, &choices, rng);
+
+    // Select best child
+    let chosen_choice = select_choice(node, &choices);
+    let current_player = state.current_player_index;
+
+    // Refine abstract choices (SteerBest, TechniqueBest) into concrete ones
+    let concrete_choice = refine_choice(state, &chosen_choice, rng);
+
+    // Apply the concrete action
+    process_action(state, current_player, &concrete_choice, rng);
+
+    // Auto-advance through non-decision phases
+    advance_to_decision_phase(state, rng);
+
+    // Get mutable reference to the child
+    let child = node.children.get_mut(&chosen_choice).unwrap();
+
+    let rewards = if child.games == 0.0 {
+        // Leaf node: rollout
+        let rewards = rollout(state, MAX_ROLLOUT_STEPS, policy, rng);
+        record_outcome(child, &rewards);
+        rewards
+    } else {
+        // Internal node: recurse
+        iteration(child, state, policy, rng)
+    };
+
+    record_outcome(node, &rewards);
+    rewards
 }
 
 /// Expand the node by adding unseen children.
