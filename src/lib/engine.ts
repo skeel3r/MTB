@@ -506,9 +506,9 @@ function executeAlignment(state: GameState): GameState {
     }
 
     if (allPerfect && checkedRows.length > 0) {
-      player.flow++;
+      player.flow += checkedRows.length;
       player.perfectMatches++;
-      s.log.push(`${player.name}: Perfect alignment! +1 Flow`);
+      s.log.push(`${player.name}: Perfect alignment! +${checkedRows.length} Flow`);
     } else if (!anyPenalty) {
       s.log.push(`${player.name}: Alignment OK (no penalties)`);
     }

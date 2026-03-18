@@ -1093,7 +1093,7 @@ fn execute_alignment(state: &mut GameState) {
         }
 
         if all_perfect && !checked_rows.is_empty() {
-            player.flow += 1;
+            player.flow += checked_rows.len() as i32;
             player.perfect_matches += 1;
         }
     }
