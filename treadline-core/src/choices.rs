@@ -227,6 +227,10 @@ fn enumerate_stage_break_choices(state: &GameState) -> Vec<Choice> {
     // Check each upgrade for affordability and not already owned
     for &upgrade in UpgradeType::all() {
         if player.flow >= upgrade.flow_cost() && !player.upgrades.contains(&upgrade) {
+            // Factory Suspension only useful on Pro Line — skip if player committed Main this round
+            if upgrade == UpgradeType::FactorySuspension && player.commitment != Commitment::Pro {
+                continue;
+            }
             choices.push(Choice::BuyUpgrade { upgrade });
         }
     }
