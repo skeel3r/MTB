@@ -1,4 +1,4 @@
-/* @ts-self-types="./descenders_wasm.d.ts" */
+/* @ts-self-types="./treadline_wasm.d.ts" */
 
 /**
  * Get all legal actions for the current player as a JSON array of GameAction.
@@ -64,7 +64,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./descenders_wasm_bg.js": import0,
+        "./treadline_wasm_bg.js": import0,
     };
 }
 
@@ -224,7 +224,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('descenders_wasm_bg.wasm', import.meta.url);
+        module_or_path = new URL('treadline_wasm_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

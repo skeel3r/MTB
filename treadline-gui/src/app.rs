@@ -63,7 +63,7 @@ impl DescendersGuiApp {
         app
     }
 
-    fn filtered_logs(&self) -> Vec<&descenders_core::types::GameRunOutput> {
+    fn filtered_logs(&self) -> Vec<&treadline_core::types::GameRunOutput> {
         if self.selected_batch == "all" {
             self.tagged_logs.iter().map(|t| &t.log).collect()
         } else {
@@ -189,7 +189,7 @@ impl eframe::App for DescendersGuiApp {
 
                     if self.tagged_logs.is_empty() {
                         ui.add_space(20.0);
-                        ui.label("No game logs found. Run descenders-runner to generate logs in game-logs/");
+                        ui.label("No game logs found. Run treadline-runner to generate logs in game-logs/");
                         return;
                     }
 

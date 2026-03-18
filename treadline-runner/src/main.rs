@@ -5,16 +5,16 @@ use clap::Parser;
 use rand::prelude::*;
 use wyrand::WyRand;
 
-use descenders_core::choices::enumerate_choices;
-use descenders_core::engine::{advance_phase, init_game, process_action};
-use descenders_core::ismcts::ismcts;
-use descenders_core::scoring::compute_terminal_rewards;
-use descenders_core::types::*;
+use treadline_core::choices::enumerate_choices;
+use treadline_core::engine::{advance_phase, init_game, process_action};
+use treadline_core::ismcts::ismcts;
+use treadline_core::scoring::compute_terminal_rewards;
+use treadline_core::types::*;
 
 // ── CLI ──
 
 #[derive(Parser)]
-#[command(name = "descenders-runner", about = "Run batch game simulations with ISMCTS AI")]
+#[command(name = "treadline-runner", about = "Run batch game simulations with ISMCTS AI")]
 struct Args {
     /// Total number of games to run
     #[arg(long, default_value_t = 100)]

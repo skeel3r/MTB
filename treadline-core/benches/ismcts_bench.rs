@@ -1,9 +1,9 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use wyrand::WyRand;
 
-use descenders_core::engine::{advance_phase, init_game, process_action};
-use descenders_core::ismcts::ismcts;
-use descenders_core::types::*;
+use treadline_core::engine::{advance_phase, init_game, process_action};
+use treadline_core::ismcts::ismcts;
+use treadline_core::types::*;
 
 fn setup_commitment_game(num_players: usize) -> GameState {
     let mut rng = WyRand::new(42);

@@ -1,10 +1,10 @@
 [package]
-name = "descenders-gui"
+name = "treadline-gui"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-descenders-core = { path = "../descenders-core" }
+treadline-core = { path = "../treadline-core" }
 eframe = "0.33"
 egui_extras = { version = "0.33", features = ["default"] }
 egui_plot = "0.34"

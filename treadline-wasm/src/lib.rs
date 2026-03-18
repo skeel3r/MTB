@@ -1,9 +1,9 @@
 use wasm_bindgen::prelude::*;
 use wyrand::WyRand;
 
-use descenders_core::types::*;
-use descenders_core::ismcts::ismcts;
-use descenders_core::choices::enumerate_choices;
+use treadline_core::types::*;
+use treadline_core::ismcts::ismcts;
+use treadline_core::choices::enumerate_choices;
 
 /// Run ISMCTS from the given game state and return a GameAction JSON string.
 #[wasm_bindgen]

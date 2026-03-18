@@ -1,14 +1,14 @@
 {
-  "name": "descenders-wasm",
+  "name": "treadline-wasm",
   "type": "module",
   "version": "0.1.0",
   "files": [
-    "descenders_wasm_bg.wasm",
-    "descenders_wasm.js",
-    "descenders_wasm.d.ts"
+    "treadline_wasm_bg.wasm",
+    "treadline_wasm.js",
+    "treadline_wasm.d.ts"
   ],
-  "main": "descenders_wasm.js",
-  "types": "descenders_wasm.d.ts",
+  "main": "treadline_wasm.js",
+  "types": "treadline_wasm.d.ts",
   "sideEffects": [
     "./snippets/*"
   ]

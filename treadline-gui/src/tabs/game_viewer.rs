@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use eframe::egui;
-use descenders_core::types::GameRunOutput;
+use treadline_core::types::GameRunOutput;
 
 pub struct GameViewerState {
     loaded_game: Option<GameRunOutput>,

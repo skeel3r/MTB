@@ -1,6 +1,6 @@
 /// Web Worker for running ISMCTS via WASM
 
-import init, { wasm_run_ismcts, wasm_get_legal_actions } from './wasm-pkg/descenders_wasm.js';
+import init, { wasm_run_ismcts, wasm_get_legal_actions } from './wasm-pkg/treadline_wasm.js';
 
 let initialized = false;
 

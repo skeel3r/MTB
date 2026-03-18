@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use descenders_core::types::{Choice, Commitment, GameRunOutput};
+use treadline_core::types::{Choice, Commitment, GameRunOutput};
 
 /// All computed analysis results, cached until logs change.
 pub struct AnalysisResults {

@@ -1,11 +1,11 @@
 import { describe, bench } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { initSync, wasm_run_ismcts } from './wasm-pkg/descenders_wasm';
+import { initSync, wasm_run_ismcts } from './wasm-pkg/treadline_wasm';
 import { setupCommitmentGame, setupSprintGame } from './benchHelper';
 
 // Initialize WASM synchronously for Node.js (vitest) environment
-const wasmPath = resolve(__dirname, './wasm-pkg/descenders_wasm_bg.wasm');
+const wasmPath = resolve(__dirname, './wasm-pkg/treadline_wasm_bg.wasm');
 const wasmBytes = readFileSync(wasmPath);
 initSync({ module: new WebAssembly.Module(wasmBytes) });
 

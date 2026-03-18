@@ -17,7 +17,7 @@ let wasmRunIsmcts: ((json: string, player: number, iters: number) => string) | n
 export async function ensureMctsWasm() {
   if (wasmInitialized) return;
   try {
-    const wasm = await import('../ai/wasm-pkg/descenders_wasm.js');
+    const wasm = await import('../ai/wasm-pkg/treadline_wasm.js');
     await wasm.default();
     wasmRunIsmcts = wasm.wasm_run_ismcts;
     wasmInitialized = true;

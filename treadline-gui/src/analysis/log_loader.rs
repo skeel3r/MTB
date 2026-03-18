@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
-use descenders_core::types::GameRunOutput;
+use treadline_core::types::GameRunOutput;
 use regex::Regex;
 
 pub struct TaggedGameLog {

@@ -939,56 +939,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
-name = "descenders-core"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "rand 0.10.0",
- "rustc-hash 2.1.1",
- "serde",
- "serde_json",
- "wyrand",
-]
-
-[[package]]
-name = "descenders-gui"
-version = "0.1.0"
-dependencies = [
- "descenders-core",
- "eframe",
- "egui_extras",
- "egui_plot",
- "regex",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "descenders-runner"
-version = "0.1.0"
-dependencies = [
- "clap",
- "descenders-core",
- "rand 0.10.0",
- "serde",
- "serde_json",
- "wyrand",
-]
-
-[[package]]
-name = "descenders-wasm"
-version = "0.1.0"
-dependencies = [
- "descenders-core",
- "getrandom 0.4.2",
- "js-sys",
- "rand 0.10.0",
- "serde_json",
- "wasm-bindgen",
- "wyrand",
-]
-
-[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3527,6 +3477,56 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "treadline-core"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "rand 0.10.0",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "wyrand",
+]
+
+[[package]]
+name = "treadline-gui"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "egui_extras",
+ "egui_plot",
+ "regex",
+ "serde",
+ "serde_json",
+ "treadline-core",
+]
+
+[[package]]
+name = "treadline-runner"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "rand 0.10.0",
+ "serde",
+ "serde_json",
+ "treadline-core",
+ "wyrand",
+]
+
+[[package]]
+name = "treadline-wasm"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.4.2",
+ "js-sys",
+ "rand 0.10.0",
+ "serde_json",
+ "treadline-core",
+ "wasm-bindgen",
+ "wyrand",
 ]
 
 [[package]]
