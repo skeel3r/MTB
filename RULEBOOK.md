@@ -114,9 +114,9 @@ This makes going first a **disadvantage** — the leader blazes the trail blind 
 
 Compare each player's token positions against the active Trail Card's target lanes.
 
-- For each checked row: if the token is in the **target lane**, that row is a match.
-- **Perfect Alignment** (all checked rows match): **+1 Flow**, counts as a perfect match for tiebreaking.
-- Each **misaligned row**: **+1 Hazard Die**.
+- For each checked row: if the token is in the **target lane** (exact column), that row is a match.
+- **Perfect Alignment** (all checked rows match): **+1 Flow per matched row**.
+- Each row **misaligned by 2+ columns**: **+1 Hazard Die**. (1 column off breaks perfect alignment but does not add a Hazard Die.)
 
 ### Phase 7: The Reckoning
 
