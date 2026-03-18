@@ -555,6 +555,24 @@ pub struct PlayerState {
     /// Trail Read: next obstacle index to resolve in the committed player's line
     pub trail_read_next_index: usize,
     pub pending_momentum: i32,
+
+    // ── Tracking stats (accumulated during gameplay) ──
+    /// Times each upgrade's effect actually triggered
+    pub upgrade_activations: Vec<(UpgradeType, i32)>,
+    /// Flow earned from perfect alignment
+    pub flow_from_alignment: i32,
+    /// Flow earned from other sources (combos, pro line clears, etc.)
+    pub flow_from_other: i32,
+    /// Flow spent on upgrades
+    pub flow_spent_upgrades: i32,
+    /// Flow spent on abilities (reroll, scrub, brace, ghost copy)
+    pub flow_spent_abilities: i32,
+    /// Hazard dice accumulated from misalignment
+    pub hazard_from_misalignment: i32,
+    /// Total times alignment was checked
+    pub alignment_checks: i32,
+    /// Total rows that were perfectly aligned
+    pub alignment_hits: i32,
 }
 
 // ── Game State ──
@@ -753,6 +771,15 @@ pub struct FinalStanding {
     pub flow: i32,
     pub momentum: i32,
     pub reward: f64,
+    // Tracking stats
+    pub upgrade_activations: Vec<(String, i32)>,
+    pub flow_from_alignment: i32,
+    pub flow_from_other: i32,
+    pub flow_spent_upgrades: i32,
+    pub flow_spent_abilities: i32,
+    pub hazard_from_misalignment: i32,
+    pub alignment_checks: i32,
+    pub alignment_hits: i32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -252,6 +252,14 @@ fn run_game(
             flow: p.flow,
             momentum: p.momentum,
             reward: rewards.get(i).copied().unwrap_or(0.0),
+            upgrade_activations: p.upgrade_activations.iter().map(|(u, c)| (u.name().to_string(), *c)).collect(),
+            flow_from_alignment: p.flow_from_alignment,
+            flow_from_other: p.flow_from_other,
+            flow_spent_upgrades: p.flow_spent_upgrades,
+            flow_spent_abilities: p.flow_spent_abilities,
+            hazard_from_misalignment: p.hazard_from_misalignment,
+            alignment_checks: p.alignment_checks,
+            alignment_hits: p.alignment_hits,
         })
         .collect();
 

@@ -22,6 +22,17 @@ pub struct AnalysisResults {
     pub upgrade_frequency: Vec<(String, usize)>, // (upgrade description, count)
 
     pub winners_vs_losers: WinnersVsLosers,
+
+    // New tracking stats
+    pub upgrade_activations: Vec<(String, f64)>, // (upgrade name, avg activations per game)
+    pub avg_flow_from_alignment: f64,
+    pub avg_flow_from_other: f64,
+    pub avg_flow_spent_upgrades: f64,
+    pub avg_flow_spent_abilities: f64,
+    pub avg_hazard_from_misalignment: f64,
+    pub avg_alignment_checks: f64,
+    pub avg_alignment_hits: f64,
+    pub alignment_hit_rate: f64, // hits / checks
 }
 
 pub struct CommitmentStats {
@@ -175,6 +186,42 @@ pub fn compute_analysis(logs: &[&GameRunOutput]) -> AnalysisResults {
     // Winners vs losers
     let winners_vs_losers = compute_winners_vs_losers(logs);
 
+    // Tracking stats from final standings
+    let mut upgrade_activation_totals: HashMap<String, (f64, usize)> = HashMap::new();
+    let mut total_flow_align = 0.0f64;
+    let mut total_flow_other = 0.0f64;
+    let mut total_flow_spent_up = 0.0f64;
+    let mut total_flow_spent_ab = 0.0f64;
+    let mut total_hazard_misalign = 0.0f64;
+    let mut total_align_checks = 0.0f64;
+    let mut total_align_hits = 0.0f64;
+
+    for log in logs {
+        for s in &log.final_standings {
+            total_flow_align += s.flow_from_alignment as f64;
+            total_flow_other += s.flow_from_other as f64;
+            total_flow_spent_up += s.flow_spent_upgrades as f64;
+            total_flow_spent_ab += s.flow_spent_abilities as f64;
+            total_hazard_misalign += s.hazard_from_misalignment as f64;
+            total_align_checks += s.alignment_checks as f64;
+            total_align_hits += s.alignment_hits as f64;
+
+            for (name, count) in &s.upgrade_activations {
+                let entry = upgrade_activation_totals.entry(name.clone()).or_insert((0.0, 0));
+                entry.0 += *count as f64;
+                entry.1 += 1;
+            }
+        }
+    }
+
+    let mut upgrade_activations: Vec<_> = upgrade_activation_totals
+        .into_iter()
+        .map(|(name, (total, owners))| (name, if owners > 0 { total / owners as f64 } else { 0.0 }))
+        .collect();
+    upgrade_activations.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+    let alignment_hit_rate = if total_align_checks > 0.0 { total_align_hits / total_align_checks } else { 0.0 };
+
     AnalysisResults {
         game_count,
         avg_duration_ms,
@@ -190,6 +237,15 @@ pub fn compute_analysis(logs: &[&GameRunOutput]) -> AnalysisResults {
         commitment_stats,
         upgrade_frequency,
         winners_vs_losers,
+        upgrade_activations,
+        avg_flow_from_alignment: total_flow_align / total_players,
+        avg_flow_from_other: total_flow_other / total_players,
+        avg_flow_spent_upgrades: total_flow_spent_up / total_players,
+        avg_flow_spent_abilities: total_flow_spent_ab / total_players,
+        avg_hazard_from_misalignment: total_hazard_misalign / total_players,
+        avg_alignment_checks: total_align_checks / total_players,
+        avg_alignment_hits: total_align_hits / total_players,
+        alignment_hit_rate,
     }
 }
 
@@ -339,6 +395,33 @@ pub fn generate_report(analysis: &AnalysisResults) -> String {
     for (val, count) in &analysis.obstacles_cleared_distribution {
         r.push_str(&format!("- {}: {} players\n", val, count));
     }
+    r.push('\n');
+
+    // Upgrade utilization
+    r.push_str("## Upgrade Utilization (avg activations per owner per game)\n");
+    if analysis.upgrade_activations.is_empty() {
+        r.push_str("- No upgrade activations recorded\n");
+    } else {
+        for (name, avg) in &analysis.upgrade_activations {
+            r.push_str(&format!("- {}: {:.1}\n", name, avg));
+        }
+    }
+    r.push('\n');
+
+    // Alignment stats
+    r.push_str("## Alignment Stats (per player avg)\n");
+    r.push_str(&format!("- Alignment checks: {:.1}\n", analysis.avg_alignment_checks));
+    r.push_str(&format!("- Alignment hits: {:.1}\n", analysis.avg_alignment_hits));
+    r.push_str(&format!("- Hit rate: {:.1}%\n", analysis.alignment_hit_rate * 100.0));
+    r.push_str(&format!("- Hazard dice from misalignment: {:.1}\n", analysis.avg_hazard_from_misalignment));
+    r.push('\n');
+
+    // Flow economy
+    r.push_str("## Flow Economy (per player avg)\n");
+    r.push_str(&format!("- Flow from alignment: {:.1}\n", analysis.avg_flow_from_alignment));
+    r.push_str(&format!("- Flow from other (combos, pro clears): {:.1}\n", analysis.avg_flow_from_other));
+    r.push_str(&format!("- Flow spent on upgrades: {:.1}\n", analysis.avg_flow_spent_upgrades));
+    r.push_str(&format!("- Flow spent on abilities: {:.1}\n", analysis.avg_flow_spent_abilities));
 
     r
 }
@@ -363,6 +446,15 @@ fn empty_results() -> AnalysisResults {
             pro_win_rate: 0.0,
         },
         upgrade_frequency: Vec::new(),
+        upgrade_activations: Vec::new(),
+        avg_flow_from_alignment: 0.0,
+        avg_flow_from_other: 0.0,
+        avg_flow_spent_upgrades: 0.0,
+        avg_flow_spent_abilities: 0.0,
+        avg_hazard_from_misalignment: 0.0,
+        avg_alignment_checks: 0.0,
+        avg_alignment_hits: 0.0,
+        alignment_hit_rate: 0.0,
         winners_vs_losers: WinnersVsLosers {
             winner_avg_obstacles: 0.0,
             loser_avg_obstacles: 0.0,

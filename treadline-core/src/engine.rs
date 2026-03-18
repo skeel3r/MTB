@@ -63,6 +63,16 @@ fn shift_away_from_center(grid: &mut [Vec<bool>], row: usize) {
     }
 }
 
+// ── Tracking helpers ──
+
+fn track_upgrade_activation(player: &mut PlayerState, upgrade: UpgradeType) {
+    if let Some(entry) = player.upgrade_activations.iter_mut().find(|(u, _)| *u == upgrade) {
+        entry.1 += 1;
+    } else {
+        player.upgrade_activations.push((upgrade, 1));
+    }
+}
+
 // ── Crash ──
 
 /// Crash a player: reset grid to center, lose 3 momentum, draw penalty, end turn.
@@ -384,6 +394,14 @@ pub fn init_game(
             trail_read_committed_player: None,
             trail_read_next_index: 0,
             pending_momentum: 0,
+            upgrade_activations: Vec::new(),
+            flow_from_alignment: 0,
+            flow_from_other: 0,
+            flow_spent_upgrades: 0,
+            flow_spent_abilities: 0,
+            hazard_from_misalignment: 0,
+            alignment_checks: 0,
+            alignment_hits: 0,
         });
     }
 
@@ -436,33 +454,32 @@ pub fn process_action(
 
     match choice {
         Choice::Pedal => {
+            {
+                let player = &mut state.players[player_index];
+                if player.cannot_pedal {
+                    return;
+                }
+                let max_actions = if player.penalties.contains(&PenaltyType::ArmPump) { 3 } else { 5 };
+                let free_pedal = player.upgrades.contains(&UpgradeType::HighEngagementHubs)
+                    && player.actions_remaining == max_actions;
+                if !free_pedal {
+                    if player.actions_remaining < 1 {
+                        return;
+                    }
+                    player.actions_remaining -= 1;
+                } else {
+                    track_upgrade_activation(player, UpgradeType::HighEngagementHubs);
+                }
+            }
             let player = &mut state.players[player_index];
-            if player.cannot_pedal {
-                return;
-            }
-
-            // "High-Engagement Hubs" upgrade: first pedal per turn is free
-            let free_pedal = player.upgrades.contains(&UpgradeType::HighEngagementHubs)
-                && !player.turn_ended; // simplified: always free if has upgrade (first pedal check)
-            // More precise: track if pedal was already used. For simplicity, check actions.
-            // The TS code doesn't track pedal count either, so we just make pedal cost 0 if upgrade present
-            // Actually per spec: "first pedal free" - we need to track this. For simplicity in MCTS:
-            // just deduct if no upgrade, always deduct 1 action otherwise.
-            if !free_pedal {
-                if player.actions_remaining < 1 {
-                    return;
-                }
-                player.actions_remaining -= 1;
+            let max_momentum = if player.penalties.contains(&PenaltyType::DroppedChain) {
+                2
+            } else if player.upgrades.contains(&UpgradeType::CarbonFrame) {
+                12
             } else {
-                // With upgrade, still costs action but first is free
-                // Per spec: first pedal is 0 actions. We'd need to track per-turn pedal usage.
-                // For now: always cost 1 action (upgrade benefit handled elsewhere or simplified)
-                if player.actions_remaining < 1 {
-                    return;
-                }
-                player.actions_remaining -= 1;
-            }
-            player.momentum += 1;
+                8
+            };
+            player.momentum = (player.momentum + 1).min(max_momentum);
         }
 
         Choice::Brake => {
@@ -475,12 +492,12 @@ pub fn process_action(
             }
             player.actions_remaining -= 1;
 
-            let reduction = if player.upgrades.contains(&UpgradeType::OversizedRotors) {
-                2
-            } else {
-                1
-            };
+            let has_rotors = player.upgrades.contains(&UpgradeType::OversizedRotors);
+            let reduction = if has_rotors { 2 } else { 1 };
             player.momentum = (player.momentum - reduction).max(0);
+            if has_rotors {
+                track_upgrade_activation(player, UpgradeType::OversizedRotors);
+            }
         }
 
         Choice::Steer { row, direction } => {
@@ -498,15 +515,22 @@ pub fn process_action(
                 state.technique_discard.push_back(discarded);
             }
 
-            let player = &mut state.players[player_index];
-
-            // "Electronic Shifting" upgrade: first steer per turn is free
-            // Simplified: always cost 1 action
-            if player.actions_remaining < 1 {
-                return;
+            {
+                let player = &mut state.players[player_index];
+                let max_actions = if player.penalties.contains(&PenaltyType::ArmPump) { 3 } else { 5 };
+                let free_steer = player.upgrades.contains(&UpgradeType::ElectronicShifting)
+                    && player.actions_remaining == max_actions;
+                if !free_steer {
+                    if player.actions_remaining < 1 {
+                        return;
+                    }
+                    player.actions_remaining -= 1;
+                } else {
+                    track_upgrade_activation(player, UpgradeType::ElectronicShifting);
+                }
             }
-            player.actions_remaining -= 1;
 
+            let player = &mut state.players[player_index];
             if let Some(col) = get_token_col(&player.grid, row) {
                 set_token_signed(&mut player.grid, row, col as i32 + direction);
             }
@@ -689,6 +713,14 @@ pub fn process_action(
                 player.pending_momentum += 1;
                 player.obstacles_cleared += 1;
                 player.perfect_matches += 1;
+                // Factory Suspension: Pro Line obstacle clears gain +2 Flow
+                if player.commitment == Commitment::Pro
+                    && player.upgrades.contains(&UpgradeType::FactorySuspension)
+                {
+                    player.flow += 2;
+                    player.flow_from_other += 2;
+                    track_upgrade_activation(player, UpgradeType::FactorySuspension);
+                }
             } else {
                 // Can't match - crash
                 crash(
@@ -759,6 +791,14 @@ pub fn process_action(
             };
             player.shred += shred_gain;
             player.obstacles_cleared += 1;
+            // Factory Suspension: Pro Line obstacle clears gain +2 Flow
+            if player.commitment == Commitment::Pro
+                && player.upgrades.contains(&UpgradeType::FactorySuspension)
+            {
+                player.flow += 2;
+                player.flow_from_other += 2;
+                track_upgrade_activation(player, UpgradeType::FactorySuspension);
+            }
 
             // Remove obstacle
             let removed_obstacle = state.active_obstacles.remove(0);
@@ -782,23 +822,27 @@ pub fn process_action(
                 FlowAction::Reroll => {
                     if player.flow >= 1 {
                         player.flow -= 1;
+                        player.flow_spent_abilities += 1;
                         player.hazard_dice = 0;
                     }
                 }
                 FlowAction::Brace => {
                     if player.flow >= 1 {
                         player.flow -= 1;
+                        player.flow_spent_abilities += 1;
                     }
                 }
                 FlowAction::Scrub => {
                     if player.flow >= 3 {
                         player.flow -= 3;
+                        player.flow_spent_abilities += 3;
                         player.hazard_dice = (player.hazard_dice - 1).max(0);
                     }
                 }
                 FlowAction::GhostCopy => {
                     if player.flow >= 1 {
                         player.flow -= 1;
+                        player.flow_spent_abilities += 1;
                     }
                 }
             }
@@ -856,7 +900,9 @@ pub fn process_action(
             if player.flow < upgrade.flow_cost() {
                 return; // Not enough flow
             }
-            player.flow -= upgrade.flow_cost();
+            let cost = upgrade.flow_cost();
+            player.flow -= cost;
+            player.flow_spent_upgrades += cost;
             player.upgrades.push(upgrade);
         }
 
@@ -1023,8 +1069,14 @@ fn execute_preparation(state: &mut GameState, rng: &mut impl Rng) {
             }
         }
 
-        // Draw cards based on momentum (min 2, max 6, capped by deck)
-        let draw_count = (state.players[i].momentum.max(2).min(6)) as usize;
+        // Draw cards based on momentum (min 2 or 4 with Carbon Frame, max 6)
+        let min_draw = if state.players[i].upgrades.contains(&UpgradeType::CarbonFrame) {
+            track_upgrade_activation(&mut state.players[i], UpgradeType::CarbonFrame);
+            4
+        } else {
+            2
+        };
+        let draw_count = (state.players[i].momentum.max(min_draw).min(6)) as usize;
         let drawn = draw_cards_with_rng(state, draw_count, rng);
         state.players[i].hand.extend(drawn);
     }
@@ -1092,18 +1144,24 @@ fn execute_alignment(state: &mut GameState) {
             let target_lane = target_lanes[i];
 
             if let Some(player_lane) = get_token_col(&player.grid, row) {
+                player.alignment_checks += 1;
                 let distance = (player_lane as i32 - target_lane as i32).unsigned_abs() as usize;
                 if distance >= 2 {
                     player.hazard_dice += 1;
+                    player.hazard_from_misalignment += 1;
                     all_perfect = false;
-                } else if distance > 0 {
+                } else if distance == 0 {
+                    player.alignment_hits += 1;
+                } else {
                     all_perfect = false;
                 }
             }
         }
 
         if all_perfect && !checked_rows.is_empty() {
-            player.flow += checked_rows.len() as i32;
+            let flow_earned = checked_rows.len() as i32;
+            player.flow += flow_earned;
+            player.flow_from_alignment += flow_earned;
             player.perfect_matches += 1;
         }
     }
