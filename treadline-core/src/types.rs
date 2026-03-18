@@ -606,7 +606,13 @@ pub enum Choice {
     Pedal,
     Brake,
     Steer { row: usize, direction: i32 },
+    /// Abstract steer: ISMCTS picks this, then `refine_choice` resolves to a
+    /// concrete `Steer { row, direction }` using alignment heuristics.
+    SteerBest,
     Technique { card_index: usize },
+    /// Abstract technique: ISMCTS picks this, then `refine_choice` resolves to
+    /// a concrete `Technique { card_index }` (first card, or random).
+    TechniqueBest,
     DrawObstacle,
     ReuseObstacle { revealed_index: usize },
     ResolveObstacle,
@@ -685,6 +691,15 @@ impl Choice {
                     payload: Some(serde_json::json!({ "line": line_str })),
                 }
             }
+            // Abstract choices should be refined before conversion
+            Choice::SteerBest => GameAction {
+                action_type: "steer".into(),
+                payload: Some(serde_json::json!({ "row": 0, "direction": 1 })),
+            },
+            Choice::TechniqueBest => GameAction {
+                action_type: "technique".into(),
+                payload: Some(serde_json::json!({ "cardIndex": 0 })),
+            },
             Choice::EndTurn => GameAction {
                 action_type: "end_turn".into(),
                 payload: None,

@@ -746,6 +746,15 @@ pub fn process_action(
             // +1 hazard die (or +2 for "The 10ft Drop" which is handled by Bottom Out penalty_type)
             player.hazard_dice += 1;
 
+            // Pro Line blow-by: extra +1 hazard die and draw a penalty card
+            if player.commitment == Commitment::Pro {
+                player.hazard_dice += 1;
+                if let Some(pen) = state.penalty_deck.pop_front() {
+                    state.players[player_index].penalties.push(pen);
+                }
+            }
+
+            let player = &mut state.players[player_index];
             let progress_gain = if player.commitment == Commitment::Pro {
                 2
             } else {
@@ -853,6 +862,10 @@ pub fn process_action(
             player.flow -= upgrade.flow_cost();
             player.upgrades.push(upgrade);
         }
+
+        // Abstract choices should be refined before reaching process_action.
+        // If they arrive here, treat as no-op.
+        Choice::SteerBest | Choice::TechniqueBest => {}
     }
 }
 

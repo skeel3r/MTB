@@ -5,7 +5,7 @@ use clap::Parser;
 use rand::prelude::*;
 use wyrand::WyRand;
 
-use treadline_core::choices::enumerate_choices;
+use treadline_core::choices::{enumerate_choices, refine_choice};
 use treadline_core::engine::{advance_phase, init_game, process_action};
 use treadline_core::ismcts::ismcts;
 use treadline_core::scoring::compute_terminal_rewards;
@@ -127,16 +127,18 @@ fn run_game(
                     let choices = enumerate_choices(&state);
                     let choice = pick_choice(&state, pi, &choices, iterations, rng);
 
+                    let concrete = refine_choice(&state, &choice, rng);
+
                     seq += 1;
                     entries.push(StructuredLogEntry {
                         seq,
                         round: state.round,
                         phase: "commitment".to_string(),
                         player_index: pi,
-                        choice: choice.clone(),
+                        choice: concrete.clone(),
                     });
 
-                    process_action(&mut state, pi, &choice, rng);
+                    process_action(&mut state, pi, &concrete, rng);
                 }
                 advance_phase(&mut state, rng); // -> Environment
             }
@@ -173,6 +175,7 @@ fn run_game(
                         } else {
                             ismcts(&state, pi, iterations, rng)
                         };
+                        let concrete = refine_choice(&state, &choice, rng);
 
                         seq += 1;
                         entries.push(StructuredLogEntry {
@@ -180,10 +183,10 @@ fn run_game(
                             round: state.round,
                             phase: "sprint".to_string(),
                             player_index: pi,
-                            choice: choice.clone(),
+                            choice: concrete.clone(),
                         });
 
-                        process_action(&mut state, pi, &choice, rng);
+                        process_action(&mut state, pi, &concrete, rng);
                     }
                 }
                 advance_phase(&mut state, rng); // -> Alignment
@@ -211,6 +214,7 @@ fn run_game(
                         } else {
                             ismcts(&state, pi, iterations, rng)
                         };
+                        let concrete = refine_choice(&state, &choice, rng);
 
                         seq += 1;
                         entries.push(StructuredLogEntry {
@@ -218,11 +222,11 @@ fn run_game(
                             round: state.round,
                             phase: "stage_break".to_string(),
                             player_index: pi,
-                            choice: choice.clone(),
+                            choice: concrete.clone(),
                         });
 
-                        let is_end = matches!(choice, Choice::EndTurn);
-                        process_action(&mut state, pi, &choice, rng);
+                        let is_end = matches!(concrete, Choice::EndTurn);
+                        process_action(&mut state, pi, &concrete, rng);
                         if is_end {
                             break;
                         }

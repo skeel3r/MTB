@@ -1,3 +1,5 @@
+use rand::prelude::IndexedRandom;
+
 use crate::types::*;
 
 /// Number of columns in the player grid (lanes 0..4).
@@ -159,23 +161,21 @@ fn enumerate_free_sprint_choices(state: &GameState, player: &PlayerState) -> Vec
             choices.push(Choice::Brake);
         }
 
-        // Steer: for each row with a token not at the edge in that direction
-        for row in 0..NUM_ROWS {
+        // Steer: single abstract choice (refined later via refine_choice)
+        let can_steer = (0..NUM_ROWS).any(|row| {
             if let Some(col) = get_token_col(&player.grid, row) {
-                // Can steer left if not at left edge
-                if col > 0 {
-                    choices.push(Choice::Steer { row, direction: -1 });
-                }
-                // Can steer right if not at right edge
-                if col < NUM_COLS - 1 {
-                    choices.push(Choice::Steer { row, direction: 1 });
-                }
+                col > 0 || col < NUM_COLS - 1
+            } else {
+                false
             }
+        });
+        if can_steer {
+            choices.push(Choice::SteerBest);
         }
 
-        // Technique cards
-        for card_index in 0..player.hand.len() {
-            choices.push(Choice::Technique { card_index });
+        // Technique cards: single abstract choice (refined later)
+        if !player.hand.is_empty() {
+            choices.push(Choice::TechniqueBest);
         }
     }
 
@@ -245,4 +245,110 @@ fn enumerate_stage_break_choices(state: &GameState) -> Vec<Choice> {
 pub fn choice_is_available(state: &GameState, choice: &Choice) -> bool {
     let choices = enumerate_choices(state);
     choices.contains(choice)
+}
+
+/// Refine an abstract choice into a concrete one that can be passed to
+/// `process_action`. Abstract choices (`SteerBest`, `TechniqueBest`) are
+/// resolved using game-state heuristics; concrete choices pass through
+/// unchanged.
+pub fn refine_choice(state: &GameState, choice: &Choice, rng: &mut impl rand::Rng) -> Choice {
+    match choice {
+        Choice::SteerBest => refine_steer(state, rng),
+        Choice::TechniqueBest => refine_technique(state, rng),
+        other => *other,
+    }
+}
+
+/// Pick the best concrete steer: move the token that is farthest from its
+/// alignment target lane. Ties broken randomly.
+fn refine_steer(state: &GameState, rng: &mut impl rand::Rng) -> Choice {
+
+    let player = &state.players[state.current_player_index];
+
+    // Build target map from active trail card
+    let mut targets: [Option<usize>; NUM_ROWS] = [None; NUM_ROWS];
+    if let Some(trail) = &state.active_trail_card {
+        let rows = trail.checked_rows();
+        let lanes = trail.target_lanes();
+        for i in 0..rows.len() {
+            if rows[i] < NUM_ROWS {
+                targets[rows[i]] = Some(lanes[i]);
+            }
+        }
+    }
+
+    // Score each possible steer: prefer moving toward target on checked rows
+    let mut candidates: Vec<(Choice, i32)> = Vec::new();
+
+    for row in 0..NUM_ROWS {
+        if let Some(col) = get_token_col(&player.grid, row) {
+            for dir in [-1i32, 1] {
+                let new_col = col as i32 + dir;
+                if new_col < 0 || new_col >= NUM_COLS as i32 {
+                    continue;
+                }
+                let steer = Choice::Steer { row, direction: dir };
+
+                let score = if let Some(target) = targets[row] {
+                    let old_dist = (col as i32 - target as i32).abs();
+                    let new_dist = (new_col - target as i32).abs();
+                    // Higher score = better. Reducing distance is good.
+                    (old_dist - new_dist) * 10 + old_dist
+                } else {
+                    // Non-checked row: slight preference toward center (col 2)
+                    let old_dist = (col as i32 - 2).abs();
+                    let new_dist = (new_col - 2).abs();
+                    old_dist - new_dist
+                };
+
+                candidates.push((steer, score));
+            }
+        }
+    }
+
+    if candidates.is_empty() {
+        return Choice::EndTurn;
+    }
+
+    // Pick the best score, breaking ties randomly
+    let best_score = candidates.iter().map(|(_, s)| *s).max().unwrap();
+    let best: Vec<_> = candidates
+        .into_iter()
+        .filter(|(_, s)| *s == best_score)
+        .collect();
+    best.choose(rng).unwrap().0
+}
+
+/// Pick a concrete technique card to play. Prefer cards whose symbol is most
+/// abundant in hand (preserving diversity for obstacle matching).
+fn refine_technique(state: &GameState, rng: &mut impl rand::Rng) -> Choice {
+
+    let player = &state.players[state.current_player_index];
+
+    if player.hand.is_empty() {
+        return Choice::EndTurn;
+    }
+
+    // Count symbols in hand
+    let mut counts = [0u32; 4];
+    for card in &player.hand {
+        counts[symbol_index(card.symbol())] += 1;
+    }
+
+    // Pick the card with the most-abundant symbol (playing it loses least diversity)
+    let mut best_count = 0;
+    let mut candidates: Vec<usize> = Vec::new();
+    for (i, card) in player.hand.iter().enumerate() {
+        let c = counts[symbol_index(card.symbol())];
+        if c > best_count {
+            best_count = c;
+            candidates.clear();
+            candidates.push(i);
+        } else if c == best_count {
+            candidates.push(i);
+        }
+    }
+
+    let &card_index = candidates.choose(rng).unwrap_or(&0);
+    Choice::Technique { card_index }
 }

@@ -49,6 +49,7 @@ export default function CommitmentOverlay({
         >
           <div className="font-bold text-sm" style={{ color: '#E07070' }}>Pro Line</div>
           <div className="text-[10px]" style={{ color: '#A08A6A' }}>+2 Prog, No Brake</div>
+          <div className="text-[9px]" style={{ color: '#E07070' }}>Send It: +1 extra die + penalty</div>
           {committed === 'pro' && (
             <div className="text-[9px] font-bold mt-1" style={{ color: '#D4A847' }}>SELECTED</div>
           )}

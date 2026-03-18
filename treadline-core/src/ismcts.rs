@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use rustc_hash::FxHashMap;
 
-use crate::choices::enumerate_choices;
+use crate::choices::{enumerate_choices, refine_choice};
 use crate::determinize::determinize;
 use crate::engine::{advance_phase, process_action};
 use crate::rollout::rollout;
@@ -100,8 +100,11 @@ fn iteration(
     let chosen_choice = select_choice(node, &choices);
     let current_player = state.current_player_index;
 
-    // Apply the chosen action
-    process_action(state, current_player, &chosen_choice, rng);
+    // Refine abstract choices (SteerBest, TechniqueBest) into concrete ones
+    let concrete_choice = refine_choice(state, &chosen_choice, rng);
+
+    // Apply the concrete action
+    process_action(state, current_player, &concrete_choice, rng);
 
     // Auto-advance through non-decision phases
     advance_to_decision_phase(state, rng);

@@ -1118,10 +1118,20 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       const thisSendCost = getObstacleSendItCost(sentObstacle);
       player.momentum -= thisSendCost;
       player.hazardDice++;
+
+      // Pro Line blow-by: extra +1 hazard die and draw a penalty card
+      if (player.commitment === 'pro') {
+        player.hazardDice++;
+        if (s.penaltyDeck.length > 0) {
+          drawPenalty(s, player);
+        }
+      }
+
       const sendProgressGain = player.commitment === 'pro' ? 2 : 1;
       player.progress += sendProgressGain;
       player.obstaclesCleared++;
-      s.log.push(`${player.name}: SENDS IT through "${getObstacleName(sentObstacle)}"! -${thisSendCost} Momentum, +1 Hazard Die, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
+      const hazardText = player.commitment === 'pro' ? '+2 Hazard Dice + Penalty' : '+1 Hazard Die';
+      s.log.push(`${player.name}: SENDS IT through "${getObstacleName(sentObstacle)}"! -${thisSendCost} Momentum, ${hazardText}, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
 
       s.activeObstacles.splice(sendObstacleIdx, 1);
       revealObstacle(s, player.id, sentObstacle);

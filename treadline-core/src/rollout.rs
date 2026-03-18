@@ -1,6 +1,6 @@
 use rand::prelude::*;
 
-use crate::choices::enumerate_choices;
+use crate::choices::{enumerate_choices, refine_choice};
 use crate::engine::{advance_phase, process_action};
 use crate::scoring::{compute_heuristic_rewards, compute_terminal_rewards};
 use crate::types::*;
@@ -16,39 +16,15 @@ pub fn rollout(state: &mut GameState, max_steps: u32, rng: &mut impl Rng) -> Vec
             GamePhase::GameOver => {
                 return compute_terminal_rewards(state);
             }
-            GamePhase::Commitment => {
-                // Randomly choose main or pro for each player via process_action
-                // The commitment phase expects one commit_line per player;
-                // advance_phase will handle the phase change if needed.
+            GamePhase::Commitment | GamePhase::Sprint | GamePhase::StageBreak => {
                 let choices = enumerate_choices(state);
                 if choices.is_empty() {
                     advance_phase(state, rng);
                 } else {
                     let choice = *choices.choose(rng).unwrap();
+                    let concrete = refine_choice(state, &choice, rng);
                     let player_idx = state.current_player_index;
-                    process_action(state, player_idx, &choice, rng);
-                }
-                steps += 1;
-            }
-            GamePhase::Sprint => {
-                let choices = enumerate_choices(state);
-                if choices.is_empty() {
-                    advance_phase(state, rng);
-                } else {
-                    let choice = *choices.choose(rng).unwrap();
-                    let player_idx = state.current_player_index;
-                    process_action(state, player_idx, &choice, rng);
-                }
-                steps += 1;
-            }
-            GamePhase::StageBreak => {
-                let choices = enumerate_choices(state);
-                if choices.is_empty() {
-                    advance_phase(state, rng);
-                } else {
-                    let choice = *choices.choose(rng).unwrap();
-                    let player_idx = state.current_player_index;
-                    process_action(state, player_idx, &choice, rng);
+                    process_action(state, player_idx, &concrete, rng);
                 }
                 steps += 1;
             }

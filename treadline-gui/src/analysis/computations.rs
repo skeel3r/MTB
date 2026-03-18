@@ -255,8 +255,8 @@ fn choice_label(choice: &Choice) -> String {
     match choice {
         Choice::Pedal => "Pedal".into(),
         Choice::Brake => "Brake".into(),
-        Choice::Steer { .. } => "Steer".into(),
-        Choice::Technique { .. } => "Technique".into(),
+        Choice::Steer { .. } | Choice::SteerBest => "Steer".into(),
+        Choice::Technique { .. } | Choice::TechniqueBest => "Technique".into(),
         Choice::DrawObstacle => "Draw Obstacle".into(),
         Choice::ReuseObstacle { .. } => "Reuse Obstacle".into(),
         Choice::ResolveObstacle => "Resolve Obstacle".into(),
