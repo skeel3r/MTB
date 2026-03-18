@@ -820,11 +820,9 @@ pub fn process_action(
             let player = &mut state.players[player_index];
             match action {
                 FlowAction::Reroll => {
-                    if player.flow >= 1 {
-                        player.flow -= 1;
-                        player.flow_spent_abilities += 1;
-                        player.hazard_dice = 0;
-                    }
+                    // Reroll is now automatic during reckoning — spending flow
+                    // during sprint to "reroll" is a no-op. The AI shouldn't
+                    // pick this; it's kept for compatibility.
                 }
                 FlowAction::Brace => {
                     if player.flow >= 1 {
@@ -1113,6 +1111,36 @@ fn execute_sprint_setup(state: &mut GameState, rng: &mut impl Rng) {
         }
     }
 
+    // Telemetry System: peek at top 3 obstacles, pick best matchable one
+    for i in 0..state.players.len() {
+        if !state.players[i].upgrades.contains(&UpgradeType::TelemetrySystem) {
+            continue;
+        }
+        // Peek at top 3
+        let peek_count = 3.min(state.obstacle_deck.len());
+        if peek_count == 0 {
+            continue;
+        }
+        let peeked: Vec<ObstacleType> = state.obstacle_deck.iter().take(peek_count).copied().collect();
+
+        // Pick the one we can match (prefer matchable, then easiest send-it cost)
+        let mut best_idx = 0;
+        let mut best_score = -1i32;
+        for (j, obs) in peeked.iter().enumerate() {
+            let can_match = crate::choices::can_match_obstacle(&state.players[i].hand, obs);
+            let score = if can_match { 100 } else { -(obs.send_it_cost() as i32) };
+            if score > best_score {
+                best_score = score;
+                best_idx = j;
+            }
+        }
+
+        // Remove chosen obstacle from deck, put others back
+        let chosen = state.obstacle_deck.remove(best_idx).unwrap();
+        state.active_obstacles.push(chosen);
+        track_upgrade_activation(&mut state.players[i], UpgradeType::TelemetrySystem);
+    }
+
     // Turn order: leader goes first (highest shred, random tiebreak)
     let mut order: Vec<(usize, i32)> = state
         .players
@@ -1210,15 +1238,19 @@ fn execute_reckoning(state: &mut GameState, rng: &mut impl Rng) {
 
         let dice_count = player.hazard_dice.min(5) as usize;
         let mut rolls = Vec::new();
-        let mut penalty = false;
 
         for _ in 0..dice_count {
-            let roll: i32 = rng.random_range(1..=6);
-            rolls.push(roll);
-            if roll == 6 {
-                penalty = true;
+            let mut roll: i32 = rng.random_range(1..=6);
+            // Flow Reroll: if die shows 6 and player has flow, spend 1 flow to reroll
+            if roll == 6 && state.players[i].flow >= 1 {
+                state.players[i].flow -= 1;
+                state.players[i].flow_spent_abilities += 1;
+                roll = rng.random_range(1..=6);
             }
+            rolls.push(roll);
         }
+
+        let penalty = rolls.iter().any(|&r| r == 6);
 
         let mut penalty_drawn: Option<&str> = None;
         if penalty {

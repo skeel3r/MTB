@@ -106,7 +106,7 @@ This makes going first a **disadvantage** — the leader blazes the trail blind 
 | Action | Flow Cost | Effect |
 |--------|-----------|--------|
 | **Ghost Copy** | 1 | Duplicate a card symbol to help match an obstacle |
-| **Reroll** | 1 | Clear all hazard dice before the reckoning roll |
+| **Reroll** | 1 (auto) | During Reckoning, each die that rolls a 6 can be rerolled by spending 1 Flow. Automatic — no action needed. |
 | **Brace** | 1 | Ignore one environmental hazard push this round |
 | **Scrub** | 3 | Remove 1 Hazard Die from your pool |
 

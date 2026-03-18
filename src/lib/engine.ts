@@ -558,16 +558,21 @@ function executeReckoning(state: GameState): GameState {
 
     const diceCount = Math.min(5, player.hazardDice);
     const rolls: number[] = [];
-    let penalty = false;
 
     for (let i = 0; i < diceCount; i++) {
-      const roll = Math.floor(Math.random() * 6) + 1;
+      let roll = Math.floor(Math.random() * 6) + 1;
+      // Flow Reroll: if die shows 6 and player has flow, spend 1 to reroll
+      if (roll === 6 && player.flow >= 1) {
+        player.flow -= 1;
+        s.log.push(`${player.name}: Spent 1 Flow to reroll a 6!`);
+        roll = Math.floor(Math.random() * 6) + 1;
+      }
       rolls.push(roll);
-      if (roll === 6) penalty = true;
     }
 
     s.log.push(`${player.name} rolls ${diceCount} hazard dice: [${rolls.join(', ')}]`);
 
+    const penalty = rolls.some(r => r === 6);
     let penaltyDrawn: string | null = null;
     if (penalty) {
       if (s.penaltyDeck.length > 0) {
@@ -870,11 +875,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       const flowAction = action.payload?.flowAction as string;
       switch (flowAction) {
         case 'reroll':
-          if (player.flow >= 1) {
-            player.flow--;
-            player.hazardDice = 0; // simplified: reroll effectively clears
-            s.log.push(`${player.name}: Spent 1 Flow \u2192 Reroll hazard dice`);
-          }
+          // Reroll is now automatic during reckoning (spend 1 flow per die showing 6)
           break;
         case 'brace':
           if (player.flow >= 1) {

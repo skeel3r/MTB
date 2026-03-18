@@ -209,10 +209,7 @@ fn enumerate_free_sprint_choices(state: &GameState, player: &PlayerState) -> Vec
         }
     }
 
-    // Flow spends
-    if player.flow >= 1 && player.hazard_dice > 0 {
-        choices.push(Choice::FlowSpend { action: FlowAction::Reroll });
-    }
+    // Flow spends (Reroll is now automatic during reckoning)
     if player.flow >= 3 && player.hazard_dice > 0 {
         choices.push(Choice::FlowSpend { action: FlowAction::Scrub });
     }
