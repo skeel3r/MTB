@@ -170,11 +170,7 @@ fn run_game(
                             break;
                         }
 
-                        let choice = if choices.len() == 1 {
-                            choices[0].clone()
-                        } else {
-                            ismcts(&state, pi, iterations, rng)
-                        };
+                        let choice = pick_choice(&state, pi, &choices, iterations, rng);
                         let concrete = refine_choice(&state, &choice, rng);
 
                         seq += 1;
@@ -209,11 +205,7 @@ fn run_game(
                             break;
                         }
 
-                        let choice = if choices.len() == 1 {
-                            choices[0].clone()
-                        } else {
-                            ismcts(&state, pi, iterations, rng)
-                        };
+                        let choice = pick_choice(&state, pi, &choices, iterations, rng);
                         let concrete = refine_choice(&state, &choice, rng);
 
                         seq += 1;
