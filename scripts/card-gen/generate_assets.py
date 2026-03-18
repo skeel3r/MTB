@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate image assets for The Descent card game using Google Gemini (Nano/Flash).
+Generate image assets for Treadline card game using Google Gemini (Nano/Flash).
 
 Usage:
     # Generate all assets
@@ -291,7 +291,7 @@ def save_manifest(manifest: dict):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate image assets for The Descent card game")
+    parser = argparse.ArgumentParser(description="Generate image assets for Treadline card game")
     parser.add_argument("--category", choices=["backgrounds", "icons", "obstacles", "techniques", "misc"],
                         help="Only generate assets in this category")
     parser.add_argument("--remove-bg", action="store_true",

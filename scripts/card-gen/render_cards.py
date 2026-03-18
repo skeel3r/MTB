@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Render printable card images for The Descent board game using Pillow.
+Render printable card images for Treadline board game using Pillow.
 
 Composites background art, icons, text, and overlays into final card images
 matching the game's visual style.
@@ -717,8 +717,7 @@ def render_card_back(use_placeholder: bool = False) -> Image.Image:
     draw.ellipse((cx - 80, emblem_y - 80, cx + 80, emblem_y + 80),
                   fill=(20, 60, 30, 200), outline=(100, 200, 100, 100), width=3)
     draw_mountain_icon(draw, cx, emblem_y - 10, size=60, color=(150, 220, 150))
-    draw_text_centered(draw, "THE", emblem_y + 20, FONT_SMALL, fill=(150, 220, 150, 180))
-    draw_text_centered(draw, "DESCENT", emblem_y + 42, FONT_SUBTITLE, fill=(150, 220, 150))
+    draw_text_centered(draw, "Treadline", emblem_y + 42, FONT_SUBTITLE, fill=(150, 220, 150))
 
     # Border
     draw_rounded_rect(draw, (0, 0, CARD_W - 1, CARD_H - 1), CORNER_RADIUS,
@@ -735,7 +734,7 @@ def render_card_back(use_placeholder: bool = False) -> Image.Image:
 # ── Main ──
 
 def main():
-    parser = argparse.ArgumentParser(description="Render card images for The Descent")
+    parser = argparse.ArgumentParser(description="Render card images for Treadline")
     parser.add_argument("--type", choices=["trail", "obstacle", "technique", "penalty", "upgrade", "back", "all"],
                         default="all", help="Which card type(s) to render")
     parser.add_argument("--pack", default="whistler-a-line", help="Trail pack ID for trail cards")

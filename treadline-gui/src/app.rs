@@ -19,7 +19,7 @@ struct BatchInfo {
     iterations: u32,
 }
 
-pub struct DescendersGuiApp {
+pub struct TreadlineGuiApp {
     active_tab: Tab,
     loader: LogLoader,
     game_logs_path: Option<PathBuf>,
@@ -33,7 +33,7 @@ pub struct DescendersGuiApp {
     game_viewer: GameViewerState,
 }
 
-impl DescendersGuiApp {
+impl TreadlineGuiApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let mut visuals = egui::Visuals::dark();
         visuals.override_text_color = Some(egui::Color32::WHITE);
@@ -116,7 +116,7 @@ impl DescendersGuiApp {
     }
 }
 
-impl eframe::App for DescendersGuiApp {
+impl eframe::App for TreadlineGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Poll loader
         match self.loader.poll() {
@@ -142,7 +142,7 @@ impl eframe::App for DescendersGuiApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Descenders Game Analysis");
+            ui.heading("Treadline Game Analysis");
             ui.add_space(4.0);
 
             // Tab bar

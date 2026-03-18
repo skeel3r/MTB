@@ -10,8 +10,8 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "Descenders Game Analysis",
+        "Treadline Game Analysis",
         options,
-        Box::new(|cc| Ok(Box::new(app::DescendersGuiApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(app::TreadlineGuiApp::new(cc)))),
     )
 }

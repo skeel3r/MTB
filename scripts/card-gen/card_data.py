@@ -1,5 +1,5 @@
 """
-Card definitions for The Descent board game.
+Card definitions for Treadline board game.
 Mirrors src/lib/cards.ts so the Python renderer has access to all card data.
 """
 

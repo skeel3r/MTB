@@ -26,7 +26,7 @@ npm start
 
 ## Building WASM
 
-The ISMCTS AI runs as Rust compiled to WebAssembly. The pre-built WASM binary is checked into `src/ai/wasm-pkg/` for deployment. Rebuild it after changing any Rust source in `descenders-core/`:
+The ISMCTS AI runs as Rust compiled to WebAssembly. The pre-built WASM binary is checked into `src/ai/wasm-pkg/` for deployment. Rebuild it after changing any Rust source in `treadline-core/`:
 
 ```bash
 npm run build:wasm
@@ -39,7 +39,7 @@ A pre-commit hook automatically rebuilds WASM when Rust source files change.
 Run batch game simulations with the ISMCTS AI and save structured JSON game logs:
 
 ```bash
-cargo run -p descenders-runner --release -- [OPTIONS]
+cargo run -p treadline-runner --release -- [OPTIONS]
 ```
 
 | Option | Default | Description |
@@ -55,7 +55,7 @@ Example:
 
 ```bash
 # Run 200 games with 2 players and 500 ISMCTS iterations
-cargo run -p descenders-runner --release -- --games 200 --players 2 --iterations 500
+cargo run -p treadline-runner --release -- --games 200 --players 2 --iterations 500
 ```
 
 Game logs are saved as JSON files in the output directory with the naming convention `game-{timestamp}-{batchId}-{gameId}.json`.
@@ -65,7 +65,7 @@ Game logs are saved as JSON files in the output directory with the naming conven
 A native desktop application (egui) for analyzing game log data:
 
 ```bash
-cargo run -p descenders-gui
+cargo run -p treadline-gui
 ```
 
 The dashboard automatically loads game logs from the `game-logs/` directory in the current working directory. It includes:
@@ -86,10 +86,10 @@ This runs a single game with 10,000 ISMCTS iterations under samply for performan
 ## Project Structure
 
 ```
-descenders-core/    Rust crate: game engine, types, ISMCTS algorithm
-descenders-wasm/    Rust crate: wasm-bindgen bridge for browser
-descenders-runner/  Rust crate: batch simulation CLI
-descenders-gui/     Rust crate: egui analysis dashboard
+treadline-core/    Rust crate: game engine, types, ISMCTS algorithm
+treadline-wasm/    Rust crate: wasm-bindgen bridge for browser
+treadline-runner/  Rust crate: batch simulation CLI
+treadline-gui/     Rust crate: egui analysis dashboard
 src/                Next.js web application
   ai/              WASM integration (worker, controller, built pkg)
   lib/             Game engine (TypeScript), AI strategies, simulation

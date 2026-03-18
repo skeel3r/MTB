@@ -4,7 +4,7 @@
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
 # Check if any Rust source files are staged for commit
-RUST_STAGED=$(git diff --cached --name-only -- 'descenders-core/' 'descenders-wasm/')
+RUST_STAGED=$(git diff --cached --name-only -- 'treadline-core/' 'treadline-wasm/')
 
 if [ -z "$RUST_STAGED" ]; then
     exit 0
