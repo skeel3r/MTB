@@ -42,17 +42,31 @@ impl MctsNode {
 }
 
 /// Run ISMCTS and return the best choice for `player_index`.
+///
+/// Uses `RolloutPolicy::Heuristic` by default. Use `ismcts_with_policy` to
+/// choose a specific rollout policy.
 pub fn ismcts(
     state: &GameState,
     player_index: usize,
     iterations: u32,
     rng: &mut impl Rng,
 ) -> Choice {
+    ismcts_with_policy(state, player_index, iterations, RolloutPolicy::Heuristic, rng)
+}
+
+/// Run ISMCTS with a specific rollout policy.
+pub fn ismcts_with_policy(
+    state: &GameState,
+    player_index: usize,
+    iterations: u32,
+    policy: RolloutPolicy,
+    rng: &mut impl Rng,
+) -> Choice {
     let mut root = MctsNode::new(player_index, None);
 
     for _ in 0..iterations {
         let mut det_state = determinize(state, player_index, rng);
-        let _rewards = iteration(&mut root, &mut det_state, rng);
+        let _rewards = iteration(&mut root, &mut det_state, policy, rng);
     }
 
     // If no children were expanded (edge case), fall back to first available choice
@@ -73,6 +87,7 @@ pub fn ismcts(
 fn iteration(
     node: &mut MctsNode,
     state: &mut GameState,
+    policy: RolloutPolicy,
     rng: &mut impl Rng,
 ) -> Vec<f64> {
     // Terminal check
@@ -90,7 +105,7 @@ fn iteration(
         advance_phase(state, rng);
         // Continue advancing through non-decision phases
         advance_to_decision_phase(state, rng);
-        return iteration(node, state, rng);
+        return iteration(node, state, policy, rng);
     }
 
     // Expand
@@ -114,12 +129,12 @@ fn iteration(
 
     let rewards = if child.games == 0.0 {
         // Leaf node: rollout
-        let rewards = rollout(state, MAX_ROLLOUT_STEPS, rng);
+        let rewards = rollout(state, MAX_ROLLOUT_STEPS, policy, rng);
         record_outcome(child, &rewards);
         rewards
     } else {
         // Internal node: recurse
-        iteration(child, state, rng)
+        iteration(child, state, policy, rng)
     };
 
     record_outcome(node, &rewards);

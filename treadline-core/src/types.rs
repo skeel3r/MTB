@@ -598,6 +598,18 @@ pub enum FlowAction {
     Scrub,
 }
 
+// ── Rollout policy ──
+
+/// Controls the rollout strategy used inside ISMCTS.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RolloutPolicy {
+    /// Uniform random choice selection.
+    Random,
+    /// Heuristic-guided: weighted action selection that approximates
+    /// reasonable play (biased commitment, obstacle matching preference, etc.).
+    Heuristic,
+}
+
 // ── Choice (MCTS action representation) ──
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

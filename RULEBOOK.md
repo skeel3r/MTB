@@ -54,7 +54,7 @@ Each player chooses a **line** for this round:
 | Line | Benefit | Restriction |
 |------|---------|-------------|
 | **Main Line** | +1 Progress when obstacles matched | Normal play |
-| **Pro Line** | +2 Progress when obstacles matched | Cannot Brake; extra +1 Hazard Die on blow-by; draws penalty on blow-by |
+| **Pro Line** | +2 Progress when obstacles matched | Cannot Brake; extra +1 Hazard Die on Send It; crash draws 2 penalty cards |
 
 ### Phase 3: Environment
 
@@ -219,7 +219,7 @@ Spend **Momentum** to force-clear any active obstacle, regardless of hand cards.
 
 - **Standard obstacles** cost **2 Momentum**. **Hard obstacles** cost **3 Momentum**.
 - On success: **+1 Progress** (or +2 on Pro Line). Obstacle is discarded and counts as cleared.
-- **+1 Hazard Die** — sending it through rough terrain without technique is risky.
+- **+1 Hazard Die** — sending it through rough terrain without technique is risky. **Pro Line: +2 Hazard Dice** (extra risk for the extra reward).
 - **Does NOT grant** the usual +1 Momentum reward (you spent momentum, not cards).
 - Useful when your hand can't match but you've built up speed.
 
@@ -229,7 +229,7 @@ If you cannot match the obstacle with cards (including wilds) **and** cannot or 
 
 1. All tokens reset to **center (C3)**
 2. Lose **3 Momentum**
-3. Draw **1 Penalty Card**
+3. Draw **1 Penalty Card** (or **2 Penalty Cards** on Pro Line)
 4. **+1 Hazard Die**
 5. Your turn ends immediately
 
@@ -258,7 +258,7 @@ If you cannot match the obstacle with cards (including wilds) **and** cannot or 
 
 ## Penalty Cards
 
-Drawn when rolling a 6 during Reckoning or from Pro Line blow-by. Each represents mechanical damage. **2 copies** of each in the deck.
+Drawn when rolling a 6 during Reckoning or from crashing. Pro Line crashes draw 2 penalty cards. Each represents mechanical damage. **2 copies** of each in the deck.
 
 | Penalty | Effect |
 |---------|--------|

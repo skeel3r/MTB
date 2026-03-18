@@ -209,6 +209,14 @@ function drawPenalty(state: GameState, player: PlayerState): void {
   if (pen === 'snapped_brake') player.cannotBrake = true;
 }
 
+/** Draw crash penalty cards. Pro Line draws 2, Main Line draws 1. */
+function drawCrashPenalties(state: GameState, player: PlayerState): void {
+  const count = player.commitment === 'pro' ? 2 : 1;
+  for (let i = 0; i < count; i++) {
+    drawPenalty(state, player);
+  }
+}
+
 // ── Draw cards from technique deck ──
 function drawCards(state: GameState, count: number): TechniqueType[] {
   const cards: TechniqueType[] = [];
@@ -588,9 +596,7 @@ function executeReckoning(state: GameState): GameState {
       }
       // Draw an extra penalty card for crashing
       s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) \u2014 Tokens reset to center.`);
-      if (s.penaltyDeck.length > 0) {
-        drawPenalty(s, player);
-      }
+      drawCrashPenalties(s, player);
       // Lose momentum on crash
       player.momentum = Math.max(0, player.momentum - 3);
     }
@@ -1054,10 +1060,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
-        if (s.penaltyDeck.length > 0) {
-          drawPenalty(s, player);
-          s.log.push(`${player.name}: Drew penalty card from crash.`);
-        }
+        drawCrashPenalties(s, player);
       }
 
       s.activeObstacles.splice(obstacleIndex, 1);
@@ -1069,9 +1072,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.crashed = true;
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
-        if (s.penaltyDeck.length > 0) {
-          drawPenalty(s, player);
-        }
+        drawCrashPenalties(s, player);
         player.momentum = Math.max(0, player.momentum - 3);
         s.log.push(`${player.name}: CRASH from hazard dice! Reset to center, penalty card drawn.`);
       }
@@ -1098,10 +1099,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
-        if (s.penaltyDeck.length > 0) {
-          drawPenalty(s, player);
-          s.log.push(`${player.name}: Drew penalty card from crash.`);
-        }
+        drawCrashPenalties(s, player);
         s.activeObstacles.splice(sendObstacleIdx, 1);
         revealObstacle(s, player.id, crashObs);
         s.obstacleDiscard.push(crashObs);
@@ -1119,18 +1117,15 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       player.momentum -= thisSendCost;
       player.hazardDice++;
 
-      // Pro Line blow-by: extra +1 hazard die and draw a penalty card
+      // Pro Line blow-by: extra +1 hazard die
       if (player.commitment === 'pro') {
         player.hazardDice++;
-        if (s.penaltyDeck.length > 0) {
-          drawPenalty(s, player);
-        }
       }
 
       const sendProgressGain = player.commitment === 'pro' ? 2 : 1;
       player.progress += sendProgressGain;
       player.obstaclesCleared++;
-      const hazardText = player.commitment === 'pro' ? '+2 Hazard Dice + Penalty' : '+1 Hazard Die';
+      const hazardText = player.commitment === 'pro' ? '+2 Hazard Dice' : '+1 Hazard Die';
       s.log.push(`${player.name}: SENDS IT through "${getObstacleName(sentObstacle)}"! -${thisSendCost} Momentum, ${hazardText}, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
 
       s.activeObstacles.splice(sendObstacleIdx, 1);
@@ -1143,10 +1138,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
-        if (s.penaltyDeck.length > 0) {
-          drawPenalty(s, player);
-        }
-        s.log.push(`${player.name}: CRASH from hazard dice! Reset to center, penalty card drawn.`);
+        drawCrashPenalties(s, player);
+        s.log.push(`${player.name}: CRASH from hazard dice! Reset to center.`);
       }
       break;
     }

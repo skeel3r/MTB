@@ -66,6 +66,7 @@ fn shift_away_from_center(grid: &mut [Vec<bool>], row: usize) {
 // ── Crash ──
 
 /// Crash a player: reset grid to center, lose 3 momentum, draw penalty, end turn.
+/// Pro Line crashes draw 2 penalty cards instead of 1.
 pub fn crash(
     player: &mut PlayerState,
     penalty_deck: &mut VecDeque<PenaltyType>,
@@ -79,8 +80,11 @@ pub fn crash(
         player.grid[r][2] = true;
     }
     player.momentum = (player.momentum - 3).max(0);
-    if let Some(pen) = penalty_deck.pop_front() {
-        player.penalties.push(pen);
+    let penalty_count = if player.commitment == Commitment::Pro { 2 } else { 1 };
+    for _ in 0..penalty_count {
+        if let Some(pen) = penalty_deck.pop_front() {
+            player.penalties.push(pen);
+        }
     }
     player.crashed = true;
     player.turn_ended = true;
@@ -425,7 +429,9 @@ pub fn process_action(
     choice: &Choice,
     rng: &mut impl Rng,
 ) {
-    {
+    // Skip crashed/turn_ended check for stage break actions (buy upgrades, end turn)
+    let is_stage_break_action = matches!(choice, Choice::BuyUpgrade { .. } | Choice::EndTurn | Choice::CommitLine { .. });
+    if !is_stage_break_action {
         let player = &state.players[player_index];
         if player.crashed || player.turn_ended {
             return;
@@ -746,15 +752,10 @@ pub fn process_action(
             // +1 hazard die (or +2 for "The 10ft Drop" which is handled by Bottom Out penalty_type)
             player.hazard_dice += 1;
 
-            // Pro Line blow-by: extra +1 hazard die and draw a penalty card
+            // Pro Line blow-by: extra +1 hazard die
             if player.commitment == Commitment::Pro {
                 player.hazard_dice += 1;
-                if let Some(pen) = state.penalty_deck.pop_front() {
-                    state.players[player_index].penalties.push(pen);
-                }
             }
-
-            let player = &mut state.players[player_index];
             let progress_gain = if player.commitment == Commitment::Pro {
                 2
             } else {

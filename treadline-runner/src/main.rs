@@ -7,7 +7,7 @@ use wyrand::WyRand;
 
 use treadline_core::choices::{enumerate_choices, refine_choice};
 use treadline_core::engine::{advance_phase, init_game, process_action};
-use treadline_core::ismcts::ismcts;
+use treadline_core::ismcts::ismcts_with_policy;
 use treadline_core::scoring::compute_terminal_rewards;
 use treadline_core::types::*;
 
@@ -39,6 +39,10 @@ struct Args {
     /// Trail pack ID (e.g. "tiger-mountain")
     #[arg(long)]
     trail: Option<String>,
+
+    /// Rollout policy: "heuristic" (default) or "random"
+    #[arg(long, default_value = "heuristic")]
+    rollout: String,
 }
 
 // ── Helpers ──
@@ -65,12 +69,13 @@ fn pick_choice(
     player_index: usize,
     choices: &[Choice],
     iterations: u32,
+    policy: RolloutPolicy,
     rng: &mut WyRand,
 ) -> Choice {
     if choices.len() == 1 {
         return choices[0].clone();
     }
-    let choice = ismcts(state, player_index, iterations, rng);
+    let choice = ismcts_with_policy(state, player_index, iterations, policy, rng);
     if choices.contains(&choice) {
         choice
     } else {
@@ -91,6 +96,7 @@ fn run_game(
     num_players: usize,
     trail_id: Option<&str>,
     iterations: u32,
+    policy: RolloutPolicy,
     rng: &mut WyRand,
 ) -> GameRunOutput {
     let start = Instant::now();
@@ -125,7 +131,7 @@ fn run_game(
                 for pi in 0..num_players {
                     state.current_player_index = pi;
                     let choices = enumerate_choices(&state);
-                    let choice = pick_choice(&state, pi, &choices, iterations, rng);
+                    let choice = pick_choice(&state, pi, &choices, iterations, policy, rng);
 
                     let concrete = refine_choice(&state, &choice, rng);
 
@@ -170,7 +176,7 @@ fn run_game(
                             break;
                         }
 
-                        let choice = pick_choice(&state, pi, &choices, iterations, rng);
+                        let choice = pick_choice(&state, pi, &choices, iterations, policy, rng);
                         let concrete = refine_choice(&state, &choice, rng);
 
                         seq += 1;
@@ -205,7 +211,7 @@ fn run_game(
                             break;
                         }
 
-                        let choice = pick_choice(&state, pi, &choices, iterations, rng);
+                        let choice = pick_choice(&state, pi, &choices, iterations, policy, rng);
                         let concrete = refine_choice(&state, &choice, rng);
 
                         seq += 1;
@@ -271,9 +277,14 @@ fn run_game(
 fn main() {
     let args = Args::parse();
 
+    let policy = match args.rollout.as_str() {
+        "random" => RolloutPolicy::Random,
+        _ => RolloutPolicy::Heuristic,
+    };
+
     eprintln!(
-        "Running {} games with {} players, {} ISMCTS iterations, {} threads",
-        args.games, args.players, args.iterations, args.threads
+        "Running {} games with {} players, {} ISMCTS iterations, {} threads, {:?} rollout",
+        args.games, args.players, args.iterations, args.threads, policy
     );
 
     std::fs::create_dir_all(&args.output).expect("Failed to create output directory");
@@ -302,7 +313,7 @@ fn main() {
                 let mut rng = WyRand::new(now_epoch_millis().wrapping_add(t as u64 * 1000));
 
                 for _ in 0..count {
-                    let log = run_game(num_players, trail, iterations, &mut rng);
+                    let log = run_game(num_players, trail, iterations, policy, &mut rng);
 
                     let epoch_millis = now_epoch_millis();
                     let game_id = generate_id(&mut rng, 4);
