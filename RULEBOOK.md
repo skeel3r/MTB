@@ -1,4 +1,4 @@
-# Descenders: The Board Game — Rulebook
+# Treadline — Rulebook
 
 > A downhill mountain biking board game for 2-6 players. Race down the trail, tackle obstacles, manage your momentum, and use technique cards strategically to cross the finish line first.
 

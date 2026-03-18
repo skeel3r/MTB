@@ -1,6 +1,6 @@
-# Descenders
+# Treadline
 
-A board game simulation for Descenders, a downhill mountain biking race game. Includes a web app for interactive play and simulation, a Rust ISMCTS AI player compiled to WebAssembly, a batch game runner for data collection, and an analysis dashboard.
+A board game simulation for Treadline, a downhill mountain biking race game. Includes a web app for interactive play and simulation, a Rust ISMCTS AI player compiled to WebAssembly, a batch game runner for data collection, and an analysis dashboard.
 
 ## Prerequisites
 

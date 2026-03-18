@@ -1,91 +1,238 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { GameState, GameAction, PlayerState, UpgradeType } from '@/lib/types';
+import { GameState, GameAction } from '@/lib/types';
 import { initGame, advancePhase, processAction, getStandings } from '@/lib/engine';
 import {
-  SYMBOL_EMOJI, SYMBOL_COLORS,
+  SYMBOL_COLORS,
   getTechniqueSymbol, getTechniqueName, getTechniqueActionText,
-  getObstacleSymbols, getObstacleName, getObstaclePenaltyType, getObstacleMatchMode, getObstacleSendItCost,
-  getPenaltyName, getPenaltyDescription,
-  getTrailStageCheckedRows, getTrailStageTargetLanes,
-  ALL_UPGRADE_TYPES, UPGRADE_PROPERTIES,
 } from '@/lib/cards';
 import { aiPlaySprint, aiCommit } from '@/lib/ai-player';
-import GameBoard, { PlayerStats, HandDisplay, TrailCardDisplay } from '@/components/GameBoard';
 import GameLog from '@/components/GameLog';
+import GameShell from '@/components/GameShell';
 
-const PHASE_LABELS: Record<string, string> = {
-  setup: 'Setup',
-  scroll_descent: 'Scroll & Descent',
-  commitment: 'Commitment',
-  environment: 'Environment',
-  preparation: 'Preparation',
-  sprint: 'The Sprint',
-  alignment: 'Alignment Check',
-  reckoning: 'The Reckoning',
-  stage_break: 'Stage Break',
-  game_over: 'Game Over',
-};
+// ── Setup Screen ──
+function SetupScreen({
+  onStart,
+}: {
+  onStart: (names: string[], ai: boolean[]) => void;
+}) {
+  const [playerNames, setPlayerNames] = useState(['Rider 1', 'Rider 2']);
+  const [isAI, setIsAI] = useState([false, true]);
 
+  return (
+    <div className="min-h-screen game-table text-white p-4 sm:p-8">
+      <div className="max-w-lg mx-auto">
+        <h1 className="wpa-heading text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#D4A847' }}>
+          Treadline
+        </h1>
+        <p className="mb-6" style={{ color: 'rgba(184,200,168,0.6)' }}>Set up your game</p>
+
+        <div className="trail-card p-6 mb-6">
+          <div className="space-y-3 mb-6">
+            {playerNames.map((name, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  value={name}
+                  onChange={(e) => {
+                    const n = [...playerNames];
+                    n[i] = e.target.value;
+                    setPlayerNames(n);
+                  }}
+                  className="flex-1 bg-black/30 border rounded px-3 py-2 text-white"
+                  style={{ borderColor: '#3A6B35' }}
+                  placeholder={`Player ${i + 1}`}
+                />
+                <button
+                  onClick={() => {
+                    const a = [...isAI];
+                    a[i] = !a[i];
+                    setIsAI(a);
+                  }}
+                  className={`px-3 py-2 rounded text-xs font-bold transition-colors border ${
+                    isAI[i] ? 'text-white' : 'bg-black/20 hover:bg-black/30 text-gray-400'
+                  }`}
+                  style={isAI[i] ? { background: '#2E6B62', borderColor: '#4A9A8E' } : { borderColor: '#3A6B35' }}
+                >
+                  {isAI[i] ? 'AI' : 'Human'}
+                </button>
+                {playerNames.length > 1 && (
+                  <button
+                    onClick={() => {
+                      setPlayerNames(playerNames.filter((_, j) => j !== i));
+                      setIsAI(isAI.filter((_, j) => j !== i));
+                    }}
+                    className="px-3 py-2 rounded hover:opacity-80"
+                    style={{ background: '#9A3A1A' }}
+                  >
+                    X
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {playerNames.length < 6 && (
+            <button
+              onClick={() => {
+                setPlayerNames([...playerNames, `Rider ${playerNames.length + 1}`]);
+                setIsAI([...isAI, false]);
+              }}
+              className="w-full py-2 mb-4 bg-black/20 rounded hover:bg-black/30 border"
+              style={{ borderColor: '#3A6B35', color: '#B8C8A8' }}
+            >
+              + Add Player
+            </button>
+          )}
+        </div>
+
+        <button
+          onClick={() => {
+            const names = playerNames.filter((n) => n.trim());
+            if (names.length >= 1) onStart(names, isAI.slice(0, names.length));
+          }}
+          className="wpa-btn wpa-btn-primary w-full py-3 rounded-lg text-lg"
+        >
+          Start Game
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Game Over Screen ──
+function GameOverScreen({
+  game,
+  onNewGame,
+}: {
+  game: GameState;
+  onNewGame: () => void;
+}) {
+  const standings = getStandings(game);
+
+  return (
+    <div className="min-h-screen game-table text-white p-4 sm:p-8">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="wpa-heading text-3xl sm:text-4xl font-bold mb-2 text-center" style={{ color: '#D4A847' }}>
+          Game Over!
+        </h1>
+        <p className="text-center text-lg sm:text-xl mb-6 sm:mb-8" style={{ color: '#7BC47F' }}>
+          Winner: {standings[0].name}
+        </p>
+
+        <div className="trail-card p-3 sm:p-4 mb-6 overflow-x-auto">
+          <h2 className="font-bold mb-3">Final Standings</h2>
+          <table className="w-full text-xs sm:text-sm">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-700">
+                <th className="py-1 text-left">#</th>
+                <th className="text-left">Name</th>
+                <th>Obs</th>
+                <th>Prog</th>
+                <th className="hidden sm:table-cell">Perfect</th>
+                <th>Pen</th>
+                <th>Flow</th>
+                <th>Mtm</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standings.map((s) => (
+                <tr
+                  key={s.name}
+                  className={s.rank === 1 ? 'font-bold' : ''}
+                  style={s.rank === 1 ? { color: '#D4A847' } : {}}
+                >
+                  <td className="py-1">{s.rank}</td>
+                  <td>{s.name}</td>
+                  <td className="text-center">{s.obstaclesCleared}</td>
+                  <td className="text-center">{s.progress}</td>
+                  <td className="text-center hidden sm:table-cell">{s.perfectMatches}</td>
+                  <td className="text-center">{s.penalties}</td>
+                  <td className="text-center">{s.flow}</td>
+                  <td className="text-center">{s.momentum}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="h-40">
+          <GameLog log={game.log} />
+        </div>
+
+        <button
+          onClick={onNewGame}
+          className="wpa-btn wpa-btn-primary mt-4 w-full py-3 rounded-lg"
+        >
+          New Game
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page Orchestrator ──
 export default function PlayPage() {
   const [game, setGame] = useState<GameState | null>(null);
-  const [playerNames, setPlayerNames] = useState(['Rider 1', 'Rider 2']);
-  const [isAI, setIsAI] = useState([false, true]); // second player is AI by default
+  const [isAI, setIsAI] = useState<boolean[]>([false, true]);
   const [selectedPlayer, setSelectedPlayer] = useState(0);
   const [selectedSteerRow, setSelectedSteerRow] = useState<number | null>(null);
   const [effectToast, setEffectToast] = useState<{ cardName: string; text: string; color: string } | null>(null);
   const aiProcessingRef = useRef(false);
   const aiCommittedRoundRef = useRef(-1);
 
-  const startGame = useCallback(() => {
-    const names = playerNames.filter(n => n.trim());
-    if (names.length < 1) return;
+  // ── Start game ──
+  const handleStart = useCallback((names: string[], ai: boolean[]) => {
+    setIsAI(ai);
     setGame(initGame(names));
-  }, [playerNames]);
+  }, []);
 
+  // ── Advance phase ──
   const doAdvance = useCallback(() => {
     if (!game) return;
     setSelectedSteerRow(null);
     setGame(advancePhase(game));
   }, [game]);
 
-  const doAction = useCallback((action: GameAction, playerIndex?: number) => {
-    if (!game) return;
+  // ── Process action ──
+  const doAction = useCallback(
+    (action: GameAction, playerIndex?: number) => {
+      if (!game) return;
 
-    // Capture technique card info before it's removed from hand
-    if (action.type === 'technique') {
-      const pi = playerIndex ?? selectedPlayer;
-      const ci = (action.payload?.cardIndex as number) ?? 0;
-      const card = game.players[pi]?.hand[ci];
-      if (card) {
-        const cardName = getTechniqueName(card);
-        const cardSymbol = getTechniqueSymbol(card);
-        const cardActionText = getTechniqueActionText(card);
-        const EFFECT_DESCRIPTIONS: Record<string, string> = {
-          'Inside Line': 'Grip immunity + Momentum boost',
-          'Manual': 'Swap rows 1 & 2 + draw a card',
-          'Flick': 'Shift tokens toward center',
-          'Recover': 'Remove dice or repair penalty',
-        };
-
-        setEffectToast({
-          cardName,
-          text: EFFECT_DESCRIPTIONS[cardName] || cardActionText,
-          color: SYMBOL_COLORS[cardSymbol],
-        });
-        setTimeout(() => setEffectToast(null), 3000);
+      // Technique card toast
+      if (action.type === 'technique') {
+        const pi = playerIndex ?? selectedPlayer;
+        const ci = (action.payload?.cardIndex as number) ?? 0;
+        const card = game.players[pi]?.hand[ci];
+        if (card) {
+          const cardName = getTechniqueName(card);
+          const cardSymbol = getTechniqueSymbol(card);
+          const cardActionText = getTechniqueActionText(card);
+          const EFFECT_DESCRIPTIONS: Record<string, string> = {
+            'Inside Line': 'Grip immunity + Momentum boost',
+            'Manual': 'Swap rows 1 & 2 + draw a card',
+            'Flick': 'Shift tokens toward center',
+            'Recover': 'Remove dice or repair penalty',
+          };
+          setEffectToast({
+            cardName,
+            text: EFFECT_DESCRIPTIONS[cardName] || cardActionText,
+            color: SYMBOL_COLORS[cardSymbol],
+          });
+          setTimeout(() => setEffectToast(null), 3000);
+        }
       }
-    }
 
-    setGame(processAction(game, playerIndex ?? selectedPlayer, action));
-  }, [game, selectedPlayer]);
+      setGame(processAction(game, playerIndex ?? selectedPlayer, action));
+    },
+    [game, selectedPlayer],
+  );
 
   // ── AI auto-play ──
   useEffect(() => {
     if (!game || aiProcessingRef.current) return;
 
-    // AI commitment: auto-commit for AI players during commitment phase (once per round)
+    // AI commitment
     if (game.phase === 'commitment' && aiCommittedRoundRef.current !== game.round) {
       aiCommittedRoundRef.current = game.round;
       let s = game;
@@ -96,24 +243,19 @@ export default function PlayPage() {
           changed = true;
         }
       }
-      if (changed) {
-        setGame(s);
-      }
+      if (changed) setGame(s);
       return;
     }
 
-    // AI sprint: auto-play for AI players who haven't ended their turn
+    // AI sprint
     if (game.phase === 'sprint') {
-      const aiPlayerToPlay = game.players.findIndex(
-        (p, i) => isAI[i] && !p.turnEnded && !p.crashed,
-      );
-      if (aiPlayerToPlay >= 0) {
+      const aiIdx = game.players.findIndex((p, i) => isAI[i] && !p.turnEnded && !p.crashed);
+      if (aiIdx >= 0) {
         aiProcessingRef.current = true;
-        // Small delay so the human can see the AI acting
         const timer = setTimeout(() => {
-          setGame(prev => {
+          setGame((prev) => {
             if (!prev) return prev;
-            return aiPlaySprint(prev, aiPlayerToPlay);
+            return aiPlaySprint(prev, aiIdx);
           });
           aiProcessingRef.current = false;
         }, 600);
@@ -122,7 +264,7 @@ export default function PlayPage() {
     }
   }, [game, isAI]);
 
-  // Auto-select the first human player
+  // Auto-select first human player
   useEffect(() => {
     if (!game) return;
     const humanIndex = game.players.findIndex((_, i) => !isAI[i]);
@@ -131,944 +273,51 @@ export default function PlayPage() {
     }
   }, [game, isAI, selectedPlayer]);
 
-  // ── Setup Screen ──
+  // ── Steer handlers ──
+  const handleTokenSelect = useCallback(
+    (row: number) => {
+      setSelectedSteerRow((prev) => (prev === row ? null : row));
+    },
+    [],
+  );
+
+  const handleSteerTo = useCallback(
+    (row: number, direction: number) => {
+      doAction({ type: 'steer', payload: { row, direction } });
+      setSelectedSteerRow(null);
+    },
+    [doAction],
+  );
+
+  const handleSelectPlayer = useCallback(
+    (index: number) => {
+      setSelectedPlayer(index);
+      setSelectedSteerRow(null);
+    },
+    [],
+  );
+
+  // ── Routing ──
   if (!game) {
-    return (
-      <div className="min-h-screen game-table text-white p-4 sm:p-8">
-        <div className="max-w-lg mx-auto">
-          <h1 className="wpa-heading text-2xl sm:text-3xl font-bold mb-2" style={{ color: '#D4A847' }}>Treadline</h1>
-          <p className="mb-6" style={{ color: 'rgba(184,200,168,0.6)' }}>Set up your game</p>
-
-          <div className="trail-card p-6 mb-6">
-            <div className="space-y-3 mb-6">
-              {playerNames.map((name, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    value={name}
-                    onChange={e => {
-                      const n = [...playerNames];
-                      n[i] = e.target.value;
-                      setPlayerNames(n);
-                    }}
-                    className="flex-1 bg-black/30 border rounded px-3 py-2 text-white"
-                    style={{ borderColor: '#3A6B35' }}
-                    placeholder={`Player ${i + 1}`}
-                  />
-                  <button
-                    onClick={() => {
-                      const a = [...isAI];
-                      a[i] = !a[i];
-                      setIsAI(a);
-                    }}
-                    className={`px-3 py-2 rounded text-xs font-bold transition-colors border ${
-                      isAI[i]
-                        ? 'text-white'
-                        : 'bg-black/20 hover:bg-black/30 text-gray-400'
-                    }`}
-                    style={isAI[i] ? { background: '#2E6B62', borderColor: '#4A9A8E' } : { borderColor: '#3A6B35' }}
-                  >
-                    {isAI[i] ? 'AI' : 'Human'}
-                  </button>
-                  {playerNames.length > 1 && (
-                    <button
-                      onClick={() => {
-                        setPlayerNames(playerNames.filter((_, j) => j !== i));
-                        setIsAI(isAI.filter((_, j) => j !== i));
-                      }}
-                      className="px-3 py-2 rounded hover:opacity-80"
-                      style={{ background: '#9A3A1A' }}
-                    >
-                      X
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {playerNames.length < 6 && (
-              <button
-                onClick={() => { setPlayerNames([...playerNames, `Rider ${playerNames.length + 1}`]); setIsAI([...isAI, false]); }}
-                className="w-full py-2 mb-4 bg-black/20 rounded hover:bg-black/30 border"
-                style={{ borderColor: '#3A6B35', color: '#B8C8A8' }}
-              >
-                + Add Player
-              </button>
-            )}
-          </div>
-
-          <button
-            onClick={startGame}
-            className="wpa-btn wpa-btn-primary w-full py-3 rounded-lg text-lg"
-          >
-            Start Game
-          </button>
-        </div>
-      </div>
-    );
+    return <SetupScreen onStart={handleStart} />;
   }
 
-  const currentPlayer = game.players[selectedPlayer];
-  const standings = getStandings(game);
-  const hasPendingObstacle = game.activeObstacles.length > 0;
-
-  // ── Game Over ──
   if (game.phase === 'game_over') {
-    return (
-      <div className="min-h-screen game-table text-white p-4 sm:p-8">
-        <div className="max-w-2xl mx-auto">
-          <h1 className="wpa-heading text-3xl sm:text-4xl font-bold mb-2 text-center" style={{ color: '#D4A847' }}>Game Over!</h1>
-          <p className="text-center text-lg sm:text-xl mb-6 sm:mb-8" style={{ color: '#7BC47F' }}>
-            Winner: {standings[0].name}
-          </p>
-
-          <div className="trail-card p-3 sm:p-4 mb-6 overflow-x-auto">
-            <h2 className="font-bold mb-3">Final Standings</h2>
-            <table className="w-full text-xs sm:text-sm">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="py-1 text-left">#</th>
-                  <th className="text-left">Name</th>
-                  <th>Obs</th>
-                  <th>Prog</th>
-                  <th className="hidden sm:table-cell">Perfect</th>
-                  <th>Pen</th>
-                  <th>Flow</th>
-                  <th>Mtm</th>
-                </tr>
-              </thead>
-              <tbody>
-                {standings.map(s => (
-                  <tr key={s.name} className={s.rank === 1 ? 'font-bold' : ''} style={s.rank === 1 ? { color: '#D4A847' } : {}}>
-                    <td className="py-1">{s.rank}</td>
-                    <td>{s.name}</td>
-                    <td className="text-center">{s.obstaclesCleared}</td>
-                    <td className="text-center">{s.progress}</td>
-                    <td className="text-center hidden sm:table-cell">{s.perfectMatches}</td>
-                    <td className="text-center">{s.penalties}</td>
-                    <td className="text-center">{s.flow}</td>
-                    <td className="text-center">{s.momentum}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <GameLog log={game.log} />
-
-          <button
-            onClick={() => setGame(null)}
-            className="wpa-btn wpa-btn-primary mt-4 w-full py-3 rounded-lg"
-          >
-            New Game
-          </button>
-        </div>
-      </div>
-    );
+    return <GameOverScreen game={game} onNewGame={() => setGame(null)} />;
   }
 
-  // ── Tabletop Layout ──
-  const playerCount = game.players.length;
-  const topPlayers = playerCount <= 2 ? [0] : playerCount <= 4 ? [0, 1] : game.players.slice(0, Math.ceil(playerCount / 2)).map((_, i) => i);
-  const bottomPlayers = playerCount <= 2 ? [1] : playerCount <= 4 ? [2, 3].filter(i => i < playerCount) : game.players.slice(Math.ceil(playerCount / 2)).map((_, i) => i + Math.ceil(playerCount / 2));
-
-  // Get checked rows and target lanes from the active trail card
-  const activeCheckedRows = game.activeTrailCard ? getTrailStageCheckedRows(game.activeTrailCard) : undefined;
-  const activeTargetLanes = game.activeTrailCard ? getTrailStageTargetLanes(game.activeTrailCard) : undefined;
-
   return (
-    <div className="min-h-screen game-table text-white flex flex-col overflow-auto">
-      {/* Top bar - compact info strip */}
-      <div className="px-3 py-1.5 backdrop-blur-sm z-10 flex-shrink-0" style={{ background: 'rgba(13,27,42,0.7)', borderBottom: '2px solid #D4A847' }}>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3">
-            <h1 className="wpa-heading text-base sm:text-lg font-bold" style={{ color: '#D4A847' }}>Treadline</h1>
-            <span className="text-xs text-gray-400">
-              Round {game.round}/15 &middot; {PHASE_LABELS[game.phase]}
-            </span>
-          </div>
-          <div className="flex gap-2 items-center">
-            {/* Phase advance / next phase */}
-            {game.phase !== 'sprint' && (game.phase as string) !== 'game_over' && (
-              <button
-                onClick={doAdvance}
-                className="wpa-btn wpa-btn-primary px-3 py-1.5 rounded text-xs"
-              >
-                Next Phase &rarr;
-              </button>
-            )}
-            {game.phase === 'sprint' && game.players.every(p => p.turnEnded || p.crashed) && (
-              <button
-                onClick={doAdvance}
-                className="wpa-btn wpa-btn-primary px-3 py-1.5 rounded text-xs"
-              >
-                All done &rarr;
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Tabletop surface */}
-      <div className="flex-1 min-h-0 p-2 flex flex-col overflow-hidden">
-        <div className="flex flex-col gap-3 mb-4">
-
-          {/* TOP PLAYERS */}
-          <div className="flex justify-center gap-3 flex-wrap">
-            {topPlayers.map(i => {
-              const player = game.players[i];
-              if (!player) return null;
-              const isSelected = i === selectedPlayer;
-              const canSteer = isSelected && game.phase === 'sprint' && currentPlayer.actionsRemaining >= 1 && !currentPlayer.turnEnded && !currentPlayer.crashed && !hasPendingObstacle;
-              return (
-                <PlayerSeat key={player.id} player={player} index={i} isSelected={isSelected} canSteer={canSteer}
-                  selectedSteerRow={isSelected ? selectedSteerRow : null} game={game}
-                  checkedRows={activeCheckedRows} targetLanes={activeTargetLanes}
-                  onSelect={() => { setSelectedPlayer(i); if (!isSelected) setSelectedSteerRow(null); }}
-                  onTokenSelect={(row) => { if (canSteer) setSelectedSteerRow(prev => prev === row ? null : row); }}
-                  onSteerTo={(row, dir) => { if (canSteer) { doAction({ type: 'steer', payload: { row, direction: dir } }); setSelectedSteerRow(null); } }}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ═══ MIDDLE ZONE: Table center - Trail Cards, Decks, Obstacles, Actions ═══ */}
-        <div className="flex flex-wrap gap-3 mb-2">
-
-          {/* Trail Cards */}
-          <div className="flex-shrink-0">
-            <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#A08A6A' }}>Trail</h3>
-            <div className="flex gap-2 items-start">
-              <TrailCardDisplay card={game.activeTrailCard} label="Active" compact />
-              <TrailCardDisplay card={game.queuedTrailCard} label="Next" compact />
-              {/* Trail deck count */}
-              <div className="flex flex-col items-center gap-1">
-                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Deck</div>
-                <div
-                  className="card-back deck-pile flex items-center justify-center"
-                  style={{ width: '60px', height: '85px' }}
-                >
-                  <div className="text-white/80 text-[10px] font-bold bg-black/40 rounded px-1.5 py-0.5">
-                    {game.trailDeck.length}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Obstacle Deck & Pending Obstacles */}
-          <div className="flex-shrink-0">
-            <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">Obstacles</h3>
-            <div className="flex gap-3 items-start">
-              {/* Obstacle Deck (face-down draw pile) */}
-              {game.phase === 'sprint' && (
-                <button
-                  onClick={() => doAction({ type: 'draw_obstacle' })}
-                  disabled={currentPlayer.turnEnded || currentPlayer.crashed || hasPendingObstacle}
-                  className="deck-pile card-back flex flex-col items-center justify-center disabled:opacity-30 transition-transform hover:scale-105"
-                  style={{ width: '70px', height: '95px' }}
-                >
-                  <div className="text-white text-[10px] font-bold text-center drop-shadow-md bg-black/40 rounded px-1.5 py-0.5">
-                    Flip
-                  </div>
-                  <div className="text-white/60 text-[9px] mt-0.5">
-                    {game.obstacleDeck.length} left
-                  </div>
-                </button>
-              )}
-
-              {/* Pending obstacle to resolve */}
-              {game.activeObstacles.map((obs, i) => {
-                // Check exact match OR "Forced Through" wild match (2 same-symbol cards = 1 wild)
-                const canMatch = (() => {
-                  const mode = getObstacleMatchMode(obs) ?? 'all';
-                  const hand = currentPlayer.hand;
-
-                  if (mode === 'any') {
-                    // Exact match: any 1 matching symbol
-                    if (getObstacleSymbols(obs).some(sym => hand.some(c => getTechniqueSymbol(c) === sym))) return true;
-                    // Wild: any 2 cards of same symbol
-                    const counts: Record<string, number> = {};
-                    for (const c of hand) counts[getTechniqueSymbol(c)] = (counts[getTechniqueSymbol(c)] || 0) + 1;
-                    return Object.values(counts).some(n => n >= 2);
-                  }
-
-                  // mode === 'all': try exact + wild matching
-                  const usedIndices = new Set<number>();
-                  const unmatched: string[] = [];
-                  for (const sym of getObstacleSymbols(obs)) {
-                    const idx = hand.findIndex((c, ci) => getTechniqueSymbol(c) === sym && !usedIndices.has(ci));
-                    if (idx >= 0) usedIndices.add(idx);
-                    else unmatched.push(sym);
-                  }
-                  if (unmatched.length === 0) return true;
-                  // Try wilds for each unmatched symbol
-                  for (const _sym of unmatched) {
-                    const avail: Record<string, number[]> = {};
-                    for (let ci = 0; ci < hand.length; ci++) {
-                      if (usedIndices.has(ci)) continue;
-                      const s = getTechniqueSymbol(hand[ci]);
-                      if (!avail[s]) avail[s] = [];
-                      avail[s].push(ci);
-                    }
-                    let found = false;
-                    for (const indices of Object.values(avail)) {
-                      if (indices.length >= 2) {
-                        usedIndices.add(indices[0]);
-                        usedIndices.add(indices[1]);
-                        found = true;
-                        break;
-                      }
-                    }
-                    if (!found) return false;
-                  }
-                  return true;
-                })();
-
-                const obsSendCost = getObstacleSendItCost(obs) ?? 2;
-                const canSendIt = currentPlayer.momentum >= obsSendCost;
-
-                return (
-                  <div
-                    key={i}
-                    className="relative flex flex-col items-center justify-end rounded-lg overflow-hidden"
-                    style={{ width: '120px', height: '160px' }}
-                  >
-                    {/* Obstacle card rendered image */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/cards/obstacle/${obs}_${getObstacleName(obs).toLowerCase().replace(/[()]/g, '').replace(/\s+/g, '_')}.png`}
-                      alt={getObstacleName(obs)}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                    {/* CSS fallback */}
-                    <div className="obstacle-card absolute inset-0" style={{ zIndex: -1 }} />
-                    {/* Dark overlay for readability */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80" />
-                    {/* Content overlay */}
-                    <div className="relative z-10 p-1.5 w-full">
-                      <div className="flex gap-1 mb-0.5 justify-center">
-                        {getObstacleSymbols(obs).map((sym, j) => (
-                          <span key={j} className="text-xl drop-shadow-md">{SYMBOL_EMOJI[sym]}</span>
-                        ))}
-                      </div>
-                      <div className="text-[10px] font-bold text-center leading-tight text-white drop-shadow-md">{getObstacleName(obs)}</div>
-                      <div className="text-[8px] text-red-300/80 text-center">{getObstaclePenaltyType(obs)}</div>
-                      <div className="flex gap-1.5 mt-1 w-full flex-wrap">
-                      {canMatch ? (
-                        <button
-                          onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i } })}
-                          className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold transition-colors text-white" style={{ background: '#3A6B35' }}
-                        >
-                          Match
-                        </button>
-                      ) : null}
-                      {canSendIt ? (
-                        <button
-                          onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                          className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold transition-colors text-white" style={{ background: '#B8922E' }}
-                          title="Spend 2 Momentum + 1 Hazard Die"
-                        >
-                          Send It (-{obsSendCost}M)
-                        </button>
-                      ) : null}
-                      {!canMatch && !canSendIt ? (
-                        <button
-                          onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                          className="w-full px-2 py-1.5 rounded text-[10px] font-bold animate-pulse text-white" style={{ background: '#9A3A1A' }}
-                        >
-                          CRASH
-                        </button>
-                      ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {game.phase === 'sprint' && game.activeObstacles.length === 0 && (
-                <div className="text-[10px] text-gray-500 self-center max-w-[140px] leading-tight">
-                  Flip an obstacle to challenge it. Use matching cards or take the penalty.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Controls */}
-          <div className="flex-1 min-w-[250px]">
-            <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#A08A6A' }}>
-              Actions &mdash; {currentPlayer.name}
-              {game.phase === 'sprint' && (
-                <span className="ml-1" style={{ color: '#D4A847' }}>({currentPlayer.actionsRemaining} left)</span>
-              )}
-            </h3>
-
-            {game.phase === 'setup' && (
-              <p className="text-gray-500 text-sm">Game is set up. Click &quot;Next Phase&quot; to begin.</p>
-            )}
-
-            {game.phase === 'commitment' && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => doAction({ type: 'commit_line', payload: { line: 'main' } })}
-                  className="px-4 py-2 rounded-lg border"
-                  style={{ background: 'rgba(27,42,74,0.5)', borderColor: '#8B5E3C' }}
-                >
-                  <div className="font-bold text-sm" style={{ color: '#F2E8CF' }}>Main Line</div>
-                  <div className="text-[10px]" style={{ color: '#A08A6A' }}>+1 Progress</div>
-                </button>
-                <button
-                  onClick={() => doAction({ type: 'commit_line', payload: { line: 'pro' } })}
-                  className="px-4 py-2 rounded-lg border"
-                  style={{ background: 'rgba(154,58,26,0.3)', borderColor: '#C35831' }}
-                >
-                  <div className="font-bold text-sm" style={{ color: '#E07070' }}>Pro Line</div>
-                  <div className="text-[10px]" style={{ color: '#A08A6A' }}>+2 Prog, No Brake</div>
-                </button>
-              </div>
-            )}
-
-            {game.phase === 'sprint' && hasPendingObstacle && (
-              <div className="text-xs font-bold mb-2 animate-pulse" style={{ color: '#D4A847' }}>
-                Resolve the flipped obstacle before taking other actions!
-              </div>
-            )}
-
-
-            {game.phase === 'sprint' && (
-              <div className="space-y-3">
-                {/* Core action buttons */}
-                <div className="flex flex-wrap gap-2">
-                  <ActionButton
-                    label="Pedal (+1 Mtm)"
-                    onClick={() => doAction({ type: 'pedal' })}
-                    disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotPedal || currentPlayer.turnEnded}
-                    color="text-white"
-                    style={{ background: '#1B2A4A', border: '1px solid #2E6B62' }}
-                  />
-                  <ActionButton
-                    label="Brake (-1 Mtm)"
-                    onClick={() => doAction({ type: 'brake' })}
-                    disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotBrake || currentPlayer.commitment === 'pro' || currentPlayer.turnEnded}
-                    color="text-white"
-                    style={{ background: '#C35831', border: '1px solid #9A3A1A' }}
-                  />
-                  <ActionButton
-                    label="End Turn"
-                    onClick={() => doAction({ type: 'end_turn' })}
-                    disabled={hasPendingObstacle || currentPlayer.turnEnded}
-                    color="text-white"
-                    style={{ background: '#5C3D2E', border: '1px solid #8B5E3C' }}
-                  />
-                </div>
-
-                {/* Flow spending */}
-                {currentPlayer.flow > 0 && (
-                  <div>
-                    <div className="text-[10px] text-gray-500 mb-1">Spend Flow ({currentPlayer.flow})</div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <FlowButton
-                        label="Ghost"
-                        cost={1}
-                        description="Duplicate a card symbol to help match an obstacle"
-                        onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'ghost_copy' } })}
-                        disabled={hasPendingObstacle || currentPlayer.flow < 1}
-                      />
-                      <FlowButton
-                        label="Reroll"
-                        cost={1}
-                        description="Clear all hazard dice before the reckoning roll"
-                        onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'reroll' } })}
-                        disabled={hasPendingObstacle || currentPlayer.flow < 1}
-                      />
-                      <FlowButton
-                        label="Brace"
-                        cost={1}
-                        description="Ignore one environmental hazard push this round"
-                        onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'brace' } })}
-                        disabled={hasPendingObstacle || currentPlayer.flow < 1}
-                      />
-                      <FlowButton
-                        label="Scrub"
-                        cost={3}
-                        description="Ignore the speed limit — avoid speed trap penalties"
-                        onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'scrub' } })}
-                        disabled={hasPendingObstacle || currentPlayer.flow < 3}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {game.phase !== 'sprint' && game.phase !== 'commitment' && game.phase !== 'setup' && game.phase !== 'stage_break' && (
-              <div className="text-gray-500 text-sm">
-                {game.phase === 'scroll_descent' && 'Tokens shifted down. New trail section revealed.'}
-                {game.phase === 'environment' && `${game.currentHazards.length} hazard(s) applied.`}
-                {game.phase === 'preparation' && 'Cards drawn based on momentum.'}
-                {game.phase === 'alignment' && 'Grid checked against trail card targets.'}
-                {game.phase === 'reckoning' && (
-                  <div className="space-y-2">
-                    <div>Hazard dice rolled:</div>
-                    {game.lastHazardRolls.map((hr, i) => (
-                      <div key={i} className="p-2 rounded bg-black/20 border border-gray-700">
-                        <div className="font-bold text-xs text-gray-300 mb-1">{hr.playerName}</div>
-                        {hr.rolls.length === 0 ? (
-                          <div className="text-gray-600 text-xs">No hazard dice</div>
-                        ) : (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className="flex gap-1">
-                              {hr.rolls.map((roll, j) => (
-                                <span
-                                  key={j}
-                                  className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-sm ${
-                                    roll === 6
-                                      ? 'bg-red-700 text-white ring-2 ring-red-400 animate-pulse'
-                                      : 'bg-gray-700 text-gray-200'
-                                  }`}
-                                >
-                                  {roll}
-                                </span>
-                              ))}
-                            </div>
-                            {hr.penaltyDrawn && (
-                              <span className="text-red-400 text-xs font-bold">
-                                Penalty: {hr.penaltyDrawn}
-                              </span>
-                            )}
-                            {!hr.penaltyDrawn && hr.rolls.length > 0 && (
-                              <span className="text-green-400 text-xs">Safe!</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Obstacles */}
-            <div className="flex flex-col items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: '#A08A6A' }}>Obstacles</h3>
-              <div className="flex gap-3 items-start">
-                {game.phase === 'sprint' && (
-                  <button
-                    onClick={() => doAction({ type: 'draw_obstacle' })}
-                    disabled={currentPlayer.turnEnded || currentPlayer.crashed || hasPendingObstacle}
-                    className="deck-pile card-back flex flex-col items-center justify-center disabled:opacity-30 transition-transform hover:scale-105"
-                    style={{ width: '90px', height: '125px' }}
-                  >
-                    <div className="text-white text-xs font-bold text-center drop-shadow-md bg-black/40 rounded px-2 py-1">Flip</div>
-                    <div className="text-white/60 text-[10px] mt-1">{game.obstacleDeck.length} left</div>
-                    <div className="text-white/40 text-[8px] mt-0.5 text-center">Free action</div>
-                  </button>
-                )}
-
-                {game.activeObstacles.map((obs, i) => {
-                  const obsSymbols = getObstacleSymbols(obs);
-                  const obsMatchMode = getObstacleMatchMode(obs);
-                  const canMatch = (() => {
-                    const hand = currentPlayer.hand;
-                    if (obsMatchMode === 'any') {
-                      if (obsSymbols.some(sym => hand.some(c => getTechniqueSymbol(c) === sym))) return true;
-                      const counts: Record<string, number> = {};
-                      for (const c of hand) counts[getTechniqueSymbol(c)] = (counts[getTechniqueSymbol(c)] || 0) + 1;
-                      return Object.values(counts).some(n => n >= 2);
-                    }
-                    const usedIndices = new Set<number>();
-                    const unmatched: string[] = [];
-                    for (const sym of obsSymbols) {
-                      const idx = hand.findIndex((c, ci) => getTechniqueSymbol(c) === sym && !usedIndices.has(ci));
-                      if (idx >= 0) usedIndices.add(idx);
-                      else unmatched.push(sym);
-                    }
-                    if (unmatched.length === 0) return true;
-                    for (const _sym of unmatched) {
-                      const avail: Record<string, number[]> = {};
-                      for (let ci = 0; ci < hand.length; ci++) {
-                        if (usedIndices.has(ci)) continue;
-                        const s = getTechniqueSymbol(hand[ci]);
-                        if (!avail[s]) avail[s] = [];
-                        avail[s].push(ci);
-                      }
-                      let found = false;
-                      for (const indices of Object.values(avail)) {
-                        if (indices.length >= 2) { usedIndices.add(indices[0]); usedIndices.add(indices[1]); found = true; break; }
-                      }
-                      if (!found) return false;
-                    }
-                    return true;
-                  })();
-                  const obsSendCost = getObstacleSendItCost(obs);
-                  const canSendIt = currentPlayer.momentum >= obsSendCost;
-                  return (
-                    <div key={i} className="obstacle-card flex flex-col items-center justify-center" style={{ width: '130px', padding: '8px' }}>
-                      <div className="flex gap-1 mb-1">
-                        {obsSymbols.map((sym, j) => (<span key={j} className="text-2xl">{SYMBOL_EMOJI[sym]}</span>))}
-                      </div>
-                      <div className="text-xs font-bold text-center leading-tight">{getObstacleName(obs)}</div>
-                      <div className="text-[9px] text-red-300/70 mt-0.5 text-center">{getObstaclePenaltyType(obs)}</div>
-                      <div className="flex gap-1.5 mt-2 w-full flex-wrap">
-                        {canMatch && (
-                          <button onClick={() => doAction({ type: 'resolve_obstacle', payload: { obstacleIndex: i } })}
-                            className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold text-white transition-colors" style={{ background: '#3A6B35' }}>Match</button>
-                        )}
-                        {canSendIt && (
-                          <button onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                            className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold text-white transition-colors" style={{ background: '#B8922E' }}
-                            title="Spend Momentum + 1 Hazard Die">Send It (-{obsSendCost}M)</button>
-                        )}
-                        {!canMatch && !canSendIt && (
-                          <button onClick={() => doAction({ type: 'send_it', payload: { obstacleIndex: i } })}
-                            className="w-full px-2 py-1.5 rounded text-[10px] font-bold text-white animate-pulse" style={{ background: '#9A3A1A' }}>CRASH</button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {game.phase === 'sprint' && game.activeObstacles.length === 0 && (
-                  <div className="text-[10px] text-gray-400 self-center max-w-[140px] leading-tight">
-                    Flip an obstacle to challenge it.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Actions panel */}
-            <div className="min-w-[250px] max-w-[320px]">
-              <h3 className="text-xs font-bold mb-2 text-gray-400 uppercase tracking-wider">
-                Actions &mdash; {currentPlayer.name}
-                {game.phase === 'sprint' && (
-                  <span className="ml-1" style={{ color: '#D4A847' }}>({currentPlayer.actionsRemaining} left)</span>
-                )}
-              </h3>
-
-              {game.phase === 'setup' && (
-                <p className="text-gray-500 text-sm">Game is set up. Click &quot;Next Phase&quot; to begin.</p>
-              )}
-
-              {game.phase === 'commitment' && (
-                <div className="flex gap-2">
-                  <button onClick={() => doAction({ type: 'commit_line', payload: { line: 'main' } })}
-                    className="px-4 py-2 rounded-lg border"
-                    style={{ background: 'rgba(27,42,74,0.5)', borderColor: '#8B5E3C' }}>
-                    <div className="font-bold text-sm" style={{ color: '#F2E8CF' }}>Main Line</div>
-                    <div className="text-[10px]" style={{ color: '#A08A6A' }}>+1 Progress</div>
-                  </button>
-                  <button onClick={() => doAction({ type: 'commit_line', payload: { line: 'pro' } })}
-                    className="px-4 py-2 rounded-lg border"
-                    style={{ background: 'rgba(154,58,26,0.3)', borderColor: '#C35831' }}>
-                    <div className="font-bold text-sm" style={{ color: '#E07070' }}>Pro Line</div>
-                    <div className="text-[10px]" style={{ color: '#A08A6A' }}>+2 Prog, No Brake</div>
-                  </button>
-                </div>
-              )}
-
-              {game.phase === 'sprint' && hasPendingObstacle && (
-                <div className="text-xs font-bold mb-2 animate-pulse" style={{ color: '#D4A847' }}>
-                  Resolve the flipped obstacle before taking other actions!
-                </div>
-              )}
-
-              {game.phase === 'sprint' && (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <ActionButton label="Pedal (+1 Mtm)" onClick={() => doAction({ type: 'pedal' })}
-                      disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotPedal || currentPlayer.turnEnded}
-                      color="text-white" style={{ background: '#1B2A4A', border: '1px solid #2E6B62' }} />
-                    <ActionButton label="Brake (-1 Mtm)" onClick={() => doAction({ type: 'brake' })}
-                      disabled={hasPendingObstacle || currentPlayer.actionsRemaining < 1 || currentPlayer.cannotBrake || currentPlayer.commitment === 'pro' || currentPlayer.turnEnded}
-                      color="text-white" style={{ background: '#C35831', border: '1px solid #9A3A1A' }} />
-                    <ActionButton label="End Turn" onClick={() => doAction({ type: 'end_turn' })}
-                      disabled={hasPendingObstacle || currentPlayer.turnEnded}
-                      color="text-white" style={{ background: '#5C3D2E', border: '1px solid #8B5E3C' }} />
-                  </div>
-                  {currentPlayer.flow > 0 && (
-                    <div>
-                      <div className="text-[10px] text-gray-500 mb-1">Spend Flow ({currentPlayer.flow})</div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <FlowButton label="Ghost" cost={1} description="Duplicate a card symbol to help match an obstacle"
-                          onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'ghost_copy' } })} disabled={hasPendingObstacle || currentPlayer.flow < 1} />
-                        <FlowButton label="Reroll" cost={1} description="Clear all hazard dice before the reckoning roll"
-                          onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'reroll' } })} disabled={hasPendingObstacle || currentPlayer.flow < 1} />
-                        <FlowButton label="Brace" cost={1} description="Ignore one environmental hazard push this round"
-                          onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'brace' } })} disabled={hasPendingObstacle || currentPlayer.flow < 1} />
-                        <FlowButton label="Scrub" cost={3} description="Ignore the speed limit"
-                          onClick={() => doAction({ type: 'flow_spend', payload: { flowAction: 'scrub' } })} disabled={hasPendingObstacle || currentPlayer.flow < 3} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {game.phase !== 'sprint' && game.phase !== 'commitment' && game.phase !== 'setup' && game.phase !== 'stage_break' && (
-                <div className="text-gray-500 text-sm">
-                  {game.phase === 'scroll_descent' && 'Tokens shifted down. New trail section revealed.'}
-                  {game.phase === 'environment' && `${game.currentHazards.length} hazard(s) applied.`}
-                  {game.phase === 'preparation' && 'Cards drawn based on momentum.'}
-                  {game.phase === 'alignment' && 'Grid checked against trail card targets.'}
-                  {game.phase === 'reckoning' && (
-                    <div className="space-y-2">
-                      <div>Hazard dice rolled:</div>
-                      {game.lastHazardRolls.map((hr, i) => (
-                        <div key={i} className="p-2 rounded bg-gray-50 border border-gray-200">
-                          <div className="font-bold text-xs text-gray-700 mb-1">{hr.playerName}</div>
-                          {hr.rolls.length === 0 ? (
-                            <div className="text-gray-400 text-xs">No hazard dice</div>
-                          ) : (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div className="flex gap-1">
-                                {hr.rolls.map((roll, j) => (
-                                  <span key={j} className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-sm ${
-                                    roll === 6 ? 'bg-red-600 text-white ring-2 ring-red-400 animate-pulse' : 'bg-gray-200 text-gray-700'
-                                  }`}>{roll}</span>
-                                ))}
-                              </div>
-                              {hr.penaltyDrawn && <span className="text-red-500 text-xs font-bold">Penalty: {hr.penaltyDrawn}</span>}
-                              {!hr.penaltyDrawn && hr.rolls.length > 0 && <span className="text-xs" style={{ color: '#7BC47F' }}>Safe!</span>}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {game.phase === 'stage_break' && (
-                <div className="trail-card p-3">
-                  <h3 className="text-xs font-bold mb-2">Upgrade Shop</h3>
-                  {game.players.map((player, pi) => (
-                    <div key={player.id} className="mb-3">
-                      <div className="text-[10px] text-gray-500 mb-1">{player.name} — Flow: {player.flow}</div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {ALL_UPGRADE_TYPES.map(upgrade => {
-                          const props = UPGRADE_PROPERTIES[upgrade];
-                          const owned = player.upgrades.includes(upgrade);
-                          const canAfford = player.flow >= props.flowCost;
-                          return (
-                            <button key={upgrade}
-                              onClick={() => doAction({ type: 'buy_upgrade', payload: { upgrade } }, pi)}
-                              disabled={owned || !canAfford}
-                              className={`text-left p-1.5 text-[10px] transition-colors ${
-                                owned ? 'upgrade-card opacity-60' : canAfford ? 'upgrade-card' : 'upgrade-card opacity-40'
-                              }`}>
-                              <div className="font-bold">{props.name} <span className="text-[#D4A847]">({props.flowCost}F)</span></div>
-                              <div className="text-gray-400">{props.description}</div>
-                              {owned && <div className="text-[9px]" style={{ color: '#7BC47F' }}>Owned</div>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* BOTTOM PLAYERS */}
-          <div className="flex justify-center gap-3 flex-wrap">
-            {bottomPlayers.map(i => {
-              const player = game.players[i];
-              if (!player) return null;
-              const isSelected = i === selectedPlayer;
-              const canSteer = isSelected && game.phase === 'sprint' && currentPlayer.actionsRemaining >= 1 && !currentPlayer.turnEnded && !currentPlayer.crashed && !hasPendingObstacle;
-              return (
-                <PlayerSeat key={player.id} player={player} index={i} isSelected={isSelected} canSteer={canSteer}
-                  selectedSteerRow={isSelected ? selectedSteerRow : null} game={game}
-                  checkedRows={activeCheckedRows} targetLanes={activeTargetLanes}
-                  onSelect={() => { setSelectedPlayer(i); if (!isSelected) setSelectedSteerRow(null); }}
-                  onTokenSelect={(row) => { if (canSteer) setSelectedSteerRow(prev => prev === row ? null : row); }}
-                  onSteerTo={(row, dir) => { if (canSteer) { doAction({ type: 'steer', payload: { row, direction: dir } }); setSelectedSteerRow(null); } }}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Effect Toast */}
-        {effectToast && (
-          <div
-            className="animate-pulse rounded-lg px-4 py-3 mb-2 border-2 flex items-center gap-3"
-            style={{
-              borderColor: effectToast.color,
-              backgroundColor: `${effectToast.color}15`,
-              boxShadow: `0 0 20px ${effectToast.color}30`,
-            }}
-          >
-            <div
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: effectToast.color, boxShadow: `0 0 8px ${effectToast.color}` }}
-            />
-            <div>
-              <span className="font-bold text-sm" style={{ color: effectToast.color }}>{effectToast.cardName}</span>
-              <span className="text-gray-300 text-sm ml-2">{effectToast.text}</span>
-            </div>
-          </div>
-        )}
-
-        {/* BOTTOM ZONE: Hand + Penalties + Game Log */}
-        <div className="flex flex-wrap gap-3 flex-shrink-0">
-          {/* Player's Hand */}
-          <div className="flex-1 min-w-[250px]">
-            <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#A08A6A' }}>
-              {currentPlayer.name}&apos;s Hand
-              {game.phase === 'sprint' && <span className="text-gray-600 normal-case"> (Click to play = 1 Action)</span>}
-            </h3>
-            <HandDisplay
-              hand={currentPlayer.hand}
-              onPlay={game.phase === 'sprint' ? (i) => doAction({ type: 'technique', payload: { cardIndex: i } }) : undefined}
-              disabled={game.phase !== 'sprint' || currentPlayer.actionsRemaining < 1 || currentPlayer.turnEnded}
-              activeObstacles={game.activeObstacles}
-            />
-          </div>
-
-          {/* Penalties - shown for all players who have any */}
-          {game.players.some(p => p.penalties.length > 0) && (
-            <div className="min-w-[180px]">
-              <h3 className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#E0875C' }}>Penalty Cards</h3>
-              {game.players.map(player => {
-                if (player.penalties.length === 0) return null;
-                return (
-                  <div key={player.id} className="mb-2">
-                    <div className="text-[10px] text-gray-400 font-bold mb-1">{player.name} ({player.penalties.length})</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {player.penalties.map((pen, i) => (
-                        <div
-                          key={i}
-                          className="penalty-card rounded-lg px-2.5 py-2 text-xs"
-                        >
-                          <div className="font-bold" style={{ color: '#D4A847' }}>{getPenaltyName(pen)}</div>
-                          <div className="text-[10px] mt-0.5" style={{ color: 'rgba(240,216,128,0.6)' }}>{getPenaltyDescription(pen)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Game Log */}
-          <div className="min-w-[180px] w-full sm:w-auto sm:max-w-[280px]">
-            <h3 className="text-xs font-bold mb-1 uppercase tracking-wider" style={{ color: '#A08A6A' }}>Game Log</h3>
-            <div className="h-28">
-              <GameLog log={game.log} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PlayerSeat({
-  player, index, isSelected, canSteer, selectedSteerRow, game,
-  checkedRows, targetLanes,
-  onSelect, onTokenSelect, onSteerTo,
-}: {
-  player: PlayerState;
-  index: number;
-  isSelected: boolean;
-  canSteer: boolean;
-  selectedSteerRow: number | null;
-  game: GameState;
-  checkedRows?: number[];
-  targetLanes?: number[];
-  onSelect: () => void;
-  onTokenSelect: (row: number) => void;
-  onSteerTo: (row: number, direction: number) => void;
-}) {
-  return (
-    <div
-      onClick={onSelect}
-      className="cursor-pointer rounded-xl p-3 transition-all border-2"
-      style={isSelected
-        ? { borderColor: '#D4A847', background: 'rgba(212,168,71,0.08)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '180px' }
-        : { borderColor: '#8B5E3C', background: 'rgba(27,42,74,0.3)', minWidth: '180px' }
-      }
-    >
-      <GameBoard
-        player={player}
-        checkedRows={checkedRows}
-        targetLanes={targetLanes}
-        compact
-        steerEnabled={canSteer}
-        selectedSteerRow={selectedSteerRow}
-        onTokenSelect={onTokenSelect}
-        onSteerTo={onSteerTo}
-      />
-      {/* Mini stats under each board */}
-      <div className="grid grid-cols-4 gap-1 mt-2 text-center text-[10px]">
-        <div><span className="font-bold" style={{ color: '#7BC47F' }}>{player.progress}</span> <span style={{ color: '#A08A6A' }}>Prog</span></div>
-        <div><span className="font-bold" style={{ color: '#6BADE0' }}>{player.momentum}</span> <span style={{ color: '#A08A6A' }}>Mtm</span></div>
-        <div><span className="font-bold" style={{ color: '#B898D0' }}>{player.flow}</span> <span style={{ color: '#A08A6A' }}>Flow</span></div>
-        <div><span className="font-bold" style={{ color: '#E07070' }}>{player.hazardDice}</span> <span style={{ color: '#A08A6A' }}>Haz</span></div>
-      </div>
-      {/* Line commitment indicator */}
-      {player.commitment && (
-        <div className="text-center text-[9px] mt-1 font-bold" style={{ color: player.commitment === 'pro' ? '#E07070' : '#A08A6A' }}>
-          {player.commitment === 'pro' ? 'PRO LINE' : 'Main Line'}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ActionButton({
-  label,
-  onClick,
-  disabled,
-  color,
-  style,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  color: string;
-  style?: React.CSSProperties;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`wpa-btn px-3 py-1.5 rounded-lg text-xs ${color} disabled:opacity-30 disabled:cursor-not-allowed`}
-      style={style}
-    >
-      {label}
-    </button>
-  );
-}
-
-function FlowButton({
-  label,
-  cost,
-  description,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  cost: number;
-  description: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="text-left p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-      style={{ background: 'rgba(46,107,98,0.4)', border: '1px solid rgba(74,154,142,0.4)' }}
-    >
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="font-bold text-xs" style={{ color: '#B8DDD8' }}>{label}</span>
-        <span className="text-[10px] font-mono" style={{ color: '#D4A847' }}>{cost}F</span>
-      </div>
-      <div className="text-[9px] leading-tight" style={{ color: 'rgba(184,221,216,0.5)' }}>{description}</div>
-    </button>
+    <GameShell
+      game={game}
+      selectedPlayer={selectedPlayer}
+      selectedSteerRow={selectedSteerRow}
+      isAI={isAI}
+      effectToast={effectToast}
+      onAdvance={doAdvance}
+      onAction={doAction}
+      onSelectPlayer={handleSelectPlayer}
+      onTokenSelect={handleTokenSelect}
+      onSteerTo={handleSteerTo}
+    />
   );
 }

@@ -47,7 +47,9 @@ export default function GameBoard({
     return col * (spotSize + 4) + spotSize / 2;
   }
   function spotY(row: number): number {
-    return row * (spotSize + rowGap) + spotSize / 2;
+    // Invert Y so row 0 is at the bottom (matches flex-col-reverse rendering)
+    const maxRow = player.grid.length - 1;
+    return (maxRow - row) * (spotSize + rowGap) + spotSize / 2;
   }
 
   // Build trail line connecting token positions between rows
@@ -106,8 +108,8 @@ export default function GameBoard({
           />
         </svg>
 
-        {/* Grid rows */}
-        <div className="relative" style={{ zIndex: 2 }}>
+        {/* Grid rows — rendered bottom-up so row 0 (first row) is at the bottom */}
+        <div className="relative flex flex-col-reverse" style={{ zIndex: 2 }}>
           {player.grid.map((row, r) => {
             const isChecked = checkedRows.includes(r);
             const targetLane = isChecked ? targetLanes[checkedRows.indexOf(r)] : -1;
@@ -134,10 +136,12 @@ export default function GameBoard({
                   const isValidSteerTarget = validSteerTargets.includes(c);
                   const isSelectedToken = isSelectedRow && hasToken;
 
-                  const handleClick = () => {
+                  const handleClick = (e: React.MouseEvent) => {
                     if (isValidSteerTarget && onSteerTo) {
+                      e.stopPropagation();
                       onSteerTo(r, c - tokenCol);
                     } else if (hasToken && steerEnabled && onTokenSelect) {
+                      e.stopPropagation();
                       onTokenSelect(r);
                     }
                     onCellClick?.(r, c);
@@ -300,8 +304,8 @@ export function TrailCardDisplay({
   const cardCheckedRows = getTrailStageCheckedRows(card);
   const cardTargetLanes = getTrailStageTargetLanes(card);
 
-  // Map lane index to column label
-  const colLabel = (lane: number) => `C${lane + 1}`;
+  // Map lane index to label (just the number)
+  const colLabel = (lane: number) => `${lane + 1}`;
 
   // Build row data: for each of rows 0-4, check if this row is checked and what its target lane is
   const rowData: { row: number; isChecked: boolean; targetLane: number }[] = [];
@@ -402,8 +406,8 @@ export function TrailCardDisplay({
           <span className={`font-bold ${compact ? 'text-sm' : 'text-lg'} leading-none`} style={{ color: '#F2E8CF' }}>{speedLimit}</span>
         </div>
 
-        {/* Row check indicators - right side */}
-        <div className={`absolute ${compact ? 'right-2 top-6 bottom-4' : 'right-3 top-8 bottom-6'} z-20 flex flex-col justify-between items-center`} style={{ width: compact ? '22px' : '28px' }}>
+        {/* Row check indicators - right side, reversed so row 0 is at bottom */}
+        <div className={`absolute ${compact ? 'right-2 top-6 bottom-10' : 'right-3 top-8 bottom-14'} z-20 flex flex-col-reverse justify-between items-center`} style={{ width: compact ? '22px' : '28px' }}>
           {rowData.map(({ row, isChecked, targetLane }) => (
             <div key={row} className="relative flex items-center">
               {isChecked ? (
@@ -436,10 +440,10 @@ export function TrailCardDisplay({
         </div>
 
         {/* Connecting line between checked rows */}
-        <svg className={`absolute ${compact ? 'right-2 top-6' : 'right-3 top-8'} z-10 pointer-events-none`} style={{ width: compact ? '22px' : '28px', bottom: compact ? '16px' : '24px', height: compact ? 'calc(100% - 40px)' : 'calc(100% - 56px)' }}>
+        <svg className={`absolute ${compact ? 'right-2 top-6' : 'right-3 top-8'} z-10 pointer-events-none`} style={{ width: compact ? '22px' : '28px', bottom: compact ? '40px' : '56px', height: compact ? 'calc(100% - 64px)' : 'calc(100% - 88px)' }}>
           {(() => {
             const checkedPositions = rowData
-              .map((rd, i) => ({ ...rd, yPct: i / 4 }))
+              .map((rd, i) => ({ ...rd, yPct: (4 - i) / 4 }))
               .filter(rd => rd.isChecked);
             if (checkedPositions.length < 2) return null;
             return checkedPositions.slice(0, -1).map((pos, i) => {

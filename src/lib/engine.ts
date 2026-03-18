@@ -184,6 +184,31 @@ function revealObstacle(state: GameState, playerId: string, obstacle: ObstacleTy
   state.roundRevealedObstacles.push(obstacle);
 }
 
+// ── Draw a penalty card and apply immediate effects ──
+function drawPenalty(state: GameState, player: PlayerState): void {
+  if (state.penaltyDeck.length === 0) return;
+  const pen = state.penaltyDeck.shift()!;
+  player.penalties.push(pen);
+  state.log.push(`${player.name}: Drew penalty "${getPenaltyName(pen)}" — ${getPenaltyDescription(pen)}`);
+
+  // Immediate effects
+  if (pen === 'slipped_pedal') {
+    const discardCount = Math.min(2, player.hand.length);
+    for (let i = 0; i < discardCount; i++) {
+      const idx = Math.floor(Math.random() * player.hand.length);
+      const discarded = player.hand.splice(idx, 1)[0];
+      state.techniqueDiscard.push(discarded);
+    }
+    if (discardCount > 0) {
+      state.log.push(`${player.name}: Slipped Pedal — discarded ${discardCount} card${discardCount > 1 ? 's' : ''}.`);
+    }
+  }
+
+  // Apply flags immediately
+  if (pen === 'bent_derailleur') player.cannotPedal = true;
+  if (pen === 'snapped_brake') player.cannotBrake = true;
+}
+
 // ── Draw cards from technique deck ──
 function drawCards(state: GameState, count: number): TechniqueType[] {
   const cards: TechniqueType[] = [];
@@ -337,11 +362,11 @@ export function advancePhase(state: GameState): GameState {
         return executePreparation(s);
       case 'sprint':
         for (const p of s.players) {
-          p.actionsRemaining = 5;
+          p.actionsRemaining = p.penalties.includes('arm_pump') ? 3 : 5;
           p.crashed = false;
           p.turnEnded = false;
-          p.cannotPedal = false;
-          p.cannotBrake = false;
+          p.cannotPedal = p.penalties.includes('bent_derailleur');
+          p.cannotBrake = p.penalties.includes('snapped_brake');
           p.drewFreshObstacle = false;
           p.trailReadCommittedPlayer = null;
           p.trailReadNextIndex = 0;
@@ -466,10 +491,11 @@ function executePreparation(state: GameState): GameState {
       }
     }
 
-    const drawCount = Math.max(2, Math.min(6, player.momentum));
+    const minHand = player.upgrades.includes('carbon_frame') ? 4 : 2;
+    const drawCount = Math.max(minHand, Math.min(6, player.momentum));
     const drawn = drawCards(s, drawCount);
     player.hand.push(...drawn);
-    s.log.push(`${player.name} draws ${drawn.length} cards (Momentum: ${player.momentum})`);
+    s.log.push(`${player.name} draws ${drawn.length} cards (Momentum: ${player.momentum}${minHand > 2 ? ', Carbon Frame min ' + minHand : ''})`);
   }
 
   return s;
@@ -544,10 +570,9 @@ function executeReckoning(state: GameState): GameState {
     let penaltyDrawn: string | null = null;
     if (penalty) {
       if (s.penaltyDeck.length > 0) {
-        const penaltyCard = s.penaltyDeck.shift()!;
-        player.penalties.push(penaltyCard);
+        const penaltyCard = s.penaltyDeck[0];
         penaltyDrawn = getPenaltyName(penaltyCard);
-        s.log.push(`${player.name}: Rolled a 6! Penalty: ${getPenaltyName(penaltyCard)} - ${getPenaltyDescription(penaltyCard)}`);
+        drawPenalty(s, player);
       }
     }
 
@@ -562,12 +587,9 @@ function executeReckoning(state: GameState): GameState {
         player.grid[r][2] = true;
       }
       // Draw an extra penalty card for crashing
+      s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) \u2014 Tokens reset to center.`);
       if (s.penaltyDeck.length > 0) {
-        const crashPen = s.penaltyDeck.shift()!;
-        player.penalties.push(crashPen);
-        s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) \u2014 Tokens reset, penalty: ${getPenaltyName(crashPen)}`);
-      } else {
-        s.log.push(`${player.name}: CRASH! (${player.hazardDice} hazard dice) \u2014 Tokens reset to center.`);
+        drawPenalty(s, player);
       }
       // Lose momentum on crash
       player.momentum = Math.max(0, player.momentum - 3);
@@ -622,13 +644,21 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         s.log.push(`${player.name}: Cannot Pedal (Balance penalty active).`);
         return s;
       }
-      if (player.actionsRemaining < 1) {
+      // High-Engagement Hubs: 1st pedal/turn costs 0 actions
+      const freePedal = player.upgrades.includes('high_engagement_hubs') && player.actionsRemaining === (player.penalties.includes('arm_pump') ? 3 : 5);
+      if (!freePedal && player.actionsRemaining < 1) {
         s.log.push(`${player.name}: No actions remaining.`);
         return s;
       }
-      player.actionsRemaining--;
-      player.momentum++;
-      s.log.push(`${player.name}: Pedal \u2192 Momentum ${player.momentum}`);
+      if (!freePedal) player.actionsRemaining--;
+      else s.log.push(`${player.name}: High-Engagement Hubs — free pedal!`);
+      const maxMomentum = player.penalties.includes('dropped_chain') ? 2 : (player.upgrades.includes('carbon_frame') ? 12 : 8);
+      player.momentum = Math.min(player.momentum + 1, maxMomentum);
+      if (player.momentum >= maxMomentum && player.penalties.includes('dropped_chain')) {
+        s.log.push(`${player.name}: Pedal — Momentum capped at ${maxMomentum} (Dropped Chain).`);
+      } else {
+        s.log.push(`${player.name}: Pedal \u2192 Momentum ${player.momentum}`);
+      }
       break;
     }
 
@@ -642,22 +672,57 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         return s;
       }
       player.actionsRemaining--;
-      player.momentum = Math.max(0, player.momentum - 1);
+      const brakeDrop = player.upgrades.includes('oversized_rotors') ? 2 : 1;
+      player.momentum = Math.max(0, player.momentum - brakeDrop);
+      if (brakeDrop > 1) s.log.push(`${player.name}: Oversized Rotors — brake drops momentum by ${brakeDrop}.`);
       s.log.push(`${player.name}: Brake \u2192 Momentum ${player.momentum}`);
       break;
     }
 
     case 'steer': {
-      if (player.actionsRemaining < 1) {
+      // Electronic Shifting: 1st steer/turn costs 0 actions
+      const freeSteer = player.upgrades.includes('electronic_shifting') && player.actionsRemaining === (player.penalties.includes('arm_pump') ? 3 : 5);
+      if (!freeSteer && player.actionsRemaining < 1) {
         s.log.push(`${player.name}: No actions remaining.`);
         return s;
+      }
+      // Stretched Cable: must discard 1 card to steer
+      if (player.penalties.includes('stretched_cable')) {
+        if (player.hand.length === 0) {
+          s.log.push(`${player.name}: Can't steer — Stretched Cable requires discarding a card, but hand is empty.`);
+          return s;
+        }
+        const discarded = player.hand.pop()!;
+        s.techniqueDiscard.push(discarded);
+        s.log.push(`${player.name}: Stretched Cable — discarded "${getTechniqueName(discarded)}" to steer.`);
       }
       const row = (action.payload?.row as number) ?? 0;
       const direction = (action.payload?.direction as number) ?? 1;
       const col = getTokenCol(player.grid, row);
       if (col >= 0) {
         setToken(player.grid, row, col + direction);
-        player.actionsRemaining--;
+        if (!freeSteer) player.actionsRemaining--;
+        else s.log.push(`${player.name}: Electronic Shifting — free steer!`);
+        // Bent Bars: rows 3 and 4 (indices 2,3) move together
+        if (player.penalties.includes('bent_bars') && (row === 2 || row === 3)) {
+          const linkedRow = row === 2 ? 3 : 2;
+          const linkedCol = getTokenCol(player.grid, linkedRow);
+          if (linkedCol >= 0) {
+            setToken(player.grid, linkedRow, linkedCol + direction);
+            s.log.push(`${player.name}: Bent Bars — Row ${linkedRow + 1} moves with Row ${row + 1}.`);
+          }
+        }
+        // Loose Headset: every steer adds +1 hazard die
+        if (player.penalties.includes('loose_headset')) {
+          player.hazardDice++;
+          s.log.push(`${player.name}: Loose Headset — +1 Hazard Die from steering.`);
+        }
+        // Tacoed Rim: columns 1 and 5 (indices 0,4) add hazard die
+        const newCol = getTokenCol(player.grid, row);
+        if (player.penalties.includes('tacoed_rim') && (newCol === 0 || newCol === 4)) {
+          player.hazardDice++;
+          s.log.push(`${player.name}: Tacoed Rim — token on edge column, +1 Hazard Die.`);
+        }
         s.log.push(`${player.name}: Steer Row ${row + 1} ${direction > 0 ? 'right' : 'left'}`);
       }
       break;
@@ -819,6 +884,10 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           }
           break;
         case 'ghost_copy':
+          if (player.penalties.includes('blown_seals')) {
+            s.log.push(`${player.name}: Blown Seals — cannot use Ghost Copy.`);
+            break;
+          }
           if (player.flow >= 1) {
             player.flow--;
             s.log.push(`${player.name}: Spent 1 Flow \u2192 Ghost Copy (duplicate symbol)`);
@@ -939,6 +1008,16 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       if (obstacleIndex >= s.activeObstacles.length) break;
       const obstacle = s.activeObstacles[obstacleIndex];
 
+      // Flat Tire: must spend 2 momentum to tackle any obstacle
+      if (player.penalties.includes('flat_tire')) {
+        if (player.momentum < 2) {
+          s.log.push(`${player.name}: Flat Tire — need 2 momentum to tackle obstacles (have ${player.momentum}).`);
+          break;
+        }
+        player.momentum -= 2;
+        s.log.push(`${player.name}: Flat Tire — spent 2 momentum to tackle obstacle.`);
+      }
+
       // Step 1: Terrain effect ALWAYS fires
       s.log.push(`${player.name}: Hits "${getObstacleName(obstacle)}" \u2014 ${getObstacleBlowByText(obstacle)}`);
       applyObstaclePenalty(player, obstacle, s);
@@ -960,6 +1039,11 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.progress += resolveProgressGain;
         player.pendingMomentum++; // Deferred — applied at end of turn
         player.obstaclesCleared++;
+        // Factory Suspension: Pro Line obstacle clears gain +2 Flow
+        if (player.commitment === 'pro' && player.upgrades.includes('factory_suspension')) {
+          player.flow += 2;
+          s.log.push(`${player.name}: Factory Suspension — +2 Flow from Pro Line clear!`);
+        }
         const wildNote = usedWilds ? ' (Forced Through!)' : '';
         s.log.push(`${player.name}: Matched "${getObstacleName(obstacle)}"${wildNote}! +${resolveProgressGain} Progress, +1 Pending Momentum (${player.obstaclesCleared} cleared)`);
       } else {
@@ -971,7 +1055,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
         if (s.penaltyDeck.length > 0) {
-          player.penalties.push(s.penaltyDeck.shift()!);
+          drawPenalty(s, player);
           s.log.push(`${player.name}: Drew penalty card from crash.`);
         }
       }
@@ -986,7 +1070,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.turnEnded = true;
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         if (s.penaltyDeck.length > 0) {
-          player.penalties.push(s.penaltyDeck.shift()!);
+          drawPenalty(s, player);
         }
         player.momentum = Math.max(0, player.momentum - 3);
         s.log.push(`${player.name}: CRASH from hazard dice! Reset to center, penalty card drawn.`);
@@ -1015,7 +1099,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
         if (s.penaltyDeck.length > 0) {
-          player.penalties.push(s.penaltyDeck.shift()!);
+          drawPenalty(s, player);
           s.log.push(`${player.name}: Drew penalty card from crash.`);
         }
         s.activeObstacles.splice(sendObstacleIdx, 1);
@@ -1050,7 +1134,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         for (let r = 0; r < 6; r++) setToken(player.grid, r, 2);
         player.momentum = Math.max(0, player.momentum - 3);
         if (s.penaltyDeck.length > 0) {
-          player.penalties.push(s.penaltyDeck.shift()!);
+          drawPenalty(s, player);
         }
         s.log.push(`${player.name}: CRASH from hazard dice! Reset to center, penalty card drawn.`);
       }

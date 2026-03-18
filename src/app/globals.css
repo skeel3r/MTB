@@ -193,3 +193,59 @@ body {
 .wpa-btn-secondary:hover:not(:disabled) {
   background: #3A8078;
 }
+
+/* ── Game Shell: CSS Grid layout ── */
+
+/* Mobile: single column, scrollable */
+.game-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "top"
+    "center"
+    "bottom";
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+}
+.game-shell-top    { grid-area: top; }
+.game-shell-left   { grid-area: left; display: none; }
+.game-shell-center { grid-area: center; overflow-y: auto; }
+.game-shell-right  { grid-area: right; display: none; }
+.game-shell-bottom { grid-area: bottom; }
+
+/* Desktop: 3-column layout with side panels */
+@media (min-width: 768px) {
+  .game-shell {
+    grid-template-columns: 200px 1fr 200px;
+    grid-template-areas:
+      "top    top    top"
+      "left   center right"
+      "bottom bottom bottom";
+  }
+  .game-shell-left   { display: block; }
+  .game-shell-center { overflow-y: hidden; }
+  .game-shell-right  { display: block; }
+}
+
+/* Large desktop: wider side panels */
+@media (min-width: 1280px) {
+  .game-shell {
+    grid-template-columns: 240px 1fr 240px;
+  }
+}
+
+/* Phase overlay centered on play area */
+.phase-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13,27,42,0.85);
+  backdrop-filter: blur(4px);
+  z-index: 30;
+}
