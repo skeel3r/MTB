@@ -119,7 +119,32 @@ fn pick_sprint_action(state: &GameState, choices: &[Choice], rng: &mut impl Rng)
                 else if player.momentum > speed_limit { 3.0 }
                 else { 0.5 }
             }
-            Choice::SteerBest => 3.0,      // Steer is generally useful
+            Choice::SteerBest => {
+                // Steer more when misaligned with trail card
+                let misaligned = state.active_trail_card.map(|card| {
+                    let rows = card.checked_rows();
+                    let lanes = card.target_lanes();
+                    let mut count = 0usize;
+                    for i in 0..rows.len() {
+                        let row = rows[i];
+                        let target = lanes[i];
+                        if row < player.grid.len() {
+                            for c in 0..5 {
+                                if player.grid[row][c] {
+                                    if (c as i32 - target as i32).unsigned_abs() >= 1 {
+                                        count += 1;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    count
+                }).unwrap_or(0);
+                if misaligned >= 3 { 8.0 }
+                else if misaligned >= 1 { 5.0 }
+                else { 1.0 }
+            }
             Choice::TechniqueBest => 1.5,   // Play cards occasionally
             Choice::DrawObstacle => {
                 // Only draw when hand is decent
@@ -160,15 +185,26 @@ fn pick_sprint_action(state: &GameState, choices: &[Choice], rng: &mut impl Rng)
     weighted.last().unwrap().choice
 }
 
-/// Stage break heuristic: buy the cheapest affordable upgrade, then end turn.
+/// Stage break heuristic: buy the best value upgrade, then end turn.
+/// Skips Factory Suspension since its value depends on Pro Line commitment
+/// which is evaluated separately by the ISMCTS tree.
 fn pick_stage_break_action(choices: &[Choice]) -> Choice {
-    // Find cheapest upgrade
+    // Score upgrades by general usefulness (independent of commitment choice)
     let mut best: Option<(Choice, i32)> = None;
     for choice in choices {
         if let Choice::BuyUpgrade { upgrade } = choice {
-            let cost = upgrade.flow_cost();
-            if best.is_none() || cost < best.unwrap().1 {
-                best = Some((*choice, cost));
+            use crate::types::UpgradeType::*;
+            // Higher score = buy first. Skip Factory Suspension (pro-dependent).
+            let score = match upgrade {
+                HighEngagementHubs => 10,  // Free first pedal — always useful
+                CarbonFrame => 8,          // Min 4 cards + max 12 momentum
+                TelemetrySystem => 7,      // Peek at obstacles — strong intel
+                ElectronicShifting => 6,   // Free first steer — alignment help
+                OversizedRotors => 4,      // Double brake — situational
+                FactorySuspension => 0,    // Skip — depends on Pro Line
+            };
+            if score > 0 && (best.is_none() || score > best.unwrap().1) {
+                best = Some((*choice, score));
             }
         }
     }
