@@ -25,7 +25,7 @@ struct Args {
     players: usize,
 
     /// ISMCTS iterations per decision
-    #[arg(long, default_value_t = 1000)]
+    #[arg(long, default_value_t = 2000)]
     iterations: u32,
 
     /// Number of parallel threads

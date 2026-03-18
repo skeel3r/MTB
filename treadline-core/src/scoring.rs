@@ -80,9 +80,10 @@ pub fn compute_terminal_rewards(state: &GameState) -> Vec<f64> {
 
 /// Compute heuristic rewards for rollout timeout (game not finished).
 ///
-/// Per-player score:
-///   obstacles_cleared * 10 + progress + 0.1 * momentum + 0.12 * flow
-///   - 0.2 * penalties_count - 0.15 * hazard_dice
+/// Per-player score uses `progress` as the primary metric (which captures
+/// the Pro Line's doubled progress per obstacle clear) and penalizes risk
+/// accumulation. This ensures the ISMCTS can distinguish between the value
+/// of Main Line (steady +1) and Pro Line (+2 but riskier).
 ///
 /// Then normalize to [0, 1] via min-max normalization.
 pub fn compute_heuristic_rewards(state: &GameState) -> Vec<f64> {
@@ -95,12 +96,12 @@ pub fn compute_heuristic_rewards(state: &GameState) -> Vec<f64> {
         .players
         .iter()
         .map(|p| {
-            (p.obstacles_cleared as f64) * 10.0
-                + (p.progress as f64)
+            (p.progress as f64) * 5.0
+                + (p.obstacles_cleared as f64) * 3.0
                 + 0.1 * (p.momentum as f64)
-                + 0.12 * (p.flow as f64)
-                - 0.2 * (p.penalties.len() as f64)
-                - 0.15 * (p.hazard_dice as f64)
+                + 0.15 * (p.flow as f64)
+                - 0.5 * (p.penalties.len() as f64)
+                - 0.3 * (p.hazard_dice as f64)
         })
         .collect();
 
