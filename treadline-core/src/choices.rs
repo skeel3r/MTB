@@ -157,7 +157,7 @@ fn enumerate_free_sprint_choices(state: &GameState, player: &PlayerState) -> Vec
         }
 
         // Brake
-        if !player.cannot_brake && player.commitment != Commitment::Pro && player.momentum > 0 {
+        if !player.cannot_brake && player.momentum > 0 {
             choices.push(Choice::Brake);
         }
 

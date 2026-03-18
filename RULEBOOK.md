@@ -54,7 +54,7 @@ Each player chooses a **line** for this round:
 | Line | Benefit | Restriction |
 |------|---------|-------------|
 | **Main Line** | +1 Shred when obstacles matched | Normal play |
-| **Pro Line** | +2 Shred when obstacles matched | Cannot Brake; extra +1 Hazard Die on Send It |
+| **Pro Line** | +2 Shred when obstacles matched | Extra +1 Hazard Die on Send It |
 
 ### Phase 3: Environment
 

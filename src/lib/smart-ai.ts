@@ -320,7 +320,7 @@ function getLegalActions(state: GameState, playerIndex: number): ScoredAction[] 
   }
 
   // Brake
-  if (!player.cannotBrake && player.commitment !== 'pro' && player.momentum > 0) {
+  if (!player.cannotBrake && player.momentum > 0) {
     actions.push({ action: { type: 'brake' }, score: 0, label: 'brake' });
   }
 

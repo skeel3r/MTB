@@ -667,8 +667,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     }
 
     case 'brake': {
-      if (player.cannotBrake || player.commitment === 'pro') {
-        s.log.push(`${player.name}: Cannot Brake${player.commitment === 'pro' ? ' (Pro Line)' : ''}.`);
+      if (player.cannotBrake) {
+        s.log.push(`${player.name}: Cannot Brake (penalty).`);
         return s;
       }
       if (player.actionsRemaining < 1) {
@@ -864,9 +864,6 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
     case 'commit_line': {
       const line = (action.payload?.line as string) ?? 'main';
       player.commitment = line as 'main' | 'pro';
-      if (line === 'pro') {
-        player.cannotBrake = true;
-      }
       s.log.push(`${player.name}: Commits to ${line === 'pro' ? 'Pro' : 'Main'} Line`);
       break;
     }

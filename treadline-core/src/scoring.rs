@@ -80,10 +80,9 @@ pub fn compute_terminal_rewards(state: &GameState) -> Vec<f64> {
 
 /// Compute heuristic rewards for rollout timeout (game not finished).
 ///
-/// Per-player score uses `progress` as the primary metric (which captures
-/// the Pro Line's doubled progress per obstacle clear) and penalizes risk
-/// accumulation. This ensures the ISMCTS can distinguish between the value
-/// of Main Line (steady +1) and Pro Line (+2 but riskier).
+/// Includes alignment quality so the ISMCTS can see immediate value from
+/// steering: tokens closer to target lanes score higher, which propagates
+/// back through the tree to make steer actions look valuable.
 ///
 /// Then normalize to [0, 1] via min-max normalization.
 pub fn compute_heuristic_rewards(state: &GameState) -> Vec<f64> {
@@ -96,12 +95,33 @@ pub fn compute_heuristic_rewards(state: &GameState) -> Vec<f64> {
         .players
         .iter()
         .map(|p| {
-            (p.shred as f64) * 8.0
+            let mut score = (p.shred as f64) * 8.0
                 + (p.obstacles_cleared as f64) * 2.0
                 + 0.1 * (p.momentum as f64)
                 + 0.15 * (p.flow as f64)
                 - 0.5 * (p.penalties.len() as f64)
-                - 0.3 * (p.hazard_dice as f64)
+                - 0.3 * (p.hazard_dice as f64);
+
+            // Alignment quality: score grid position against active trail card
+            if let Some(card) = &state.active_trail_card {
+                let checked_rows = card.checked_rows();
+                let target_lanes = card.target_lanes();
+                for i in 0..checked_rows.len() {
+                    let row = checked_rows[i];
+                    if row < p.grid.len() {
+                        if let Some(col) = p.grid[row].iter().position(|&v| v) {
+                            let dist = (col as i32 - target_lanes[i] as i32).unsigned_abs();
+                            match dist {
+                                0 => score += 0.8,  // perfect — will earn flow
+                                1 => score += 0.3,  // close — no hazard die
+                                _ => score -= 0.5,  // 2+ off — will cause hazard die
+                            }
+                        }
+                    }
+                }
+            }
+
+            score
         })
         .collect();
 

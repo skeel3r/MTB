@@ -484,7 +484,7 @@ pub fn process_action(
 
         Choice::Brake => {
             let player = &mut state.players[player_index];
-            if player.cannot_brake || player.commitment == Commitment::Pro {
+            if player.cannot_brake {
                 return;
             }
             if player.actions_remaining < 1 {
@@ -849,9 +849,6 @@ pub fn process_action(
         Choice::CommitLine { line } => {
             let player = &mut state.players[player_index];
             player.commitment = *line;
-            if *line == Commitment::Pro {
-                player.cannot_brake = true;
-            }
         }
 
         Choice::EndTurn => {
@@ -1105,10 +1102,6 @@ fn execute_sprint_setup(state: &mut GameState, rng: &mut impl Rng) {
             player.cannot_brake = true;
         }
 
-        // Pro line: cannot brake
-        if player.commitment == Commitment::Pro {
-            player.cannot_brake = true;
-        }
     }
 
     // Telemetry System: peek at top 3 obstacles, pick best matchable one
