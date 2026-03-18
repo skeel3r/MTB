@@ -3,7 +3,7 @@ use crate::types::*;
 /// Compute terminal rewards for each player based on final standings.
 ///
 /// Ranking tiebreakers (higher is better except penalties):
-/// 1. Most progress
+/// 1. Most shred
 /// 2. Most obstacles_cleared
 /// 3. Most perfect_matches
 /// 4. Fewest penalties (penalties.len())
@@ -31,7 +31,7 @@ pub fn compute_terminal_rewards(state: &GameState) -> Vec<f64> {
             (
                 i,
                 (
-                    p.progress,
+                    p.shred,
                     p.obstacles_cleared,
                     p.perfect_matches,
                     -(p.penalties.len() as i32), // fewer is better => negate
@@ -96,7 +96,7 @@ pub fn compute_heuristic_rewards(state: &GameState) -> Vec<f64> {
         .players
         .iter()
         .map(|p| {
-            (p.progress as f64) * 8.0
+            (p.shred as f64) * 8.0
                 + (p.obstacles_cleared as f64) * 2.0
                 + 0.1 * (p.momentum as f64)
                 + 0.15 * (p.flow as f64)

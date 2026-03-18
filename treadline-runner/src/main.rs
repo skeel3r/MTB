@@ -156,7 +156,7 @@ fn run_game(
                     .players
                     .iter()
                     .enumerate()
-                    .map(|(i, p)| (i, p.progress))
+                    .map(|(i, p)| (i, p.shred))
                     .collect();
                 order.shuffle(rng);
                 order.sort_by(|a, b| b.1.cmp(&a.1));
@@ -246,7 +246,7 @@ fn run_game(
         .map(|(i, p)| FinalStanding {
             name: player_names[i].clone(),
             obstacles_cleared: p.obstacles_cleared,
-            progress: p.progress,
+            shred: p.shred,
             perfect_matches: p.perfect_matches,
             penalties: p.penalties.len() as i32,
             flow: p.flow,

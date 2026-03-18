@@ -54,9 +54,9 @@ export default function SimulatePage() {
 
     if (balance) {
       report.balanceSummary = {
-        avgWinnerProgress: balance.avgWinnerProgress,
-        avgLoserProgress: balance.avgLoserProgress,
-        progressSpread: balance.progressSpread,
+        avgWinnerShred: balance.avgWinnerShred,
+        avgLoserShred: balance.avgLoserShred,
+        shredSpread: balance.shredSpread,
         firstPlayerAdvantage: balance.firstPlayerAdvantage,
         obstacleMatchRate: balance.obstacleMatchRate,
         avgPenaltiesPerGame: balance.avgPenaltiesPerGame,
@@ -67,7 +67,7 @@ export default function SimulatePage() {
         avgHandSizeAtEnd: balance.avgHandSizeAtEnd,
         warnings: balance.warnings,
         winDistribution: balance.winDistribution,
-        progressByRound: balance.progressByRound,
+        shredByRound: balance.shredByRound,
         momentumByRound: balance.momentumByRound,
         hazardByRound: balance.hazardByRound,
         trailCardDifficulty: balance.trailCardDifficulty,
@@ -101,12 +101,12 @@ export default function SimulatePage() {
 
     if (gini) {
       report.giniAnalysis = {
-        progressGini: gini.progressGini,
+        shredGini: gini.shredGini,
         momentumGini: gini.momentumGini,
         flowGini: gini.flowGini,
         penaltyGini: gini.penaltyGini,
         verdict: gini.verdict,
-        progressGiniByRound: gini.progressGiniByRound,
+        shredGiniByRound: gini.shredGiniByRound,
       };
     }
 
@@ -436,7 +436,7 @@ export default function SimulatePage() {
             <LiveStat label="Games" value={results.length} />
             <LiveStat
               label="Avg Winner Prog"
-              value={(results.reduce((s, r) => s + r.finalStandings[0].progress, 0) / results.length).toFixed(1)}
+              value={(results.reduce((s, r) => s + r.finalStandings[0].shred, 0) / results.length).toFixed(1)}
             />
             <LiveStat
               label="Avg Penalties"
@@ -466,14 +466,14 @@ export default function SimulatePage() {
                     <div className="font-bold mb-0.5" style={{ color: '#D4A847' }}>R{snap.round}</div>
                     {snap.players.map(p => (
                       <div key={p.name} style={{ color: p.crashed ? '#E07070' : '#E8D5B7' }}>
-                        {p.progress}
+                        {p.shred}
                       </div>
                     ))}
                   </div>
                 ))}
               </div>
               <div className="flex gap-1 mt-1 min-w-max">
-                <div className="w-12 text-[10px] flex-shrink-0" style={{ color: '#A08A6A' }}>Prog:</div>
+                <div className="w-12 text-[10px] flex-shrink-0" style={{ color: '#A08A6A' }}>Shred:</div>
                 {liveSnapshot.length > 0 && liveSnapshot[0].players.map(p => (
                   <div key={p.name} className="text-[10px]" style={{ color: '#A08A6A' }}>{p.name.replace('Player ', 'P')}</div>
                 ))}
@@ -528,8 +528,8 @@ export default function SimulatePage() {
             <div className="flex flex-wrap gap-2 text-[10px]">
               {[
                 { label: 'Simulation', active: results.length > 0, detail: `${results.length} games` },
-                { label: 'Balance Summary', active: !!balance, detail: balance ? `Spread: ${balance.progressSpread.toFixed(1)}` : '' },
-                { label: 'Gini Analysis', active: !!gini, detail: gini ? `Prog: ${gini.progressGini.toFixed(3)}` : '' },
+                { label: 'Balance Summary', active: !!balance, detail: balance ? `Spread: ${balance.shredSpread.toFixed(1)}` : '' },
+                { label: 'Gini Analysis', active: !!gini, detail: gini ? `Shred: ${gini.shredGini.toFixed(3)}` : '' },
                 { label: 'Monte Carlo', active: !!mcResult, detail: mcResult ? `${mcResult.totalGames} games` : '' },
                 { label: 'Sensitivity', active: !!sensitivity, detail: sensitivity ? `${sensitivity.length} params` : '' },
                 { label: 'Obstacle Probs', active: true, detail: `${obsProbabilities.length} obstacles` },
@@ -583,9 +583,9 @@ export default function SimulatePage() {
             <div className="trail-card p-4">
               <h2 className="font-bold text-lg mb-3 wpa-heading">Key Metrics ({balance.gamesPlayed} games, {balance.strategy})</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <MetricCard label="Winner Avg Progress" value={balance.avgWinnerProgress.toFixed(1)} color="#7BC47F" />
-                <MetricCard label="Loser Avg Progress" value={balance.avgLoserProgress.toFixed(1)} color="#E07070" />
-                <MetricCard label="Score Spread" value={balance.progressSpread.toFixed(1)} color="#E0C860" />
+                <MetricCard label="Winner Avg Shred" value={balance.avgWinnerShred.toFixed(1)} color="#7BC47F" />
+                <MetricCard label="Loser Avg Shred" value={balance.avgLoserShred.toFixed(1)} color="#E07070" />
+                <MetricCard label="Score Spread" value={balance.shredSpread.toFixed(1)} color="#E0C860" />
                 <MetricCard label="P1 Advantage" value={`${(balance.firstPlayerAdvantage * 100).toFixed(1)}%`} color={Math.abs(balance.firstPlayerAdvantage) > 0.1 ? '#E07070' : '#E8D5B7'} />
                 <MetricCard label="Obstacle Match Rate" value={`${(balance.obstacleMatchRate * 100).toFixed(0)}%`} color="#6BADE0" />
                 <MetricCard label="Avg Penalties/Game" value={balance.avgPenaltiesPerGame.toFixed(1)} color="#E0875C" />
@@ -618,11 +618,11 @@ export default function SimulatePage() {
               </div>
             </div>
 
-            {/* Progression Curves (ASCII bar charts) */}
+            {/* Shred Curves (ASCII bar charts) */}
             <div className="trail-card p-4">
-              <h2 className="font-bold text-lg mb-3 wpa-heading">Progression Curves (Avg per Round)</h2>
+              <h2 className="font-bold text-lg mb-3 wpa-heading">Shred Curves (Avg per Round)</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <MiniChart label="Progress" data={balance.progressByRound} color="#7BC47F" maxVal={Math.max(...balance.progressByRound, 1)} />
+                <MiniChart label="Shred" data={balance.shredByRound} color="#7BC47F" maxVal={Math.max(...balance.shredByRound, 1)} />
                 <MiniChart label="Momentum" data={balance.momentumByRound} color="#6BADE0" maxVal={Math.max(...balance.momentumByRound, 1)} />
                 <MiniChart label="Hazard Dice" data={balance.hazardByRound} color="#E07070" maxVal={Math.max(...balance.hazardByRound, 1)} />
               </div>
@@ -638,7 +638,7 @@ export default function SimulatePage() {
                       <tr style={{ color: '#A08A6A', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: '#5C3D2E' }}>
                         <th className="py-1 text-left">Trail</th>
                         <th className="text-right">Avg Penalties</th>
-                        <th className="text-right">Avg Progress</th>
+                        <th className="text-right">Avg Shred</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -646,7 +646,7 @@ export default function SimulatePage() {
                         <tr key={t.name} style={{ borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'rgba(92,61,46,0.3)' }}>
                           <td className="py-1">{t.name}</td>
                           <td className="text-right" style={{ color: '#E0875C' }}>{t.avgPenalties.toFixed(2)}</td>
-                          <td className="text-right" style={{ color: '#7BC47F' }}>{t.avgProgress.toFixed(2)}</td>
+                          <td className="text-right" style={{ color: '#7BC47F' }}>{t.avgShred.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -674,7 +674,7 @@ export default function SimulatePage() {
                     {balance.playerAverages.map(pa => (
                       <tr key={pa.name} style={{ borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'rgba(92,61,46,0.3)' }}>
                         <td className="py-1">{pa.name}</td>
-                        <td className="text-right" style={{ color: '#7BC47F' }}>{pa.avgProgress.toFixed(1)}</td>
+                        <td className="text-right" style={{ color: '#7BC47F' }}>{pa.avgShred.toFixed(1)}</td>
                         <td className="text-right" style={{ color: '#E0C860' }}>{pa.avgPerfect.toFixed(1)}</td>
                         <td className="text-right" style={{ color: '#E0875C' }}>{pa.avgPenalties.toFixed(1)}</td>
                         <td className="text-right" style={{ color: '#B898D0' }}>{pa.avgFlow.toFixed(1)}</td>
@@ -707,7 +707,7 @@ export default function SimulatePage() {
                         <tr key={r.gameNumber} style={{ borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'rgba(92,61,46,0.3)' }}>
                           <td className="py-1">#{r.gameNumber}</td>
                           <td style={{ color: '#7BC47F' }}>{r.winner}</td>
-                          <td className="text-right">{r.finalStandings[0].progress}</td>
+                          <td className="text-right">{r.finalStandings[0].shred}</td>
                           <td className="text-right">{r.totalRounds}</td>
                         </tr>
                       ))}
@@ -935,9 +935,9 @@ export default function SimulatePage() {
             </p>
 
             <div className="rounded-lg p-4 mb-4" style={
-              gini.progressGini < 0.2
+              gini.shredGini < 0.2
                 ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#3A6B35', backgroundColor: 'rgba(58,107,53,0.15)' }
-                : gini.progressGini < 0.35
+                : gini.shredGini < 0.35
                 ? { borderWidth: '2px', borderStyle: 'solid', borderColor: '#D4A847', backgroundColor: 'rgba(212,168,71,0.1)' }
                 : { borderWidth: '2px', borderStyle: 'solid', borderColor: '#C35831', backgroundColor: 'rgba(195,88,49,0.1)' }
             }>
@@ -947,7 +947,7 @@ export default function SimulatePage() {
             <div className="trail-card p-4 mb-4">
               <h3 className="font-bold text-sm mb-3">Gini Coefficients by Metric</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <GiniBar label="Progress" value={gini.progressGini} />
+                <GiniBar label="Shred" value={gini.shredGini} />
                 <GiniBar label="Momentum" value={gini.momentumGini} />
                 <GiniBar label="Flow" value={gini.flowGini} />
                 <GiniBar label="Penalties" value={gini.penaltyGini} />
@@ -957,7 +957,7 @@ export default function SimulatePage() {
             <div className="trail-card p-4">
               <h3 className="font-bold text-sm mb-3">Progress Inequality Over Time</h3>
               <div className="flex items-end gap-px h-24">
-                {gini.progressGiniByRound.map((g, i) => (
+                {gini.shredGiniByRound.map((g, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center justify-end">
                     <div
                       className="w-full rounded-t-sm min-h-[2px]"
@@ -1032,9 +1032,9 @@ export default function SimulatePage() {
                                 {o.value} {sr.param.unit}
                                 {isBase && <span className="text-[10px] ml-1" style={{ color: '#7BC47F' }}>(base)</span>}
                               </td>
-                              <td className="text-right" style={{ color: '#7BC47F' }}>{o.avgWinnerProgress.toFixed(1)}</td>
+                              <td className="text-right" style={{ color: '#7BC47F' }}>{o.avgWinnerShred.toFixed(1)}</td>
                               <td className="text-right" style={{ color: '#E0875C' }}>{o.avgPenalties.toFixed(1)}</td>
-                              <td className="text-right" style={{ color: '#E0C860' }}>{o.progressSpread.toFixed(1)}</td>
+                              <td className="text-right" style={{ color: '#E0C860' }}>{o.shredSpread.toFixed(1)}</td>
                               <td className="text-right" style={{ color: '#6BADE0' }}>{(o.obstacleMatchRate * 100).toFixed(0)}%</td>
                             </tr>
                           );
@@ -1045,7 +1045,7 @@ export default function SimulatePage() {
                   {/* Mini visual: winner progress bar comparison */}
                   <div className="mt-2 space-y-1">
                     {sr.outcomes.map(o => {
-                      const maxProg = Math.max(...sr.outcomes.map(x => x.avgWinnerProgress), 1);
+                      const maxProg = Math.max(...sr.outcomes.map(x => x.avgWinnerShred), 1);
                       const isBase = o.value === sr.param.baseValue;
                       return (
                         <div key={o.value} className="flex items-center gap-2">
@@ -1055,10 +1055,10 @@ export default function SimulatePage() {
                           <div className="flex-1 rounded-full h-2.5 overflow-hidden" style={{ backgroundColor: 'rgba(13,27,42,0.5)' }}>
                             <div
                               className="h-full rounded-full"
-                              style={{ backgroundColor: isBase ? '#3A6B35' : '#D4A847', width: `${(o.avgWinnerProgress / maxProg) * 100}%` }}
+                              style={{ backgroundColor: isBase ? '#3A6B35' : '#D4A847', width: `${(o.avgWinnerShred / maxProg) * 100}%` }}
                             />
                           </div>
-                          <span className="text-[10px] w-8" style={{ color: '#A08A6A' }}>{o.avgWinnerProgress.toFixed(1)}</span>
+                          <span className="text-[10px] w-8" style={{ color: '#A08A6A' }}>{o.avgWinnerShred.toFixed(1)}</span>
                         </div>
                       );
                     })}

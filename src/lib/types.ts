@@ -94,7 +94,7 @@ export interface PlayerState {
   grid: boolean[][];
   momentum: number;
   flow: number;
-  progress: number;
+  shred: number;
   hand: TechniqueType[];
   penalties: PenaltyType[];
   hazardDice: number;
@@ -190,6 +190,6 @@ export interface SimulationConfig {
 export interface SimulationResult {
   gameNumber: number;
   winner: string;
-  finalStandings: { name: string; progress: number; perfectMatches: number; penalties: number; flow: number; momentum: number; cardsPlayed: number }[];
+  finalStandings: { name: string; shred: number; perfectMatches: number; penalties: number; flow: number; momentum: number; cardsPlayed: number }[];
   totalRounds: number;
 }

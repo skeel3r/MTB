@@ -34,8 +34,8 @@ pub fn render_analysis_tab(ui: &mut egui::Ui, analysis: &AnalysisResults) {
                         value: format!("{:.1}", analysis.avg_obstacles_cleared),
                     },
                     StatCard {
-                        label: "Avg Progress".into(),
-                        value: format!("{:.1}", analysis.avg_progress),
+                        label: "Avg Shred".into(),
+                        value: format!("{:.1}", analysis.avg_shred),
                     },
                     StatCard {
                         label: "Avg Penalties".into(),
@@ -80,7 +80,7 @@ pub fn render_analysis_tab(ui: &mut egui::Ui, analysis: &AnalysisResults) {
         .show(ui, |ui| {
             ui.columns(3, |cols| {
                 render_histogram(&mut cols[0], "Obstacles Cleared", &analysis.obstacles_cleared_distribution);
-                render_histogram(&mut cols[1], "Progress", &analysis.progress_distribution);
+                render_histogram(&mut cols[1], "Shred", &analysis.shred_distribution);
                 render_histogram(&mut cols[2], "Penalties", &analysis.penalty_distribution);
             });
         });
@@ -210,7 +210,7 @@ pub fn render_analysis_tab(ui: &mut egui::Ui, analysis: &AnalysisResults) {
                     ui.end_row();
 
                     comparison_row(ui, "Obstacles Cleared", wvl.winner_avg_obstacles, wvl.loser_avg_obstacles);
-                    comparison_row(ui, "Progress", wvl.winner_avg_progress, wvl.loser_avg_progress);
+                    comparison_row(ui, "Shred", wvl.winner_avg_shred, wvl.loser_avg_shred);
                     comparison_row(ui, "Penalties", wvl.winner_avg_penalties, wvl.loser_avg_penalties);
                     comparison_row(ui, "Flow", wvl.winner_avg_flow, wvl.loser_avg_flow);
                     comparison_row(ui, "Momentum", wvl.winner_avg_momentum, wvl.loser_avg_momentum);

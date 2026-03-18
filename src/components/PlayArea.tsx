@@ -53,7 +53,7 @@ function PlayerSeat({
       />
       {/* Mini stats */}
       <div className="grid grid-cols-4 gap-1 mt-1.5 text-center text-[9px]">
-        <div><span className="font-bold" style={{ color: '#7BC47F' }}>{player.progress}</span> <span style={{ color: '#A08A6A' }}>P</span></div>
+        <div><span className="font-bold" style={{ color: '#7BC47F' }}>{player.shred}</span> <span style={{ color: '#A08A6A' }}>S</span></div>
         <div><span className="font-bold" style={{ color: '#6BADE0' }}>{player.momentum}</span> <span style={{ color: '#A08A6A' }}>M</span></div>
         <div><span className="font-bold" style={{ color: '#B898D0' }}>{player.flow}</span> <span style={{ color: '#A08A6A' }}>F</span></div>
         <div><span className="font-bold" style={{ color: '#E07070' }}>{player.hazardDice}</span> <span style={{ color: '#A08A6A' }}>H</span></div>

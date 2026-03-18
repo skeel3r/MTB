@@ -24,8 +24,8 @@ for (const s of result.strategyWinRates) {
 }
 
 console.log('\n--- Strategy Avg Progress ---');
-for (const s of result.strategyAvgProgress) {
-  console.log(`  ${s.strategy.padEnd(14)} ${s.avgProgress.toFixed(1)}`);
+for (const s of result.strategyAvgShred) {
+  console.log(`  ${s.strategy.padEnd(14)} ${s.avgShred.toFixed(1)}`);
 }
 
 console.log('\n--- Head-to-Head (Smart vs Others) ---');

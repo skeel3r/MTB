@@ -535,7 +535,7 @@ pub struct PlayerState {
     pub grid: Vec<Vec<bool>>,
     pub momentum: i32,
     pub flow: i32,
-    pub progress: i32,
+    pub shred: i32,
     pub hand: Vec<TechniqueType>,
     pub penalties: Vec<PenaltyType>,
     pub hazard_dice: i32,
@@ -747,7 +747,7 @@ pub struct GameRunOutput {
 pub struct FinalStanding {
     pub name: String,
     pub obstacles_cleared: i32,
-    pub progress: i32,
+    pub shred: i32,
     pub perfect_matches: i32,
     pub penalties: i32,
     pub flow: i32,

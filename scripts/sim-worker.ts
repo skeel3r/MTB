@@ -61,26 +61,26 @@ for (let g = 0; g < task.gamesCount; g++) {
   const { result: gameResult, round5Leader } = runSingleGameFast(config, task.startIndex + g);
 
   result.seatWins[gameResult.winner] = (result.seatWins[gameResult.winner] || 0) + 1;
-  result.strategyWins += gameResult.finalStandings[0].progress;
+  result.strategyWins += gameResult.finalStandings[0].shred;
   result.strategyGames++;
 
   if (gameResult.winner === 'Player 1') result.p1Wins++;
 
-  const wScore = gameResult.finalStandings[0].progress;
+  const wScore = gameResult.finalStandings[0].shred;
   result.winnerScoreSum += wScore;
   result.winnerScoreSqSum += wScore * wScore;
   result.winnerCount++;
 
   if (gameResult.finalStandings.length > 1) {
-    const lScore = gameResult.finalStandings[gameResult.finalStandings.length - 1].progress;
+    const lScore = gameResult.finalStandings[gameResult.finalStandings.length - 1].shred;
     result.loserScoreSum += lScore;
     result.loserScoreSqSum += lScore * lScore;
     result.loserCount++;
   }
 
   for (const s of gameResult.finalStandings) {
-    result.totalObstaclesCleared += s.progress;
-    result.totalObstaclesFlipped += s.progress + s.penalties;
+    result.totalObstaclesCleared += s.shred;
+    result.totalObstaclesFlipped += s.shred + s.penalties;
   }
 
   if (round5Leader) {

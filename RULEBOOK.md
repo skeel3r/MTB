@@ -53,8 +53,8 @@ Each player chooses a **line** for this round:
 
 | Line | Benefit | Restriction |
 |------|---------|-------------|
-| **Main Line** | +1 Progress when obstacles matched | Normal play |
-| **Pro Line** | +2 Progress when obstacles matched | Cannot Brake; extra +1 Hazard Die on Send It |
+| **Main Line** | +1 Shred when obstacles matched | Normal play |
+| **Pro Line** | +2 Shred when obstacles matched | Cannot Brake; extra +1 Hazard Die on Send It |
 
 ### Phase 3: Environment
 
@@ -70,7 +70,7 @@ Each player draws technique cards from the deck:
 
 ### Phase 5: The Sprint
 
-Players take turns in **standings order** — the player with the **highest progress (leader) goes first**. Each player gets **5 Actions** per turn.
+Players take turns in **standings order** — the player with the **highest shred (leader) goes first**. Each player gets **5 Actions** per turn.
 
 #### Trail Read (Key Mechanic)
 
@@ -191,7 +191,7 @@ Obstacles are flipped face-up during the Sprint phase as a free action. Players 
 
 ### Resolving an Obstacle
 
-**The obstacle's penalty effect ALWAYS applies** — this represents the terrain itself affecting the rider. Whether you match, Send It, or blow by, the terrain hits you. Matching earns progress; failing earns additional punishment.
+**The obstacle's penalty effect ALWAYS applies** — this represents the terrain itself affecting the rider. Whether you match, Send It, or blow by, the terrain hits you. Matching earns shred; failing earns additional punishment.
 
 **Step 1: Terrain Effect (always)**
 - The obstacle's specific penalty fires immediately (e.g., "Row 1 shifts 2 lanes randomly" for Loose Scree).
@@ -202,7 +202,7 @@ Obstacles are flipped face-up during the Sprint phase as a free action. Players 
 - Check the obstacle's required **symbols** and **match mode**.
 - **"All" mode**: Discard cards matching ALL listed symbols (using different cards for each).
 - **"Any" mode**: Need just ONE card matching any listed symbol.
-- On success: **+1 Pending Momentum**, **+1 Progress** (or +2 on Pro Line). Obstacle is discarded.
+- On success: **+1 Pending Momentum**, **+1 Shred** (or +2 on Pro Line). Obstacle is discarded.
 - **Deferred Momentum**: Momentum earned from matching obstacles is not available immediately. It accumulates as "pending momentum" and is added to your actual momentum at the **end of your turn**. This means you can't spend obstacle-earned momentum to Send It through later obstacles in the same turn.
 
 #### "Forced Through" — Wild Matching
@@ -218,7 +218,7 @@ Any **2 cards of the same symbol** can substitute for **1 card of any other symb
 Spend **Momentum** to force-clear any active obstacle, regardless of hand cards. This is a **free action** (no Action cost).
 
 - **Standard obstacles** cost **2 Momentum**. **Hard obstacles** cost **3 Momentum**.
-- On success: **+1 Progress** (or +2 on Pro Line). Obstacle is discarded and counts as cleared.
+- On success: **+1 Shred** (or +2 on Pro Line). Obstacle is discarded and counts as cleared.
 - **+1 Hazard Die** — sending it through rough terrain without technique is risky. **Pro Line: +2 Hazard Dice** (extra risk for the extra reward).
 - **Does NOT grant** the usual +1 Momentum reward (you spent momentum, not cards).
 - Useful when your hand can't match but you've built up speed.
@@ -371,7 +371,7 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 | Hazard dice rolled | min(5, dice) | Max 5 rolled during Reckoning |
 | Reckoning penalty trigger | Roll a 6 | On any die |
 | Crash momentum penalty | -3 | Lost on crash |
-| Turn order | Leader first | Highest progress goes first each sprint |
+| Turn order | Leader first | Highest shred goes first each sprint |
 | Stage Break interval | Every 3 rounds | Rounds 3, 6, 9, 12 |
 | Technique deck size | 52 | 6 unique cards (see Technique Cards table) |
 | Obstacle deck size | 42 | 14 types x 3 copies (10 standard + 4 hard) |
@@ -381,7 +381,7 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 
 ## Winning the Game
 
-After 15 rounds, the player with the most **progress** wins.
+After 15 rounds, the player with the most **shred** wins.
 
 **Tiebreakers** (in order):
 1. Most obstacles cleared

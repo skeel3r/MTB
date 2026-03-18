@@ -173,7 +173,7 @@ impl GameViewerState {
                 .show(ui, |ui| {
                     ui.label(egui::RichText::new("Player").strong());
                     ui.label(egui::RichText::new("Cleared").strong());
-                    ui.label(egui::RichText::new("Progress").strong());
+                    ui.label(egui::RichText::new("Shred").strong());
                     ui.label(egui::RichText::new("Perfect").strong());
                     ui.label(egui::RichText::new("Penalties").strong());
                     ui.label(egui::RichText::new("Flow").strong());
@@ -189,7 +189,7 @@ impl GameViewerState {
                         };
                         ui.label(egui::RichText::new(&s.name).color(color));
                         ui.label(format!("{}", s.obstacles_cleared));
-                        ui.label(format!("{}", s.progress));
+                        ui.label(format!("{}", s.shred));
                         ui.label(format!("{}", s.perfect_matches));
                         ui.label(format!("{}", s.penalties));
                         ui.label(format!("{}", s.flow));

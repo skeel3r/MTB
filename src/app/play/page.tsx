@@ -145,7 +145,7 @@ function GameOverScreen({
                   <td className="py-1">{s.rank}</td>
                   <td>{s.name}</td>
                   <td className="text-center">{s.obstaclesCleared}</td>
-                  <td className="text-center">{s.progress}</td>
+                  <td className="text-center">{s.shred}</td>
                   <td className="text-center hidden sm:table-cell">{s.perfectMatches}</td>
                   <td className="text-center">{s.penalties}</td>
                   <td className="text-center">{s.flow}</td>

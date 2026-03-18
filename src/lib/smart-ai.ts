@@ -154,7 +154,7 @@ function pMatchObstacle(
  */
 const W = {
   // Direct scoring
-  progress: 10.0,           // Progress is the win condition
+  shred: 10.0,           // Shred is the win condition
   perfectMatch: 1.5,        // Tiebreaker value
 
   // Resources (future value)
@@ -192,7 +192,7 @@ export function evaluateState(state: GameState, playerIndex: number): StateEval 
   const components: Record<string, number> = {};
 
   // Progress (the win condition)
-  components.progress = player.progress * W.progress;
+  components.shred = player.shred * W.shred;
   components.perfectMatch = player.perfectMatches * W.perfectMatch;
 
   // Momentum value — beneficial up to speed limit, dangerous above
@@ -250,9 +250,9 @@ export function evaluateState(state: GameState, playerIndex: number): StateEval 
   }
 
   // Positional awareness
-  const myProgress = player.progress;
-  const avgProgress = state.players.reduce((s, p) => s + p.progress, 0) / state.players.length;
-  components.position = (myProgress - avgProgress) * W.leadBonus;
+  const myShred = player.shred;
+  const avgShred = state.players.reduce((s, p) => s + p.shred, 0) / state.players.length;
+  components.position = (myShred - avgShred) * W.leadBonus;
 
   // Hand matching potential — expected probability of matching a random obstacle
   components.matchPotential = computeHandMatchPotential(player) * W.handMatchPotential;
@@ -477,10 +477,10 @@ function shouldGhostCopy(
   if (missingCount !== 1) return false;
   if (player.hand.length === 0) return false;
 
-  // Worth it? Compare: spend 1 flow to gain progress vs keep flow.
-  // Progress is the win condition, so generally worth it.
+  // Worth it? Compare: spend 1 flow to gain shred vs keep flow.
+  // Shred is the win condition, so generally worth it.
   const progressGain = player.commitment === 'pro' ? 2 : 1;
-  return progressGain * W.progress > W.flow; // almost always true
+  return progressGain * W.shred > W.flow; // almost always true
 }
 
 /**
@@ -535,7 +535,7 @@ function shouldDrawFreshObstacle(
 
   // Expected value of drawing: P(match) * matchValue + P(miss) * blowByPenalty
   const progressGain = player.commitment === 'pro' ? 2 : 1;
-  const matchEV = avgMatchProb * (progressGain * W.progress + 1 * W.momentum);
+  const matchEV = avgMatchProb * (progressGain * W.shred + 1 * W.momentum);
   const blowByEV = (1 - avgMatchProb) * (W.hazardDice + W.momentum * -1);
   const drawEV = matchEV + blowByEV;
 
@@ -621,7 +621,7 @@ function pickBestRevealedObstacle(
 
 /**
  * Decide main vs pro line based on game state.
- * Pro line: +2 progress per obstacle but can't brake, worse blow-by.
+ * Pro line: +2 shred per obstacle but can't brake, worse blow-by.
  * Worth it when: hand is strong, hazard dice are low, position is behind.
  */
 function chooseCommitment(state: GameState, playerIndex: number): 'main' | 'pro' {
@@ -643,9 +643,9 @@ function chooseCommitment(state: GameState, playerIndex: number): 'main' | 'pro'
   // Pro line is worth it when:
   // - High match probability (low blow-by risk)
   // - Low current hazard dice (can absorb some risk)
-  // - Behind in progress (need to catch up)
-  const avgProgress = state.players.reduce((s, p) => s + p.progress, 0) / state.players.length;
-  const behind = avgProgress - player.progress;
+  // - Behind in shred (need to catch up)
+  const avgShred = state.players.reduce((s, p) => s + p.shred, 0) / state.players.length;
+  const behind = avgShred - player.shred;
 
   const proScore =
     avgMatchProb * 2.0 +           // higher match rate = safer pro line
@@ -681,7 +681,7 @@ function resolveObstaclesSmart(state: GameState, playerIndex: number): GameState
     }
 
     if (canMatchObstacle(player.hand, obs)) {
-      // Match with cards — progress + deferred momentum
+      // Match with cards — shred + deferred momentum
       s = processAction(s, playerIndex, {
         type: 'resolve_obstacle',
         payload: { obstacleIndex: 0 },

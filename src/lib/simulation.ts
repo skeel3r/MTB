@@ -1,5 +1,5 @@
 import { GameState, GameAction, SimulationConfig, SimulationResult, ObstacleType, CardSymbol, TechniqueType } from './types';
-import { initGame, advancePhase, processAction, getStandings, sortByProgressRandomTies } from './engine';
+import { initGame, advancePhase, processAction, getStandings, sortByShredRandomTies } from './engine';
 import {
   getTechniqueSymbol, getObstacleSymbols, getObstacleMatchMode, getObstacleName,
   getTrailStageName, getTrailStageSpeedLimit, getTrailStageCheckedRows, getTrailStageTargetLanes,
@@ -415,9 +415,9 @@ function aiTakeTurnAdaptive(state: GameState, playerIndex: number): GameState {
   const others = s.players.filter((_, i) => i !== playerIndex);
   const p = () => s.players[playerIndex];
 
-  const myScore = me.obstaclesCleared * 10 + me.progress;
-  const bestOther = Math.max(...others.map(p => p.obstaclesCleared * 10 + p.progress));
-  const worstOther = Math.min(...others.map(p => p.obstaclesCleared * 10 + p.progress));
+  const myScore = me.obstaclesCleared * 10 + me.shred;
+  const bestOther = Math.max(...others.map(p => p.obstaclesCleared * 10 + p.shred));
+  const worstOther = Math.min(...others.map(p => p.obstaclesCleared * 10 + p.shred));
 
   const behind = myScore < worstOther;
   const ahead = myScore > bestOther;
@@ -486,7 +486,7 @@ export interface RoundSnapshot {
   trailName: string;
   players: {
     name: string;
-    progress: number;
+    shred: number;
     momentum: number;
     flow: number;
     hazardDice: number;
@@ -503,22 +503,22 @@ export interface BalanceSummary {
   playerCount: number;
   winDistribution: Record<string, number>;
   firstPlayerAdvantage: number;
-  avgWinnerProgress: number;
-  avgLoserProgress: number;
-  progressSpread: number;
+  avgWinnerShred: number;
+  avgLoserShred: number;
+  shredSpread: number;
   avgPenaltiesPerGame: number;
   avgCrashesPerGame: number;
   avgPerfectMatches: number;
   avgMomentumAtEnd: number;
   avgFlowAtEnd: number;
   avgHandSizeAtEnd: number;
-  progressByRound: number[];
+  shredByRound: number[];
   momentumByRound: number[];
   hazardByRound: number[];
   obstacleMatchRate: number;
-  trailCardDifficulty: { name: string; avgPenalties: number; avgProgress: number }[];
+  trailCardDifficulty: { name: string; avgPenalties: number; avgShred: number }[];
   warnings: string[];
-  playerAverages: { name: string; avgProgress: number; avgPerfect: number; avgPenalties: number; avgFlow: number; avgMomentum: number }[];
+  playerAverages: { name: string; avgShred: number; avgPerfect: number; avgPenalties: number; avgFlow: number; avgMomentum: number }[];
 }
 
 /** Run a single simulated game, collecting per-round snapshots */
@@ -553,8 +553,8 @@ export function runSingleGame(
     state = advancePhase(state); // preparation
     state = advancePhase(state); // sprint start
 
-    const turnOrder = sortByProgressRandomTies(
-      state.players.map((p, i) => ({ i, progress: p.progress }))
+    const turnOrder = sortByShredRandomTies(
+      state.players.map((p, i) => ({ i, shred: p.shred }))
     ).map(x => x.i);
 
     for (const pi of turnOrder) {
@@ -579,7 +579,7 @@ export function runSingleGame(
       trailName: state.activeTrailCard ? getTrailStageName(state.activeTrailCard) : '?',
       players: state.players.map(p => ({
         name: p.name,
-        progress: p.progress,
+        shred: p.shred,
         momentum: p.momentum,
         flow: p.flow,
         hazardDice: p.hazardDice,
@@ -600,7 +600,7 @@ export function runSingleGame(
       winner: standings[0].name,
       finalStandings: standings.map(s => ({
         name: s.name,
-        progress: s.progress,
+        shred: s.shred,
         perfectMatches: s.perfectMatches,
         penalties: s.penalties,
         flow: s.flow,
@@ -647,8 +647,8 @@ export function runSingleGameFast(
     state = advancePhase(state); // preparation
     state = advancePhase(state); // sprint start
 
-    const turnOrder = sortByProgressRandomTies(
-      state.players.map((p, i) => ({ i, progress: p.progress }))
+    const turnOrder = sortByShredRandomTies(
+      state.players.map((p, i) => ({ i, shred: p.shred }))
     ).map(x => x.i);
 
     for (const pi of turnOrder) {
@@ -672,7 +672,7 @@ export function runSingleGameFast(
       let maxProg = -1;
       let leaderName: string | null = null;
       for (const p of state.players) {
-        if (p.progress > maxProg) { maxProg = p.progress; leaderName = p.name; }
+        if (p.shred > maxProg) { maxProg = p.shred; leaderName = p.name; }
       }
       round5Leader = leaderName;
     }
@@ -687,7 +687,7 @@ export function runSingleGameFast(
       winner: standings[0].name,
       finalStandings: standings.map(s => ({
         name: s.name,
-        progress: s.progress,
+        shred: s.shred,
         perfectMatches: s.perfectMatches,
         penalties: s.penalties,
         flow: s.flow,
@@ -718,8 +718,8 @@ export function computeBalanceSummary(
 ): BalanceSummary {
   const gamesPlayed = results.length;
   const winDistribution: Record<string, number> = {};
-  let totalWinnerProgress = 0;
-  let totalLoserProgress = 0;
+  let totalWinnerShred = 0;
+  let totalLoserShred = 0;
   let totalPenalties = 0;
   let totalCrashes = 0;
   let totalPerfectMatches = 0;
@@ -729,19 +729,19 @@ export function computeBalanceSummary(
   let totalPlayers = 0;
 
   const maxRounds = 20;
-  const progressByRound = new Array(maxRounds).fill(0);
+  const shredByRound = new Array(maxRounds).fill(0);
   const momentumByRound = new Array(maxRounds).fill(0);
   const hazardByRound = new Array(maxRounds).fill(0);
   const roundCounts = new Array(maxRounds).fill(0);
 
-  const trailStats: Record<string, { penalties: number; progress: number; count: number }> = {};
-  const playerTotals: Record<string, { progress: number; perfect: number; penalties: number; flow: number; momentum: number; count: number }> = {};
+  const trailStats: Record<string, { penalties: number; shred: number; count: number }> = {};
+  const playerTotals: Record<string, { shred: number; perfect: number; penalties: number; flow: number; momentum: number; count: number }> = {};
 
   for (let g = 0; g < results.length; g++) {
     const r = results[g];
     winDistribution[r.winner] = (winDistribution[r.winner] || 0) + 1;
-    totalWinnerProgress += r.finalStandings[0].progress;
-    totalLoserProgress += r.finalStandings[r.finalStandings.length - 1].progress;
+    totalWinnerShred += r.finalStandings[0].shred;
+    totalLoserShred += r.finalStandings[r.finalStandings.length - 1].shred;
 
     for (const s of r.finalStandings) {
       totalPenalties += s.penalties;
@@ -751,10 +751,10 @@ export function computeBalanceSummary(
       totalPlayers++;
 
       if (!playerTotals[s.name]) {
-        playerTotals[s.name] = { progress: 0, perfect: 0, penalties: 0, flow: 0, momentum: 0, count: 0 };
+        playerTotals[s.name] = { shred: 0, perfect: 0, penalties: 0, flow: 0, momentum: 0, count: 0 };
       }
       const pt = playerTotals[s.name];
-      pt.progress += s.progress;
+      pt.shred += s.shred;
       pt.perfect += s.perfectMatches;
       pt.penalties += s.penalties;
       pt.flow += s.flow;
@@ -767,7 +767,7 @@ export function computeBalanceSummary(
       const ri = snap.round - 1;
       if (ri < 15) {
         for (const p of snap.players) {
-          progressByRound[ri] += p.progress;
+          shredByRound[ri] += p.shred;
           momentumByRound[ri] += p.momentum;
           hazardByRound[ri] += p.hazardDice;
           totalHandSize += p.hand;
@@ -775,12 +775,12 @@ export function computeBalanceSummary(
           roundCounts[ri]++;
         }
         if (!trailStats[snap.trailName]) {
-          trailStats[snap.trailName] = { penalties: 0, progress: 0, count: 0 };
+          trailStats[snap.trailName] = { penalties: 0, shred: 0, count: 0 };
         }
         const te = trailStats[snap.trailName];
         for (const p of snap.players) {
           te.penalties += p.penalties;
-          te.progress += p.progress;
+          te.shred += p.shred;
         }
         te.count += snap.players.length;
       }
@@ -789,7 +789,7 @@ export function computeBalanceSummary(
 
   for (let i = 0; i < 15; i++) {
     if (roundCounts[i] > 0) {
-      progressByRound[i] /= roundCounts[i];
+      shredByRound[i] /= roundCounts[i];
       momentumByRound[i] /= roundCounts[i];
       hazardByRound[i] /= roundCounts[i];
     }
@@ -800,13 +800,13 @@ export function computeBalanceSummary(
     .map(([name, t]) => ({
       name,
       avgPenalties: t.count > 0 ? t.penalties / t.count : 0,
-      avgProgress: t.count > 0 ? t.progress / t.count : 0,
+      avgShred: t.count > 0 ? t.shred / t.count : 0,
     }))
     .sort((a, b) => b.avgPenalties - a.avgPenalties);
 
   const playerAverages = Object.entries(playerTotals).map(([name, t]) => ({
     name,
-    avgProgress: t.progress / t.count,
+    avgShred: t.shred / t.count,
     avgPerfect: t.perfect / t.count,
     avgPenalties: t.penalties / t.count,
     avgFlow: t.flow / t.count,
@@ -817,11 +817,11 @@ export function computeBalanceSummary(
   const expectedWinRate = 1 / config.playerCount;
   const firstPlayerAdvantage = gamesPlayed > 0 ? (p1Wins / gamesPlayed) - expectedWinRate : 0;
 
-  const avgProgressPerPlayer = playerAverages.length > 0 ? playerAverages.reduce((s, p) => s + p.avgProgress, 0) / playerAverages.length : 0;
-  const obstacleMatchRate = Math.min(1, avgProgressPerPlayer / 30);
+  const avgShredPerPlayer = playerAverages.length > 0 ? playerAverages.reduce((s, p) => s + p.avgShred, 0) / playerAverages.length : 0;
+  const obstacleMatchRate = Math.min(1, avgShredPerPlayer / 30);
 
-  const avgWinnerProg = gamesPlayed > 0 ? totalWinnerProgress / gamesPlayed : 0;
-  const avgLoserProg = gamesPlayed > 0 ? totalLoserProgress / gamesPlayed : 0;
+  const avgWinnerProg = gamesPlayed > 0 ? totalWinnerShred / gamesPlayed : 0;
+  const avgLoserProg = gamesPlayed > 0 ? totalLoserShred / gamesPlayed : 0;
   const spread = avgWinnerProg - avgLoserProg;
   const avgPen = totalPlayers > 0 ? totalPenalties / totalPlayers : 0;
   const avgCrashRate = gamesPlayed > 0 ? totalCrashes / (gamesPlayed * config.playerCount * 15) : 0;
@@ -852,16 +852,16 @@ export function computeBalanceSummary(
     playerCount: config.playerCount,
     winDistribution,
     firstPlayerAdvantage,
-    avgWinnerProgress: avgWinnerProg,
-    avgLoserProgress: avgLoserProg,
-    progressSpread: spread,
+    avgWinnerShred: avgWinnerProg,
+    avgLoserShred: avgLoserProg,
+    shredSpread: spread,
     avgPenaltiesPerGame: totalPlayers > 0 ? totalPenalties / gamesPlayed : 0,
     avgCrashesPerGame: gamesPlayed > 0 ? totalCrashes / gamesPlayed : 0,
     avgPerfectMatches: totalPlayers > 0 ? totalPerfectMatches / totalPlayers : 0,
     avgMomentumAtEnd: totalPlayers > 0 ? totalMomentum / totalPlayers : 0,
     avgFlowAtEnd: totalPlayers > 0 ? totalFlow / totalPlayers : 0,
     avgHandSizeAtEnd: totalPlayers > 0 ? totalHandSize / (totalPlayers * 15) : 0,
-    progressByRound,
+    shredByRound,
     momentumByRound,
     hazardByRound,
     obstacleMatchRate,
@@ -932,20 +932,20 @@ export function runMonteCarlo(
 
       if (result.winner === 'Player 1') p1Wins++;
 
-      const wScore = result.finalStandings[0].progress;
+      const wScore = result.finalStandings[0].shred;
       winnerScoreSum += wScore;
       winnerScoreSqSum += wScore * wScore;
       winnerCount++;
       if (result.finalStandings.length > 1) {
-        const lScore = result.finalStandings[result.finalStandings.length - 1].progress;
+        const lScore = result.finalStandings[result.finalStandings.length - 1].shred;
         loserScoreSum += lScore;
         loserScoreSqSum += lScore * lScore;
         loserCount++;
       }
 
       for (const s of result.finalStandings) {
-        totalObstaclesCleared += s.progress;
-        totalObstaclesFlipped += s.progress + s.penalties;
+        totalObstaclesCleared += s.shred;
+        totalObstaclesFlipped += s.shred + s.penalties;
       }
 
       if (round5Leader) {
@@ -1073,8 +1073,8 @@ function runMixedStrategyGame(
     state = advancePhase(state);
     state = advancePhase(state);
 
-    const turnOrder = sortByProgressRandomTies(
-      state.players.map((p, i) => ({ i, progress: p.progress }))
+    const turnOrder = sortByShredRandomTies(
+      state.players.map((p, i) => ({ i, shred: p.shred }))
     ).map(x => x.i);
 
     for (const pi of turnOrder) {
@@ -1102,7 +1102,7 @@ function runMixedStrategyGame(
     winner: standings[0].name,
     finalStandings: standings.map(s => ({
       name: s.name,
-      progress: s.progress,
+      shred: s.shred,
       perfectMatches: s.perfectMatches,
       penalties: s.penalties,
       flow: s.flow,
@@ -1116,7 +1116,7 @@ function runMixedStrategyGame(
 export interface AgencyResult {
   totalGames: number;
   strategyWinRates: { strategy: string; wins: number; games: number; winRate: number }[];
-  strategyAvgProgress: { strategy: string; avgProgress: number }[];
+  strategyAvgShred: { strategy: string; avgShred: number }[];
   headToHead: { opponent: string; smartWinRate: number; opponentWinRate: number; games: number }[];
   skillGap: number;
   decisionQualityCorrelation: number;
@@ -1128,7 +1128,7 @@ export function runAgencyAnalysis(
   gamesPerMatchup: number,
   onProgress?: (done: number, total: number) => void,
 ): AgencyResult {
-  const strategyWins: Record<string, { wins: number; games: number; totalProgress: number }> = {};
+  const strategyWins: Record<string, { wins: number; games: number; totalShred: number }> = {};
   const headToHead: Record<string, { smartWins: number; opponentWins: number; games: number }> = {};
 
   const decisionQualityData: { obstaclesCleared: number; rank: number }[] = [];
@@ -1147,7 +1147,7 @@ export function runAgencyAnalysis(
   let done = 0;
 
   function initStrategy(s: string) {
-    if (!strategyWins[s]) strategyWins[s] = { wins: 0, games: 0, totalProgress: 0 };
+    if (!strategyWins[s]) strategyWins[s] = { wins: 0, games: 0, totalShred: 0 };
   }
 
   for (const matchup of matchups) {
@@ -1170,12 +1170,12 @@ export function runAgencyAnalysis(
 
           initStrategy(strat);
           strategyWins[strat].games++;
-          strategyWins[strat].totalProgress += standing.progress;
+          strategyWins[strat].totalShred += standing.shred;
 
           const rank = result.finalStandings.indexOf(standing);
           if (rank === 0) strategyWins[strat].wins++;
 
-          decisionQualityData.push({ obstaclesCleared: standing.progress, rank });
+          decisionQualityData.push({ obstaclesCleared: standing.shred, rank });
           perfectMatchData.push({ perfectMatches: standing.perfectMatches, rank });
         }
 
@@ -1203,13 +1203,13 @@ export function runAgencyAnalysis(
 
   const strategies = ['smart', 'adaptive', 'aggressive', 'conservative', 'random'];
   const strategyWinRates = strategies.map(s => {
-    const d = strategyWins[s] || { wins: 0, games: 0, totalProgress: 0 };
+    const d = strategyWins[s] || { wins: 0, games: 0, totalShred: 0 };
     return { strategy: s, wins: d.wins, games: d.games, winRate: d.games > 0 ? d.wins / d.games : 0 };
   });
 
-  const strategyAvgProgress = strategies.map(s => {
-    const d = strategyWins[s] || { totalProgress: 0, games: 0 };
-    return { strategy: s, avgProgress: d.games > 0 ? d.totalProgress / d.games : 0 };
+  const strategyAvgShred = strategies.map(s => {
+    const d = strategyWins[s] || { totalShred: 0, games: 0 };
+    return { strategy: s, avgShred: d.games > 0 ? d.totalShred / d.games : 0 };
   });
 
   const h2hResults = Object.entries(headToHead).map(([opponent, data]) => ({
@@ -1247,7 +1247,7 @@ export function runAgencyAnalysis(
   return {
     totalGames: done,
     strategyWinRates,
-    strategyAvgProgress,
+    strategyAvgShred,
     headToHead: h2hResults,
     skillGap,
     decisionQualityCorrelation,
@@ -1396,11 +1396,11 @@ function giniCoefficient(values: number[]): number {
 }
 
 export interface GiniAnalysis {
-  progressGini: number;
+  shredGini: number;
   momentumGini: number;
   flowGini: number;
   penaltyGini: number;
-  progressGiniByRound: number[];
+  shredGiniByRound: number[];
   verdict: string;
 }
 
@@ -1408,51 +1408,51 @@ export function computeGiniAnalysis(
   results: SimulationResult[],
   allSnapshots: RoundSnapshot[][],
 ): GiniAnalysis {
-  const allProgress: number[] = [];
+  const allShred: number[] = [];
   const allMomentum: number[] = [];
   const allFlow: number[] = [];
   const allPenalties: number[] = [];
 
   for (const r of results) {
     for (const s of r.finalStandings) {
-      allProgress.push(s.progress);
+      allShred.push(s.shred);
       allMomentum.push(s.momentum);
       allFlow.push(s.flow);
       allPenalties.push(s.penalties);
     }
   }
 
-  const progressGini = giniCoefficient(allProgress);
+  const shredGini = giniCoefficient(allShred);
   const momentumGini = giniCoefficient(allMomentum);
   const flowGini = giniCoefficient(allFlow);
   const penaltyGini = giniCoefficient(allPenalties);
 
   const maxRoundsGini = 20;
-  const progressGiniByRound: number[] = [];
+  const shredGiniByRound: number[] = [];
   for (let round = 0; round < maxRoundsGini; round++) {
-    const roundProgress: number[] = [];
+    const roundShred: number[] = [];
     for (const snaps of allSnapshots) {
       if (snaps[round]) {
         for (const p of snaps[round].players) {
-          roundProgress.push(p.progress);
+          roundShred.push(p.shred);
         }
       }
     }
-    progressGiniByRound.push(giniCoefficient(roundProgress));
+    shredGiniByRound.push(giniCoefficient(roundShred));
   }
 
   let verdict: string;
-  if (progressGini < 0.1) {
+  if (shredGini < 0.1) {
     verdict = 'Very equal \u2014 players finish with similar scores.';
-  } else if (progressGini < 0.2) {
+  } else if (shredGini < 0.2) {
     verdict = 'Healthy inequality \u2014 meaningful gaps without runaway leaders.';
-  } else if (progressGini < 0.35) {
+  } else if (shredGini < 0.35) {
     verdict = 'Moderate inequality \u2014 some players fall significantly behind.';
   } else {
     verdict = 'High inequality \u2014 large gaps between leaders and laggards.';
   }
 
-  return { progressGini, momentumGini, flowGini, penaltyGini, progressGiniByRound, verdict };
+  return { shredGini, momentumGini, flowGini, penaltyGini, shredGiniByRound, verdict };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1471,10 +1471,10 @@ export interface SensitivityResult {
   param: SensitivityParam;
   outcomes: {
     value: number;
-    avgWinnerProgress: number;
+    avgWinnerShred: number;
     avgPenalties: number;
     avgCrashes: number;
-    progressSpread: number;
+    shredSpread: number;
     obstacleMatchRate: number;
   }[];
 }
@@ -1511,14 +1511,14 @@ export function runSensitivityAnalysis(
         const config: SimulationConfig = { playerCount, gamesCount: 1, strategy: 'balanced' };
         const { result } = runSingleGameWithOverride(config, g + 1, param.id, value);
 
-        totalWinnerProg += result.finalStandings[0].progress;
-        const loserProg = result.finalStandings[result.finalStandings.length - 1].progress;
-        totalWinnerSpread += result.finalStandings[0].progress - loserProg;
+        totalWinnerProg += result.finalStandings[0].shred;
+        const loserProg = result.finalStandings[result.finalStandings.length - 1].shred;
+        totalWinnerSpread += result.finalStandings[0].shred - loserProg;
 
         for (const s of result.finalStandings) {
           totalPenalties += s.penalties;
-          totalObsCleared += s.progress;
-          totalObsFlipped += s.progress + s.penalties;
+          totalObsCleared += s.shred;
+          totalObsFlipped += s.shred + s.penalties;
         }
 
         done++;
@@ -1527,10 +1527,10 @@ export function runSensitivityAnalysis(
 
       outcomes.push({
         value,
-        avgWinnerProgress: totalWinnerProg / gamesPerValue,
+        avgWinnerShred: totalWinnerProg / gamesPerValue,
         avgPenalties: totalPenalties / (gamesPerValue * playerCount),
         avgCrashes: totalCrashes / gamesPerValue,
-        progressSpread: totalWinnerSpread / gamesPerValue,
+        shredSpread: totalWinnerSpread / gamesPerValue,
         obstacleMatchRate: totalObsFlipped > 0 ? totalObsCleared / totalObsFlipped : 0,
       });
     }
@@ -1594,8 +1594,8 @@ function runSingleGameWithOverride(
 
     state = advancePhase(state);
 
-    const sensTurnOrder = sortByProgressRandomTies(
-      state.players.map((p, i) => ({ i, progress: p.progress }))
+    const sensTurnOrder = sortByShredRandomTies(
+      state.players.map((p, i) => ({ i, shred: p.shred }))
     ).map(x => x.i);
     for (const pi of sensTurnOrder) {
       state = smartAiPlaySprint(state, pi);
@@ -1607,7 +1607,7 @@ function runSingleGameWithOverride(
       for (const player of state.players) {
         if (player.hazardDice >= value) {
           player.crashed = true;
-          player.progress = Math.max(0, player.progress - 2);
+          player.shred = Math.max(0, player.shred - 2);
         }
       }
     }
@@ -1624,7 +1624,7 @@ function runSingleGameWithOverride(
       winner: standings[0].name,
       finalStandings: standings.map(s => ({
         name: s.name,
-        progress: s.progress,
+        shred: s.shred,
         perfectMatches: s.perfectMatches,
         penalties: s.penalties,
         flow: s.flow,

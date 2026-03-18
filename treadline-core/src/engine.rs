@@ -326,8 +326,8 @@ fn reveal_obstacle(state: &mut GameState, player_id: &str, obstacle: ObstacleTyp
 pub fn get_standings(state: &GameState) -> Vec<(usize, &PlayerState)> {
     let mut indexed: Vec<(usize, &PlayerState)> = state.players.iter().enumerate().collect();
     indexed.sort_by(|(_, a), (_, b)| {
-        b.progress
-            .cmp(&a.progress)
+        b.shred
+            .cmp(&a.shred)
             .then(b.obstacles_cleared.cmp(&a.obstacles_cleared))
             .then(b.perfect_matches.cmp(&a.perfect_matches))
             .then(a.penalties.len().cmp(&b.penalties.len()))
@@ -366,7 +366,7 @@ pub fn init_game(
             grid,
             momentum: 2,
             flow: 0,
-            progress: 0,
+            shred: 0,
             hand,
             penalties: Vec::new(),
             hazard_dice: 0,
@@ -679,13 +679,13 @@ pub fn process_action(
                     state.technique_discard.push_back(removed);
                 }
 
-                let progress_gain = if state.players[player_index].commitment == Commitment::Pro {
+                let shred_gain = if state.players[player_index].commitment == Commitment::Pro {
                     2
                 } else {
                     1
                 };
                 let player = &mut state.players[player_index];
-                player.progress += progress_gain;
+                player.shred += shred_gain;
                 player.pending_momentum += 1;
                 player.obstacles_cleared += 1;
                 player.perfect_matches += 1;
@@ -741,7 +741,7 @@ pub fn process_action(
             // Step 1: Terrain effect ALWAYS fires
             apply_obstacle_terrain_penalty(state, player_index, &obstacle, rng);
 
-            // Step 2: Pay momentum cost + hazard die, earn progress
+            // Step 2: Pay momentum cost + hazard die, earn shred
             let player = &mut state.players[player_index];
             player.momentum -= send_cost;
 
@@ -752,12 +752,12 @@ pub fn process_action(
             if player.commitment == Commitment::Pro {
                 player.hazard_dice += 1;
             }
-            let progress_gain = if player.commitment == Commitment::Pro {
+            let shred_gain = if player.commitment == Commitment::Pro {
                 2
             } else {
                 1
             };
-            player.progress += progress_gain;
+            player.shred += shred_gain;
             player.obstacles_cleared += 1;
 
             // Remove obstacle
@@ -831,12 +831,12 @@ pub fn process_action(
             // Reset actions
             player.actions_remaining = 0;
 
-            // Move to next player in standings order (highest progress first)
+            // Move to next player in standings order (highest shred first)
             let mut turn_order: Vec<(usize, i32)> = state
                 .players
                 .iter()
                 .enumerate()
-                .map(|(i, p)| (i, p.progress))
+                .map(|(i, p)| (i, p.shred))
                 .collect();
             turn_order.sort_by(|a, b| b.1.cmp(&a.1));
             let current_order_idx = turn_order.iter().position(|x| x.0 == player_index);
@@ -1061,16 +1061,16 @@ fn execute_sprint_setup(state: &mut GameState, rng: &mut impl Rng) {
         }
     }
 
-    // Turn order: leader goes first (highest progress, random tiebreak)
+    // Turn order: leader goes first (highest shred, random tiebreak)
     let mut order: Vec<(usize, i32)> = state
         .players
         .iter()
         .enumerate()
-        .map(|(i, p)| (i, p.progress))
+        .map(|(i, p)| (i, p.shred))
         .collect();
     // Shuffle for random tiebreak
     order.shuffle(rng);
-    // Stable sort by progress descending
+    // Stable sort by shred descending
     order.sort_by(|a, b| b.1.cmp(&a.1));
 
     state.current_player_index = order[0].0;
@@ -1181,12 +1181,12 @@ fn execute_reckoning(state: &mut GameState, rng: &mut impl Rng) {
 }
 
 fn execute_stage_break(state: &mut GameState, rng: &mut impl Rng) {
-    // Sort by progress to find last place
+    // Sort by shred to find last place
     let mut sorted: Vec<(usize, i32)> = state
         .players
         .iter()
         .enumerate()
-        .map(|(i, p)| (i, p.progress))
+        .map(|(i, p)| (i, p.shred))
         .collect();
     sorted.sort_by(|a, b| b.1.cmp(&a.1));
 

@@ -8,13 +8,13 @@ pub struct AnalysisResults {
     pub avg_duration_ms: f64,
     pub avg_rounds: f64,
     pub avg_obstacles_cleared: f64,
-    pub avg_progress: f64,
+    pub avg_shred: f64,
     pub avg_penalties: f64,
 
     pub win_rate_by_position: Vec<(String, f64, usize)>, // (label, rate, count)
 
     pub obstacles_cleared_distribution: Vec<(i32, usize)>, // (value, count)
-    pub progress_distribution: Vec<(i32, usize)>,
+    pub shred_distribution: Vec<(i32, usize)>,
     pub penalty_distribution: Vec<(i32, usize)>,
 
     pub sprint_action_frequency: Vec<(String, usize)>, // (action, count)
@@ -34,8 +34,8 @@ pub struct CommitmentStats {
 pub struct WinnersVsLosers {
     pub winner_avg_obstacles: f64,
     pub loser_avg_obstacles: f64,
-    pub winner_avg_progress: f64,
-    pub loser_avg_progress: f64,
+    pub winner_avg_shred: f64,
+    pub loser_avg_shred: f64,
     pub winner_avg_penalties: f64,
     pub loser_avg_penalties: f64,
     pub winner_avg_flow: f64,
@@ -59,7 +59,7 @@ pub fn compute_analysis(logs: &[&GameRunOutput]) -> AnalysisResults {
     let all_standings: Vec<_> = logs.iter().flat_map(|l| l.final_standings.iter()).collect();
     let total_players = all_standings.len().max(1) as f64;
     let avg_obstacles_cleared = all_standings.iter().map(|s| s.obstacles_cleared as f64).sum::<f64>() / total_players;
-    let avg_progress = all_standings.iter().map(|s| s.progress as f64).sum::<f64>() / total_players;
+    let avg_shred = all_standings.iter().map(|s| s.shred as f64).sum::<f64>() / total_players;
     let avg_penalties = all_standings.iter().map(|s| s.penalties as f64).sum::<f64>() / total_players;
 
     // Win rate by position
@@ -91,8 +91,8 @@ pub fn compute_analysis(logs: &[&GameRunOutput]) -> AnalysisResults {
     let obstacles_cleared_distribution = build_distribution(
         all_standings.iter().map(|s| s.obstacles_cleared),
     );
-    let progress_distribution = build_distribution(
-        all_standings.iter().map(|s| s.progress),
+    let shred_distribution = build_distribution(
+        all_standings.iter().map(|s| s.shred),
     );
     let penalty_distribution = build_distribution(
         all_standings.iter().map(|s| s.penalties),
@@ -180,11 +180,11 @@ pub fn compute_analysis(logs: &[&GameRunOutput]) -> AnalysisResults {
         avg_duration_ms,
         avg_rounds,
         avg_obstacles_cleared,
-        avg_progress,
+        avg_shred,
         avg_penalties,
         win_rate_by_position,
         obstacles_cleared_distribution,
-        progress_distribution,
+        shred_distribution,
         penalty_distribution,
         sprint_action_frequency,
         commitment_stats,
@@ -209,13 +209,13 @@ fn compute_winners_vs_losers(logs: &[&GameRunOutput]) -> WinnersVsLosers {
         for s in &log.final_standings {
             if s.reward > 0.99 {
                 w_obs.push(s.obstacles_cleared as f64);
-                w_prog.push(s.progress as f64);
+                w_prog.push(s.shred as f64);
                 w_pen.push(s.penalties as f64);
                 w_flow.push(s.flow as f64);
                 w_mom.push(s.momentum as f64);
             } else {
                 l_obs.push(s.obstacles_cleared as f64);
-                l_prog.push(s.progress as f64);
+                l_prog.push(s.shred as f64);
                 l_pen.push(s.penalties as f64);
                 l_flow.push(s.flow as f64);
                 l_mom.push(s.momentum as f64);
@@ -226,8 +226,8 @@ fn compute_winners_vs_losers(logs: &[&GameRunOutput]) -> WinnersVsLosers {
     WinnersVsLosers {
         winner_avg_obstacles: avg(&w_obs),
         loser_avg_obstacles: avg(&l_obs),
-        winner_avg_progress: avg(&w_prog),
-        loser_avg_progress: avg(&l_prog),
+        winner_avg_shred: avg(&w_prog),
+        loser_avg_shred: avg(&l_prog),
         winner_avg_penalties: avg(&w_pen),
         loser_avg_penalties: avg(&l_pen),
         winner_avg_flow: avg(&w_flow),
@@ -274,11 +274,11 @@ fn empty_results() -> AnalysisResults {
         avg_duration_ms: 0.0,
         avg_rounds: 0.0,
         avg_obstacles_cleared: 0.0,
-        avg_progress: 0.0,
+        avg_shred: 0.0,
         avg_penalties: 0.0,
         win_rate_by_position: Vec::new(),
         obstacles_cleared_distribution: Vec::new(),
-        progress_distribution: Vec::new(),
+        shred_distribution: Vec::new(),
         penalty_distribution: Vec::new(),
         sprint_action_frequency: Vec::new(),
         commitment_stats: CommitmentStats {
@@ -291,8 +291,8 @@ fn empty_results() -> AnalysisResults {
         winners_vs_losers: WinnersVsLosers {
             winner_avg_obstacles: 0.0,
             loser_avg_obstacles: 0.0,
-            winner_avg_progress: 0.0,
-            loser_avg_progress: 0.0,
+            winner_avg_shred: 0.0,
+            loser_avg_shred: 0.0,
             winner_avg_penalties: 0.0,
             loser_avg_penalties: 0.0,
             winner_avg_flow: 0.0,

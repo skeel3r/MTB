@@ -27,7 +27,7 @@ export function createPlayer(id: string, name: string): PlayerState {
     grid,
     momentum: 2,
     flow: 0,
-    progress: 0,
+    shred: 0,
     hand: [],
     penalties: [],
     upgrades: [],
@@ -90,15 +90,15 @@ export function initGame(playerNames: string[], trailId?: string): GameState {
   };
 }
 
-// ── Turn order: sort by progress, randomize ties ──
-export function sortByProgressRandomTies(players: { i: number; progress: number }[]): { i: number; progress: number }[] {
+// ── Turn order: sort by shred, randomize ties ──
+export function sortByShredRandomTies(players: { i: number; shred: number }[]): { i: number; shred: number }[] {
   // Shuffle first so ties are random (Fisher-Yates)
   for (let i = players.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [players[i], players[j]] = [players[j], players[i]];
   }
-  // Stable-ish sort by progress descending (JS sort is stable, so equal-progress players stay shuffled)
-  return players.sort((a, b) => b.progress - a.progress);
+  // Stable-ish sort by shred descending (JS sort is stable, so equal-progress players stay shuffled)
+  return players.sort((a, b) => b.shred - a.shred);
 }
 
 // ── Fast deep clone (avoids JSON.parse/stringify overhead) ──
@@ -109,7 +109,7 @@ function clonePlayer(p: PlayerState): PlayerState {
     grid: p.grid.map(row => [...row]),
     momentum: p.momentum,
     flow: p.flow,
-    progress: p.progress,
+    shred: p.shred,
     hand: [...p.hand],
     penalties: [...p.penalties],
     upgrades: [...p.upgrades],
@@ -373,10 +373,10 @@ export function advancePhase(state: GameState): GameState {
           p.trailReadNextIndex = 0;
           p.pendingMomentum = 0;
         }
-        // Turn order: leader goes first (highest progress, random tiebreak)
+        // Turn order: leader goes first (highest shred, random tiebreak)
         {
-          const sorted = sortByProgressRandomTies(
-            s.players.map((p, i) => ({ i, progress: p.progress }))
+          const sorted = sortByShredRandomTies(
+            s.players.map((p, i) => ({ i, shred: p.shred }))
           );
           s.currentPlayerIndex = sorted[0].i;
           s.log.push(`Sprint phase! Turn order: ${sorted.map(x => s.players[x.i].name).join(' \u2192 ')} (leader goes first).`);
@@ -606,7 +606,7 @@ function executeStageBreak(state: GameState): GameState {
   s.log.push(`\u2500\u2500 Stage Break (after round ${s.round}) \u2500\u2500`);
 
   // Sort by progress
-  const sorted = [...s.players].sort((a, b) => b.progress - a.progress);
+  const sorted = [...s.players].sort((a, b) => b.shred - a.shred);
   const last = sorted[sorted.length - 1];
 
   // Regroup: last place draws 2
@@ -1034,8 +1034,8 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           const matchCard = player.hand.splice(idx, 1)[0];
           s.techniqueDiscard.push(matchCard);
         }
-        const resolveProgressGain = player.commitment === 'pro' ? 2 : 1;
-        player.progress += resolveProgressGain;
+        const resolveShredGain = player.commitment === 'pro' ? 2 : 1;
+        player.shred += resolveShredGain;
         player.pendingMomentum++; // Deferred — applied at end of turn
         player.obstaclesCleared++;
         // Factory Suspension: Pro Line obstacle clears gain +2 Flow
@@ -1044,7 +1044,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
           s.log.push(`${player.name}: Factory Suspension — +2 Flow from Pro Line clear!`);
         }
         const wildNote = usedWilds ? ' (Forced Through!)' : '';
-        s.log.push(`${player.name}: Matched "${getObstacleName(obstacle)}"${wildNote}! +${resolveProgressGain} Progress, +1 Pending Momentum (${player.obstaclesCleared} cleared)`);
+        s.log.push(`${player.name}: Matched "${getObstacleName(obstacle)}"${wildNote}! +${resolveShredGain} Shred, +1 Pending Momentum (${player.obstaclesCleared} cleared)`);
       } else {
         // Can't match — this shouldn't happen if UI is correct (should use send_it instead)
         // Force crash
@@ -1105,7 +1105,7 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
       s.log.push(`${player.name}: Hits "${getObstacleName(sentObstacle)}" \u2014 ${getObstacleBlowByText(sentObstacle)}`);
       applyObstaclePenalty(player, sentObstacle, s);
 
-      // Step 2: Pay momentum cost + hazard die, earn progress
+      // Step 2: Pay momentum cost + hazard die, earn shred
       const thisSendCost = getObstacleSendItCost(sentObstacle);
       player.momentum -= thisSendCost;
       player.hazardDice++;
@@ -1115,11 +1115,11 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
         player.hazardDice++;
       }
 
-      const sendProgressGain = player.commitment === 'pro' ? 2 : 1;
-      player.progress += sendProgressGain;
+      const sendShredGain = player.commitment === 'pro' ? 2 : 1;
+      player.shred += sendShredGain;
       player.obstaclesCleared++;
       const hazardText = player.commitment === 'pro' ? '+2 Hazard Dice' : '+1 Hazard Die';
-      s.log.push(`${player.name}: SENDS IT through "${getObstacleName(sentObstacle)}"! -${thisSendCost} Momentum, ${hazardText}, +${sendProgressGain} Progress (${player.obstaclesCleared} cleared)`);
+      s.log.push(`${player.name}: SENDS IT through "${getObstacleName(sentObstacle)}"! -${thisSendCost} Momentum, ${hazardText}, +${sendShredGain} Shred (${player.obstaclesCleared} cleared)`);
 
       s.activeObstacles.splice(sendObstacleIdx, 1);
       revealObstacle(s, player.id, sentObstacle);
@@ -1149,10 +1149,10 @@ export function processAction(state: GameState, playerIndex: number, action: Gam
 
       s.log.push(`${player.name}: Ends turn.`);
 
-      // Move to next player in standings order (highest progress first)
+      // Move to next player in standings order (highest shred first)
       const turnOrder = [...s.players]
-        .map((p, i) => ({ i, progress: p.progress }))
-        .sort((a, b) => b.progress - a.progress);
+        .map((p, i) => ({ i, shred: p.shred }))
+        .sort((a, b) => b.shred - a.shred);
       const currentOrderIdx = turnOrder.findIndex(x => x.i === playerIndex);
       if (currentOrderIdx < turnOrder.length - 1) {
         s.currentPlayerIndex = turnOrder[currentOrderIdx + 1].i;
@@ -1247,8 +1247,8 @@ export function getWinner(state: GameState): PlayerState | null {
   if (state.phase !== 'game_over') return null;
 
   const sorted = [...state.players].sort((a, b) => {
-    // Most progress first
-    if (b.progress !== a.progress) return b.progress - a.progress;
+    // Most shred first
+    if (b.shred !== a.shred) return b.shred - a.shred;
     // Perfect matches
     if (b.perfectMatches !== a.perfectMatches) return b.perfectMatches - a.perfectMatches;
     // Least penalties
@@ -1267,7 +1267,7 @@ export function getStandings(state: GameState) {
   return [...state.players]
     .sort((a, b) => {
       // Primary: most progress wins
-      if (b.progress !== a.progress) return b.progress - a.progress;
+      if (b.shred !== a.shred) return b.shred - a.shred;
       if (b.obstaclesCleared !== a.obstaclesCleared) return b.obstaclesCleared - a.obstaclesCleared;
       if (b.perfectMatches !== a.perfectMatches) return b.perfectMatches - a.perfectMatches;
       if (a.penalties.length !== b.penalties.length) return a.penalties.length - b.penalties.length;
@@ -1277,7 +1277,7 @@ export function getStandings(state: GameState) {
     .map((p, i) => ({
       rank: i + 1,
       name: p.name,
-      progress: p.progress,
+      shred: p.shred,
       obstaclesCleared: p.obstaclesCleared,
       perfectMatches: p.perfectMatches,
       penalties: p.penalties.length,

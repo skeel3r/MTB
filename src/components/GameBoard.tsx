@@ -249,7 +249,7 @@ export function PlayerStats({ player }: { player: PlayerState }) {
     >
       <div className="wpa-heading font-bold text-lg drop-shadow-md" style={{ color: '#D4A847' }}>{player.name}</div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-        <StatRow label="Progress" value={player.progress} color="#7BC47F" />
+        <StatRow label="Shred" value={player.shred} color="#7BC47F" />
         <StatRow label="Momentum" value={player.momentum} color="#6BADE0" />
         <StatRow label="Flow" value={player.flow} color="#B898D0" />
         <StatRow label="Hazard Dice" value={player.hazardDice} color="#E07070" />

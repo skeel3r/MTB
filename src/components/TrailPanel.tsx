@@ -25,7 +25,7 @@ export default function TrailPanel({ game, inline, selectedPlayer }: { game: Gam
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px]">
             {standings.map((s) => (
               <span key={s.name} style={{ color: s.rank === 1 ? '#D4A847' : '#A08A6A' }}>
-                {s.rank}. {s.name} <span className="font-mono" style={{ color: '#7BC47F' }}>{s.progress}p</span>
+                {s.rank}. {s.name} <span className="font-mono" style={{ color: '#7BC47F' }}>{s.shred}s</span>
               </span>
             ))}
           </div>
@@ -83,7 +83,7 @@ export default function TrailPanel({ game, inline, selectedPlayer }: { game: Gam
                 {s.rank}. {s.name}
               </span>
               <span className="font-mono font-bold" style={{ color: '#7BC47F' }}>
-                {s.obstaclesCleared}obs {s.progress}p
+                {s.obstaclesCleared}obs {s.shred}s
               </span>
             </div>
           ))}
