@@ -120,8 +120,8 @@ fn pick_sprint_action(state: &GameState, choices: &[Choice], rng: &mut impl Rng)
                 else { 0.5 }
             }
             Choice::SteerBest => {
-                // Steer more when misaligned with trail card
-                let misaligned = state.active_trail_card.map(|card| {
+                // Steer urgently when rows are 2+ columns off (hazard die territory)
+                let danger_rows = state.active_trail_card.map(|card| {
                     let rows = card.checked_rows();
                     let lanes = card.target_lanes();
                     let mut count = 0usize;
@@ -131,7 +131,7 @@ fn pick_sprint_action(state: &GameState, choices: &[Choice], rng: &mut impl Rng)
                         if row < player.grid.len() {
                             for c in 0..5 {
                                 if player.grid[row][c] {
-                                    if (c as i32 - target as i32).unsigned_abs() >= 1 {
+                                    if (c as i32 - target as i32).unsigned_abs() >= 2 {
                                         count += 1;
                                     }
                                     break;
@@ -141,9 +141,9 @@ fn pick_sprint_action(state: &GameState, choices: &[Choice], rng: &mut impl Rng)
                     }
                     count
                 }).unwrap_or(0);
-                if misaligned >= 3 { 8.0 }
-                else if misaligned >= 1 { 5.0 }
-                else { 1.0 }
+                if danger_rows >= 3 { 10.0 }     // many rows will add hazard dice
+                else if danger_rows >= 1 { 7.0 }  // at least one row costs a die
+                else { 2.0 }                      // aligned — low priority
             }
             Choice::TechniqueBest => 1.5,   // Play cards occasionally
             Choice::DrawObstacle => {
