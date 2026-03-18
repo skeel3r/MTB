@@ -256,13 +256,13 @@ pub fn refine_choice(state: &GameState, choice: &Choice, rng: &mut impl rand::Rn
     }
 }
 
-/// Pick the best concrete steer: move the token that is farthest from its
-/// alignment target lane. Ties broken randomly.
+/// Pick the best concrete steer: only steer checked rows, prioritize rows
+/// that are 2+ columns off (hazard die territory). Never waste a steer on
+/// a non-checked row.
 fn refine_steer(state: &GameState, rng: &mut impl rand::Rng) -> Choice {
-
     let player = &state.players[state.current_player_index];
 
-    // Build target map from active trail card
+    // Build target map from active trail card (checked rows only)
     let mut targets: [Option<usize>; NUM_ROWS] = [None; NUM_ROWS];
     if let Some(trail) = &state.active_trail_card {
         let rows = trail.checked_rows();
@@ -274,40 +274,58 @@ fn refine_steer(state: &GameState, rng: &mut impl rand::Rng) -> Choice {
         }
     }
 
-    // Score each possible steer: prefer moving toward target on checked rows
     let mut candidates: Vec<(Choice, i32)> = Vec::new();
 
     for row in 0..NUM_ROWS {
+        // Only steer checked rows — non-checked rows don't affect alignment
+        let target = match targets[row] {
+            Some(t) => t,
+            None => continue,
+        };
+
         if let Some(col) = get_token_col(&player.grid, row) {
+            let old_dist = (col as i32 - target as i32).abs();
+            if old_dist == 0 {
+                continue; // Already aligned, don't touch it
+            }
+
             for dir in [-1i32, 1] {
                 let new_col = col as i32 + dir;
                 if new_col < 0 || new_col >= NUM_COLS as i32 {
                     continue;
                 }
+                let new_dist = (new_col - target as i32).abs();
+                // Only consider steers that move TOWARD the target
+                if new_dist >= old_dist {
+                    continue;
+                }
+
                 let steer = Choice::Steer { row, direction: dir };
-
-                let score = if let Some(target) = targets[row] {
-                    let old_dist = (col as i32 - target as i32).abs();
-                    let new_dist = (new_col - target as i32).abs();
-                    // Higher score = better. Reducing distance is good.
-                    (old_dist - new_dist) * 10 + old_dist
+                // Score: prioritize rows that are in hazard die territory (2+ off)
+                // and rows where we reduce distance the most
+                let score = if old_dist >= 2 {
+                    100 + old_dist * 10 // Hazard die row — highest priority
                 } else {
-                    // Non-checked row: slight preference toward center (col 2)
-                    let old_dist = (col as i32 - 2).abs();
-                    let new_dist = (new_col - 2).abs();
-                    old_dist - new_dist
+                    10 + old_dist // 1 off — fix for perfect alignment / flow
                 };
-
                 candidates.push((steer, score));
             }
         }
     }
 
     if candidates.is_empty() {
+        // No checked row needs steering — fall back to centering any off-center token
+        for row in 0..NUM_ROWS {
+            if let Some(col) = get_token_col(&player.grid, row) {
+                if col != 2 {
+                    let dir = if col > 2 { -1 } else { 1 };
+                    return Choice::Steer { row, direction: dir };
+                }
+            }
+        }
         return Choice::EndTurn;
     }
 
-    // Pick the best score, breaking ties randomly
     let best_score = candidates.iter().map(|(_, s)| *s).max().unwrap();
     let best: Vec<_> = candidates
         .into_iter()
