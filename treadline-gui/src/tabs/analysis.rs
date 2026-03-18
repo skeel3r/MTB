@@ -1,12 +1,30 @@
 use eframe::egui;
 use egui_plot::{Bar, BarChart, Plot};
 
-use crate::analysis::computations::AnalysisResults;
+use crate::analysis::computations::{generate_report, AnalysisResults};
 use crate::widgets::bar_table::{render_bar_table, BarRow};
 use crate::widgets::stat_grid::{render_stat_grid, StatCard};
 
-pub fn render_analysis_tab(ui: &mut egui::Ui, analysis: &AnalysisResults) {
+pub fn render_analysis_tab(ui: &mut egui::Ui, analysis: &AnalysisResults, copy_status: &mut Option<f64>) {
     egui::ScrollArea::vertical().show(ui, |ui| {
+        // ── Share Report Button ──
+        ui.horizontal(|ui| {
+            if ui.button("📋 Copy Report for Claude").clicked() {
+                let report = generate_report(analysis);
+                ui.ctx().copy_text(report);
+                *copy_status = Some(3.0); // show "Copied!" for 3 seconds
+            }
+            if let Some(remaining) = copy_status {
+                ui.label(egui::RichText::new("Copied to clipboard!").color(egui::Color32::from_rgb(100, 200, 100)));
+                *remaining -= ui.input(|i| i.predicted_dt as f64);
+                if *remaining <= 0.0 {
+                    *copy_status = None;
+                }
+            }
+        });
+
+        ui.add_space(4.0);
+
         // ── Game Overview ──
         ui.add_space(8.0);
         egui::CollapsingHeader::new(

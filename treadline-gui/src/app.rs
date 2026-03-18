@@ -31,6 +31,7 @@ pub struct TreadlineGuiApp {
     cache_key: String,
 
     game_viewer: GameViewerState,
+    copy_status: Option<f64>,
 }
 
 impl TreadlineGuiApp {
@@ -49,6 +50,7 @@ impl TreadlineGuiApp {
             cached_analysis: None,
             cache_key: String::new(),
             game_viewer: GameViewerState::new(),
+            copy_status: None,
         };
 
         if let Ok(cwd) = std::env::current_dir() {
@@ -236,7 +238,7 @@ impl eframe::App for TreadlineGuiApp {
                     // Render analysis
                     self.ensure_analysis_cached();
                     if let Some(ref analysis) = self.cached_analysis {
-                        render_analysis_tab(ui, analysis);
+                        render_analysis_tab(ui, analysis, &mut self.copy_status);
                     }
                 }
 

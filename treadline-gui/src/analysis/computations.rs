@@ -268,6 +268,81 @@ fn choice_label(choice: &Choice) -> String {
     }
 }
 
+/// Generate a shareable text report of all analysis results.
+pub fn generate_report(analysis: &AnalysisResults) -> String {
+    let mut r = String::new();
+    r.push_str("# Treadline Simulation Report\n\n");
+
+    // Overview
+    r.push_str("## Overview\n");
+    r.push_str(&format!("- Games: {}\n", analysis.game_count));
+    r.push_str(&format!("- Avg Duration: {:.1}s\n", analysis.avg_duration_ms / 1000.0));
+    r.push_str(&format!("- Avg Rounds: {:.1}\n", analysis.avg_rounds));
+    r.push_str(&format!("- Avg Obstacles Cleared: {:.1}\n", analysis.avg_obstacles_cleared));
+    r.push_str(&format!("- Avg Shred: {:.1}\n", analysis.avg_shred));
+    r.push_str(&format!("- Avg Penalties: {:.1}\n\n", analysis.avg_penalties));
+
+    // Win Rate
+    r.push_str("## Win Rate by Position\n");
+    for (label, rate, count) in &analysis.win_rate_by_position {
+        r.push_str(&format!("- {} (n={}): {:.1}%\n", label, count, rate * 100.0));
+    }
+    r.push('\n');
+
+    // Sprint Actions
+    r.push_str("## Sprint Action Frequency\n");
+    for (label, count) in &analysis.sprint_action_frequency {
+        r.push_str(&format!("- {}: {}\n", label, count));
+    }
+    r.push('\n');
+
+    // Commitment
+    let stats = &analysis.commitment_stats;
+    let total = (stats.main_count + stats.pro_count).max(1);
+    r.push_str("## Commitment Analysis\n");
+    r.push_str(&format!("- Main Line: {} ({:.0}%), Win Rate: {:.1}%\n",
+        stats.main_count, stats.main_count as f64 / total as f64 * 100.0, stats.main_win_rate * 100.0));
+    r.push_str(&format!("- Pro Line: {} ({:.0}%), Win Rate: {:.1}%\n\n",
+        stats.pro_count, stats.pro_count as f64 / total as f64 * 100.0, stats.pro_win_rate * 100.0));
+
+    // Upgrades
+    r.push_str("## Upgrade Purchases\n");
+    if analysis.upgrade_frequency.is_empty() {
+        r.push_str("- None\n");
+    } else {
+        for (label, count) in &analysis.upgrade_frequency {
+            r.push_str(&format!("- {}: {}\n", label, count));
+        }
+    }
+    r.push('\n');
+
+    // Winners vs Losers
+    let wvl = &analysis.winners_vs_losers;
+    r.push_str("## Winners vs Losers (Averages)\n");
+    r.push_str(&format!("| Metric | Winners | Losers |\n"));
+    r.push_str(&format!("|--------|---------|--------|\n"));
+    r.push_str(&format!("| Obstacles Cleared | {:.1} | {:.1} |\n", wvl.winner_avg_obstacles, wvl.loser_avg_obstacles));
+    r.push_str(&format!("| Shred | {:.1} | {:.1} |\n", wvl.winner_avg_shred, wvl.loser_avg_shred));
+    r.push_str(&format!("| Penalties | {:.1} | {:.1} |\n", wvl.winner_avg_penalties, wvl.loser_avg_penalties));
+    r.push_str(&format!("| Flow | {:.1} | {:.1} |\n", wvl.winner_avg_flow, wvl.loser_avg_flow));
+    r.push_str(&format!("| Momentum | {:.1} | {:.1} |\n", wvl.winner_avg_momentum, wvl.loser_avg_momentum));
+    r.push('\n');
+
+    // Distributions (compact)
+    r.push_str("## Shred Distribution\n");
+    for (val, count) in &analysis.shred_distribution {
+        r.push_str(&format!("- {}: {} players\n", val, count));
+    }
+    r.push('\n');
+
+    r.push_str("## Obstacles Cleared Distribution\n");
+    for (val, count) in &analysis.obstacles_cleared_distribution {
+        r.push_str(&format!("- {}: {} players\n", val, count));
+    }
+
+    r
+}
+
 fn empty_results() -> AnalysisResults {
     AnalysisResults {
         game_count: 0,
