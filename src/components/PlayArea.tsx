@@ -101,7 +101,7 @@ export default function PlayArea({
   return (
     <div className="relative flex flex-col flex-1 min-h-0 p-2 gap-2">
       {/* Player boards row */}
-      <div className="flex gap-2 justify-center flex-wrap flex-shrink-0">
+      <div className="flex gap-2 justify-center flex-wrap flex-shrink-0 relative z-10">
         {game.players.map((player, i) => {
           const isSelected = i === selectedPlayer;
           const canSteer =

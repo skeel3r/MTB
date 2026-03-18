@@ -54,9 +54,9 @@ export default function GameShell({
           onSteerTo={onSteerTo}
         />
         {/* Mobile: inline game log (hidden on desktop where right panel shows) */}
-        <div className="md:hidden flex-shrink-0 p-2 max-h-32">
+        <div className="md:hidden flex-shrink-0 p-2 max-h-32 overflow-hidden relative z-0">
           <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#8A9A7A' }}>Game Log</div>
-          <div className="h-24">
+          <div className="h-24 overflow-hidden">
             <GameLog log={game.log} />
           </div>
         </div>
