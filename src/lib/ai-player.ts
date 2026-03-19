@@ -1,5 +1,5 @@
 import { GameState, TechniqueType, ObstacleType } from './types';
-import { processAction } from './engine';
+import { processAction } from './wasm-engine';
 import { getTechniqueSymbol, getTechniqueName, getObstacleSymbols, getObstacleMatchMode } from './cards';
 
 /**

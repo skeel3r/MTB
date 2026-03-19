@@ -1,5 +1,5 @@
 import { GameState, GameAction, SimulationConfig, SimulationResult, ObstacleType, CardSymbol, TechniqueType } from './types';
-import { initGame, advancePhase, processAction, getStandings, sortByShredRandomTies } from './engine';
+import { initWasmEngine, isWasmReady, initGame, advancePhase, processAction, getStandings, sortByShredRandomTies, runIsmcts } from './wasm-engine';
 import {
   getTechniqueSymbol, getObstacleSymbols, getObstacleMatchMode, getObstacleName,
   getTrailStageName, getTrailStageSpeedLimit, getTrailStageCheckedRows, getTrailStageTargetLanes,
@@ -9,33 +9,18 @@ import { smartAiPlaySprint, smartAiCommit } from './smart-ai';
 
 type Strategy = SimulationConfig['strategy'];
 
-// ── MCTS WASM integration ──
-// Lazily initialized WASM module for MCTS AI
-let wasmInitialized = false;
-let wasmRunIsmcts: ((json: string, player: number, iters: number) => string) | null = null;
+// ── MCTS WASM integration (consolidated via wasm-engine) ──
 
-export async function ensureMctsWasm() {
-  if (wasmInitialized) return;
-  try {
-    const wasm = await import('../ai/wasm-pkg/treadline_wasm.js');
-    await wasm.default();
-    wasmRunIsmcts = wasm.wasm_run_ismcts;
-    wasmInitialized = true;
-  } catch (e) {
-    console.error('Failed to initialize MCTS WASM:', e);
-    throw e;
-  }
-}
+/** @deprecated Use initWasmEngine() from wasm-engine.ts directly. Kept for backward compat. */
+export const ensureMctsWasm = initWasmEngine;
 
 const MCTS_ITERATIONS = 500;
 
 /** MCTS AI: use Rust WASM ISMCTS for commitment decision */
 function mctsCommit(state: GameState, playerIndex: number): GameState {
-  if (!wasmRunIsmcts) throw new Error('MCTS WASM not initialized');
-  // Set the current player for the MCTS engine
+  if (!isWasmReady()) throw new Error('WASM engine not initialized. Call initWasmEngine() first.');
   const stateForMcts = { ...state, currentPlayerIndex: playerIndex };
-  const resultJson = wasmRunIsmcts(JSON.stringify(stateForMcts), playerIndex, MCTS_ITERATIONS);
-  const action: GameAction = JSON.parse(resultJson);
+  const action = runIsmcts(stateForMcts, playerIndex, MCTS_ITERATIONS);
   if ('error' in action) {
     // Fallback to main line on error
     return processAction(state, playerIndex, { type: 'commit_line', payload: { line: 'main' } });
@@ -45,13 +30,12 @@ function mctsCommit(state: GameState, playerIndex: number): GameState {
 
 /** MCTS AI: use Rust WASM ISMCTS for sprint turn */
 function mctsPlaySprint(state: GameState, playerIndex: number): GameState {
-  if (!wasmRunIsmcts) throw new Error('MCTS WASM not initialized');
+  if (!isWasmReady()) throw new Error('WASM engine not initialized. Call initWasmEngine() first.');
   let s = state;
   let safety = 50; // prevent infinite loops
   while (!s.players[playerIndex].turnEnded && !s.players[playerIndex].crashed && safety-- > 0) {
     const stateForMcts = { ...s, currentPlayerIndex: playerIndex };
-    const resultJson = wasmRunIsmcts(JSON.stringify(stateForMcts), playerIndex, MCTS_ITERATIONS);
-    const action: GameAction = JSON.parse(resultJson);
+    const action = runIsmcts(stateForMcts, playerIndex, MCTS_ITERATIONS);
     if ('error' in action) {
       // Fallback: end turn on error
       s = processAction(s, playerIndex, { type: 'end_turn' });

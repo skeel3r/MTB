@@ -1,6 +1,6 @@
 /// Web Worker for running ISMCTS via WASM
 
-import init, { wasm_run_ismcts, wasm_get_legal_actions } from './wasm-pkg/treadline_wasm.js';
+import { initWasmEngine, runIsmcts, getLegalActions } from '../lib/wasm-engine';
 
 let initialized = false;
 
@@ -9,24 +9,20 @@ self.onmessage = async (e: MessageEvent) => {
 
   try {
     if (!initialized) {
-      await init();
+      await initWasmEngine();
       initialized = true;
     }
 
     if (type === 'run') {
-      const gameStateJson = JSON.stringify(gameState);
-      const resultJson = wasm_run_ismcts(gameStateJson, playerIndex, iterations);
-      const action = JSON.parse(resultJson);
+      const action = runIsmcts(gameState, playerIndex, iterations);
 
-      if (action.error) {
-        self.postMessage({ type: 'error', message: action.error });
+      if ('error' in action) {
+        self.postMessage({ type: 'error', message: (action as { error: string }).error });
       } else {
         self.postMessage({ type: 'success', action });
       }
     } else if (type === 'legal_actions') {
-      const gameStateJson = JSON.stringify(gameState);
-      const resultJson = wasm_get_legal_actions(gameStateJson);
-      const actions = JSON.parse(resultJson);
+      const actions = getLegalActions(gameState);
       self.postMessage({ type: 'success', actions });
     }
   } catch (err) {

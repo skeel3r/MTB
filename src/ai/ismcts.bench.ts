@@ -1,18 +1,14 @@
-import { describe, bench } from 'vitest';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-import { initSync, wasm_run_ismcts } from './wasm-pkg/treadline_wasm';
+import { describe, bench, beforeAll } from 'vitest';
+import { initWasmEngine, runIsmcts } from '../lib/wasm-engine';
 import { setupCommitmentGame, setupSprintGame } from './benchHelper';
 
-// Initialize WASM synchronously for Node.js (vitest) environment
-const wasmPath = resolve(__dirname, './wasm-pkg/treadline_wasm_bg.wasm');
-const wasmBytes = readFileSync(wasmPath);
-initSync({ module: new WebAssembly.Module(wasmBytes) });
+// Initialize WASM engine before benchmarks run
+beforeAll(async () => {
+  await initWasmEngine();
+});
 
 function runWasm(state: object, playerIndex: number, iterations: number): object {
-  const json = JSON.stringify(state);
-  const resultJson = wasm_run_ismcts(json, playerIndex, iterations);
-  return JSON.parse(resultJson);
+  return runIsmcts(state as Parameters<typeof runIsmcts>[0], playerIndex, iterations);
 }
 
 describe('Commitment Phase', () => {

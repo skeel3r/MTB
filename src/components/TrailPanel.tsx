@@ -1,7 +1,7 @@
 'use client';
 
 import { GameState } from '@/lib/types';
-import { getStandings } from '@/lib/engine';
+import { getStandings } from '@/lib/wasm-engine';
 import { TrailCardDisplay } from '@/components/GameBoard';
 
 export default function TrailPanel({ game, inline, selectedPlayer }: { game: GameState; inline?: boolean; selectedPlayer?: number }) {

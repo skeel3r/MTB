@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, GameAction } from '@/lib/types';
-import { initGame, advancePhase, processAction, getStandings } from '@/lib/engine';
+import { initWasmEngine, isWasmReady, initGame, advancePhase, processAction, getStandings } from '@/lib/wasm-engine';
 import {
   SYMBOL_COLORS,
   getTechniqueSymbol, getTechniqueName, getTechniqueActionText,
@@ -173,6 +173,7 @@ function GameOverScreen({
 
 // ── Main Page Orchestrator ──
 export default function PlayPage() {
+  const [wasmReady, setWasmReady] = useState(false);
   const [game, setGame] = useState<GameState | null>(null);
   const [isAI, setIsAI] = useState<boolean[]>([false, true]);
   const [selectedPlayer, setSelectedPlayer] = useState(0);
@@ -180,6 +181,11 @@ export default function PlayPage() {
   const [effectToast, setEffectToast] = useState<{ cardName: string; text: string; color: string } | null>(null);
   const aiProcessingRef = useRef(false);
   const aiCommittedRoundRef = useRef(-1);
+
+  // Initialize WASM engine on mount
+  useEffect(() => {
+    initWasmEngine().then(() => setWasmReady(true));
+  }, []);
 
   // ── Start game ──
   const handleStart = useCallback((names: string[], ai: boolean[]) => {
@@ -298,6 +304,17 @@ export default function PlayPage() {
   );
 
   // ── Routing ──
+  if (!wasmReady) {
+    return (
+      <div className="min-h-screen game-table text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-10 h-10 border-4 border-t-transparent rounded-full mx-auto mb-4" style={{ borderColor: '#D4A847', borderTopColor: 'transparent' }} />
+          <p style={{ color: '#B8C8A8' }}>Loading game engine...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!game) {
     return <SetupScreen onStart={handleStart} />;
   }

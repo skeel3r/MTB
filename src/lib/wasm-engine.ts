@@ -90,6 +90,7 @@ export interface StandingInfo {
   penalties: number;
   flow: number;
   momentum: number;
+  totalCardsPlayed: number;
 }
 
 export function getStandings(state: GameState): StandingInfo[] {

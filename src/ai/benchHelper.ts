@@ -1,4 +1,4 @@
-import { initGame, advancePhase, processAction } from '../lib/engine';
+import { initGame, advancePhase, processAction } from '../lib/wasm-engine';
 import type { GameState } from '../lib/types';
 
 export function setupCommitmentGame(numPlayers: number): GameState {
