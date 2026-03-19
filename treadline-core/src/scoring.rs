@@ -1,15 +1,15 @@
 use crate::types::*;
 
-/// Compute terminal rewards for each player based on final standings.
+/// Compute terminal rewards for each player.
 ///
-/// Ranking (higher is better except penalties):
-/// 1. Most shred (win condition)
-/// 2. Most flow
-/// 3. Fewest penalties
-/// 4. Most momentum
+/// Blends ordinal ranking (position-based) with a continuous margin
+/// component (shred difference). This ensures the ISMCTS can see the
+/// value of gaining extra shred even when it doesn't change ranking —
+/// critical for evaluating Pro Line's doubled shred.
 ///
-/// Rewards: 1st place = 1.0, last place = 0.0, linear interpolation for
-/// middle places. Tied players share their averaged reward.
+/// Reward = 0.6 * rank_reward + 0.4 * margin_reward
+///
+/// Ranking tiebreakers: shred → flow → -penalties → momentum
 pub fn compute_terminal_rewards(state: &GameState) -> Vec<f64> {
     let n = state.players.len();
     if n == 0 {
@@ -19,8 +19,7 @@ pub fn compute_terminal_rewards(state: &GameState) -> Vec<f64> {
         return vec![1.0];
     }
 
-    // Build sort keys for each player (higher = better for all fields)
-    // For penalties, negate so "fewer" is "higher"
+    // ── Ordinal ranking component (position-based) ──
     let mut indexed: Vec<(usize, (i32, i32, i32, i32))> = state
         .players
         .iter()
@@ -31,44 +30,51 @@ pub fn compute_terminal_rewards(state: &GameState) -> Vec<f64> {
                 (
                     p.shred,
                     p.flow,
-                    -(p.penalties.len() as i32), // fewer is better => negate
+                    -(p.penalties.len() as i32),
                     p.momentum,
                 ),
             )
         })
         .collect();
 
-    // Sort descending by sort key (best first)
     indexed.sort_by(|a, b| b.1.cmp(&a.1));
 
-    // Assign ranks with tie handling
-    let mut rewards = vec![0.0_f64; n];
+    let mut rank_rewards = vec![0.0_f64; n];
     let mut i = 0;
     while i < n {
-        // Find the extent of the tie group
         let mut j = i + 1;
         while j < n && indexed[j].1 == indexed[i].1 {
             j += 1;
         }
-
-        // Positions i..j share the same rank. Average the rewards for those
-        // positions. Position 0 gets reward 1.0, position n-1 gets 0.0.
         let mut total_reward = 0.0;
         for pos in i..j {
-            total_reward += if n == 1 {
-                1.0
-            } else {
-                1.0 - (pos as f64) / ((n - 1) as f64)
-            };
+            total_reward += 1.0 - (pos as f64) / ((n - 1) as f64);
         }
         let avg_reward = total_reward / (j - i) as f64;
-
         for pos in i..j {
-            let player_idx = indexed[pos].0;
-            rewards[player_idx] = avg_reward;
+            rank_rewards[indexed[pos].0] = avg_reward;
         }
-
         i = j;
+    }
+
+    // ── Continuous margin component (shred-based) ──
+    // Normalize shred to [0, 1] via min-max so each extra point of shred
+    // contributes proportionally to the reward.
+    let shreds: Vec<f64> = state.players.iter().map(|p| p.shred as f64).collect();
+    let min_shred = shreds.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max_shred = shreds.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let shred_range = max_shred - min_shred;
+
+    let margin_rewards: Vec<f64> = if shred_range > 0.0 {
+        shreds.iter().map(|&s| (s - min_shred) / shred_range).collect()
+    } else {
+        vec![0.5; n]
+    };
+
+    // ── Blend: 60% ranking + 40% margin ──
+    let mut rewards = vec![0.0_f64; n];
+    for i in 0..n {
+        rewards[i] = 0.6 * rank_rewards[i] + 0.4 * margin_rewards[i];
     }
 
     rewards
