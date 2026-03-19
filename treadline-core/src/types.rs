@@ -663,6 +663,68 @@ pub struct GameAction {
     pub payload: Option<serde_json::Value>,
 }
 
+impl GameAction {
+    /// Parse a GameAction (from TypeScript JSON) into a Choice.
+    pub fn to_choice(&self) -> Result<Choice, String> {
+        let p = &self.payload;
+        match self.action_type.as_str() {
+            "pedal" => Ok(Choice::Pedal),
+            "brake" => Ok(Choice::Brake),
+            "steer" => {
+                let row = p.as_ref().and_then(|v| v.get("row")).and_then(|v| v.as_u64())
+                    .ok_or("steer missing row")? as usize;
+                let direction = p.as_ref().and_then(|v| v.get("direction")).and_then(|v| v.as_i64())
+                    .ok_or("steer missing direction")? as i32;
+                Ok(Choice::Steer { row, direction })
+            }
+            "technique" => {
+                let card_index = p.as_ref().and_then(|v| v.get("cardIndex")).and_then(|v| v.as_u64())
+                    .ok_or("technique missing cardIndex")? as usize;
+                Ok(Choice::Technique { card_index })
+            }
+            "draw_obstacle" => Ok(Choice::DrawObstacle),
+            "reuse_obstacle" => {
+                let revealed_index = p.as_ref().and_then(|v| v.get("revealedIndex")).and_then(|v| v.as_u64())
+                    .ok_or("reuse_obstacle missing revealedIndex")? as usize;
+                Ok(Choice::ReuseObstacle { revealed_index })
+            }
+            "resolve_obstacle" => Ok(Choice::ResolveObstacle),
+            "send_it" => Ok(Choice::SendIt),
+            "flow_spend" => {
+                let action_str = p.as_ref().and_then(|v| v.get("flowAction")).and_then(|v| v.as_str())
+                    .ok_or("flow_spend missing flowAction")?;
+                let action = match action_str {
+                    "reroll" => FlowAction::Reroll,
+                    "ghost_copy" => FlowAction::GhostCopy,
+                    "brace" => FlowAction::Brace,
+                    "scrub" => FlowAction::Scrub,
+                    other => return Err(format!("unknown flow action: {}", other)),
+                };
+                Ok(Choice::FlowSpend { action })
+            }
+            "commit_line" => {
+                let line_str = p.as_ref().and_then(|v| v.get("line")).and_then(|v| v.as_str())
+                    .ok_or("commit_line missing line")?;
+                let line = match line_str {
+                    "main" => Commitment::Main,
+                    "pro" => Commitment::Pro,
+                    other => return Err(format!("unknown line: {}", other)),
+                };
+                Ok(Choice::CommitLine { line })
+            }
+            "end_turn" => Ok(Choice::EndTurn),
+            "buy_upgrade" => {
+                let upgrade_val = p.as_ref().and_then(|v| v.get("upgrade"))
+                    .ok_or("buy_upgrade missing upgrade")?;
+                let upgrade: UpgradeType = serde_json::from_value(upgrade_val.clone())
+                    .map_err(|e| format!("invalid upgrade: {}", e))?;
+                Ok(Choice::BuyUpgrade { upgrade })
+            }
+            other => Err(format!("unknown action type: {}", other)),
+        }
+    }
+}
+
 impl Choice {
     /// Convert a Choice to a GameAction for TypeScript interop
     pub fn to_game_action(&self) -> GameAction {

@@ -352,6 +352,18 @@ pub fn init_game(
     trail_id: Option<&str>,
     rng: &mut impl Rng,
 ) -> GameState {
+    let names: Vec<String> = (0..player_count)
+        .map(|i| format!("Player {}", i + 1))
+        .collect();
+    init_game_with_names(&names, trail_id, rng)
+}
+
+pub fn init_game_with_names(
+    player_names: &[String],
+    trail_id: Option<&str>,
+    rng: &mut impl Rng,
+) -> GameState {
+    let player_count = player_names.len();
     let mut technique_deck: VecDeque<TechniqueType> = VecDeque::from(create_technique_deck(rng));
 
     let mut players = Vec::new();
@@ -370,7 +382,7 @@ pub fn init_game(
 
         players.push(PlayerState {
             id: format!("player-{}", i),
-            name: format!("Player {}", i + 1),
+            name: player_names[i].clone(),
             grid,
             momentum: 2,
             flow: 0,
