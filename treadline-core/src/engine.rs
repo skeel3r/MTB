@@ -826,16 +826,52 @@ pub fn process_action(
                     }
                 }
                 FlowAction::Scrub => {
-                    if player.flow >= 3 {
-                        player.flow -= 3;
-                        player.flow_spent_abilities += 3;
+                    if player.flow >= 2 {
+                        player.flow -= 2;
+                        player.flow_spent_abilities += 2;
                         player.hazard_dice = (player.hazard_dice - 1).max(0);
                     }
                 }
                 FlowAction::GhostCopy => {
-                    if player.flow >= 1 {
+                    // Flow Clear: spend 1 flow to tackle any active obstacle
+                    if player.flow >= 1 && !state.active_obstacles.is_empty() {
                         player.flow -= 1;
                         player.flow_spent_abilities += 1;
+
+                        // Terrain effect still fires
+                        let obstacle = state.active_obstacles[0];
+                        apply_obstacle_terrain_penalty(state, player_index, &obstacle, rng);
+
+                        // Earn shred (pro = +2, main = +1)
+                        let player = &mut state.players[player_index];
+                        let shred_gain = if player.commitment == Commitment::Pro { 2 } else { 1 };
+                        player.shred += shred_gain;
+                        player.pending_momentum += 1;
+                        player.obstacles_cleared += 1;
+
+                        // Factory Suspension
+                        if player.commitment == Commitment::Pro
+                            && player.upgrades.contains(&UpgradeType::FactorySuspension)
+                        {
+                            player.flow += 2;
+                            player.flow_from_other += 2;
+                            track_upgrade_activation(player, UpgradeType::FactorySuspension);
+                        }
+
+                        // Remove obstacle
+                        let removed = state.active_obstacles.remove(0);
+                        let pid = state.players[player_index].id.clone();
+                        state.obstacle_discard.push_back(removed);
+                        reveal_obstacle(state, &pid, removed);
+
+                        // Crash check
+                        if state.players[player_index].hazard_dice >= 6 {
+                            crash(
+                                &mut state.players[player_index],
+                                &mut state.penalty_deck,
+                                rng,
+                            );
+                        }
                     }
                 }
             }

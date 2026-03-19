@@ -138,7 +138,12 @@ fn enumerate_obstacle_choices(state: &GameState, player: &PlayerState) -> Vec<Ch
         choices.push(Choice::SendIt);
     }
 
-    // If neither is possible, forced send_it (will likely cause a crash)
+    // Flow clear: spend 1 flow to tackle any obstacle
+    if player.flow >= 1 {
+        choices.push(Choice::FlowSpend { action: FlowAction::GhostCopy });
+    }
+
+    // If nothing is possible, forced send_it (will likely cause a crash)
     if choices.is_empty() {
         choices.push(Choice::SendIt);
     }
@@ -210,7 +215,7 @@ fn enumerate_free_sprint_choices(state: &GameState, player: &PlayerState) -> Vec
     }
 
     // Flow spends (Reroll is now automatic during reckoning)
-    if player.flow >= 3 && player.hazard_dice > 0 {
+    if player.flow >= 2 && player.hazard_dice > 0 {
         choices.push(Choice::FlowSpend { action: FlowAction::Scrub });
     }
 

@@ -105,10 +105,10 @@ This makes going first a **disadvantage** — the leader blazes the trail blind 
 
 | Action | Flow Cost | Effect |
 |--------|-----------|--------|
-| **Ghost Copy** | 1 | Duplicate a card symbol to help match an obstacle |
+| **Flow Clear** | 1 | Spend 1 Flow to tackle any active obstacle (terrain effect still fires). Earns Shred and counts as a clear. |
 | **Reroll** | 1 (auto) | During Reckoning, each die that rolls a 6 can be rerolled by spending 1 Flow. Automatic — no action needed. |
 | **Brace** | 1 | Ignore one environmental hazard push this round |
-| **Scrub** | 3 | Remove 1 Hazard Die from your pool |
+| **Scrub** | 2 | Remove 1 Hazard Die from your pool |
 
 ### Phase 6: Alignment Check
 
