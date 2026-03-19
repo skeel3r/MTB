@@ -57,9 +57,37 @@ fn pick_heuristic(state: &GameState, choices: &[Choice], rng: &mut impl Rng) -> 
     }
 }
 
-/// Commitment: 50/50 to avoid biasing the ISMCTS evaluation.
-fn pick_commitment(_state: &GameState, rng: &mut impl Rng) -> Choice {
-    if rng.random::<f64>() < 0.5 {
+/// Commitment: context-aware based on game state.
+///
+/// Late game: pro is increasingly attractive because fewer rounds remain
+/// for penalties to compound. On the final round, pro is strictly better
+/// (double shred with no future downside from extra hazard dice).
+///
+/// Risk assessment: pro is safer when hazard dice are low and flow is
+/// available for rerolls.
+fn pick_commitment(state: &GameState, rng: &mut impl Rng) -> Choice {
+    let player = &state.players[state.current_player_index];
+    let rounds_remaining = state.trail_length.saturating_sub(state.round);
+
+    // Last round: always pro — no future for penalties to compound
+    if rounds_remaining <= 1 {
+        return Choice::CommitLine { line: Commitment::Pro };
+    }
+
+    // Late game (last 3 rounds): lean toward pro
+    // Low hazard dice + flow available = safer to go pro
+    let low_risk = player.hazard_dice <= 2 && player.flow >= 2;
+    let pro_prob = if rounds_remaining <= 3 && low_risk {
+        0.7
+    } else if rounds_remaining <= 3 {
+        0.55
+    } else if low_risk {
+        0.5
+    } else {
+        0.35
+    };
+
+    if rng.random::<f64>() < pro_prob {
         Choice::CommitLine { line: Commitment::Pro }
     } else {
         Choice::CommitLine { line: Commitment::Main }
