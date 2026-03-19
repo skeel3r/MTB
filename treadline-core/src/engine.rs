@@ -98,21 +98,6 @@ pub fn crash(
 
 // ── Card drawing ──
 
-fn draw_cards(state: &mut GameState, count: usize) -> Vec<TechniqueType> {
-    let mut cards = Vec::new();
-    for _ in 0..count {
-        if state.technique_deck.is_empty() {
-            if !state.technique_discard.is_empty() {
-                state.technique_deck.append(&mut state.technique_discard);
-            }
-        }
-        if let Some(card) = state.technique_deck.pop_front() {
-            cards.push(card);
-        }
-    }
-    cards
-}
-
 fn draw_cards_with_rng(state: &mut GameState, count: usize, rng: &mut impl Rng) -> Vec<TechniqueType> {
     let mut cards = Vec::new();
     for _ in 0..count {
