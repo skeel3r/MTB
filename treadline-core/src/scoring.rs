@@ -2,13 +2,11 @@ use crate::types::*;
 
 /// Compute terminal rewards for each player based on final standings.
 ///
-/// Ranking tiebreakers (higher is better except penalties):
-/// 1. Most shred
-/// 2. Most obstacles_cleared
-/// 3. Most perfect_matches
-/// 4. Fewest penalties (penalties.len())
-/// 5. Most flow
-/// 6. Most momentum
+/// Ranking (higher is better except penalties):
+/// 1. Most shred (win condition)
+/// 2. Most flow
+/// 3. Fewest penalties
+/// 4. Most momentum
 ///
 /// Rewards: 1st place = 1.0, last place = 0.0, linear interpolation for
 /// middle places. Tied players share their averaged reward.
@@ -23,7 +21,7 @@ pub fn compute_terminal_rewards(state: &GameState) -> Vec<f64> {
 
     // Build sort keys for each player (higher = better for all fields)
     // For penalties, negate so "fewer" is "higher"
-    let mut indexed: Vec<(usize, (i32, i32, i32, i32, i32, i32))> = state
+    let mut indexed: Vec<(usize, (i32, i32, i32, i32))> = state
         .players
         .iter()
         .enumerate()
@@ -32,10 +30,8 @@ pub fn compute_terminal_rewards(state: &GameState) -> Vec<f64> {
                 i,
                 (
                     p.shred,
-                    p.obstacles_cleared,
-                    p.perfect_matches,
-                    -(p.penalties.len() as i32), // fewer is better => negate
                     p.flow,
+                    -(p.penalties.len() as i32), // fewer is better => negate
                     p.momentum,
                 ),
             )

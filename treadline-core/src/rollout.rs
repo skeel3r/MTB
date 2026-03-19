@@ -112,9 +112,17 @@ fn pick_sprint_action(state: &GameState, choices: &[Choice]) -> Choice {
     let has_steer = choices.iter().any(|c| matches!(c, Choice::SteerBest));
     
 
+    let has_pedal = choices.iter().any(|c| matches!(c, Choice::Pedal));
+    let speed_limit = state.active_trail_card.map(|t| t.speed_limit() as i32).unwrap_or(6);
+
     // Steer first if any checked row is in hazard die territory (2+ off)
     if has_steer && danger_rows > 0 {
         return Choice::SteerBest;
+    }
+
+    // Pedal early when momentum is low — bigger hand next round is high value
+    if has_pedal && player.momentum < 3 {
+        return Choice::Pedal;
     }
 
     // Draw/reuse an obstacle if hand can support it
@@ -159,9 +167,7 @@ fn pick_sprint_action(state: &GameState, choices: &[Choice]) -> Choice {
         }
     }
 
-    // Pedal if under speed limit
-    let has_pedal = choices.iter().any(|c| matches!(c, Choice::Pedal));
-    let speed_limit = state.active_trail_card.map(|t| t.speed_limit() as i32).unwrap_or(6);
+    // Pedal if still under speed limit (momentum = cards next round)
     if has_pedal && player.momentum < speed_limit {
         return Choice::Pedal;
     }

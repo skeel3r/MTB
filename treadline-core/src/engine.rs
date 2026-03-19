@@ -338,10 +338,8 @@ pub fn get_standings(state: &GameState) -> Vec<(usize, &PlayerState)> {
     indexed.sort_by(|(_, a), (_, b)| {
         b.shred
             .cmp(&a.shred)
-            .then(b.obstacles_cleared.cmp(&a.obstacles_cleared))
-            .then(b.perfect_matches.cmp(&a.perfect_matches))
-            .then(a.penalties.len().cmp(&b.penalties.len()))
             .then(b.flow.cmp(&a.flow))
+            .then(a.penalties.len().cmp(&b.penalties.len()))
             .then(b.momentum.cmp(&a.momentum))
     });
     indexed

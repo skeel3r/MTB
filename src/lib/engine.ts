@@ -1245,15 +1245,9 @@ export function getWinner(state: GameState): PlayerState | null {
   if (state.phase !== 'game_over') return null;
 
   const sorted = [...state.players].sort((a, b) => {
-    // Most shred first
     if (b.shred !== a.shred) return b.shred - a.shred;
-    // Perfect matches
-    if (b.perfectMatches !== a.perfectMatches) return b.perfectMatches - a.perfectMatches;
-    // Least penalties
-    if (a.penalties.length !== b.penalties.length) return a.penalties.length - b.penalties.length;
-    // Most flow
     if (b.flow !== a.flow) return b.flow - a.flow;
-    // Max momentum
+    if (a.penalties.length !== b.penalties.length) return a.penalties.length - b.penalties.length;
     return b.momentum - a.momentum;
   });
 
@@ -1264,12 +1258,10 @@ export function getWinner(state: GameState): PlayerState | null {
 export function getStandings(state: GameState) {
   return [...state.players]
     .sort((a, b) => {
-      // Primary: most progress wins
+      // Primary: most shred wins
       if (b.shred !== a.shred) return b.shred - a.shred;
-      if (b.obstaclesCleared !== a.obstaclesCleared) return b.obstaclesCleared - a.obstaclesCleared;
-      if (b.perfectMatches !== a.perfectMatches) return b.perfectMatches - a.perfectMatches;
-      if (a.penalties.length !== b.penalties.length) return a.penalties.length - b.penalties.length;
       if (b.flow !== a.flow) return b.flow - a.flow;
+      if (a.penalties.length !== b.penalties.length) return a.penalties.length - b.penalties.length;
       return b.momentum - a.momentum;
     })
     .map((p, i) => ({

@@ -384,11 +384,9 @@ Drawn during the Environment phase. Each affects specific rows on all players' g
 After 15 rounds, the player with the most **shred** wins.
 
 **Tiebreakers** (in order):
-1. Most obstacles cleared
-2. Most perfect alignment matches
-3. Fewest penalty cards
-4. Most Flow remaining
-5. Highest Momentum
+1. Most Flow remaining
+2. Fewest penalty cards
+3. Highest Momentum
 
 ---
 
