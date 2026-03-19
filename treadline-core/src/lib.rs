@@ -6,3 +6,4 @@ pub mod determinize;
 pub mod scoring;
 pub mod rollout;
 pub mod ismcts;
+pub mod commitment;

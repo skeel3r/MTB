@@ -6,6 +6,7 @@ use rand::prelude::*;
 use wyrand::WyRand;
 
 use treadline_core::choices::{enumerate_choices, refine_choice};
+use treadline_core::commitment::choose_commitment;
 use treadline_core::engine::{advance_phase, init_game, process_action};
 use treadline_core::ismcts::ismcts_with_policy;
 use treadline_core::scoring::compute_terminal_rewards;
@@ -126,14 +127,12 @@ fn run_game(
                 advance_phase(&mut state, rng);
             }
 
-            // Commitment: each player chooses main or pro
+            // Commitment: heuristic-based (not ISMCTS — too much variance for binary choice)
             GamePhase::Commitment => {
                 for pi in 0..num_players {
                     state.current_player_index = pi;
-                    let choices = enumerate_choices(&state);
-                    let choice = pick_choice(&state, pi, &choices, iterations, policy, rng);
-
-                    let concrete = refine_choice(&state, &choice, rng);
+                    let line = choose_commitment(&state, pi);
+                    let choice = Choice::CommitLine { line };
 
                     seq += 1;
                     entries.push(StructuredLogEntry {
@@ -141,10 +140,10 @@ fn run_game(
                         round: state.round,
                         phase: "commitment".to_string(),
                         player_index: pi,
-                        choice: concrete.clone(),
+                        choice: choice.clone(),
                     });
 
-                    process_action(&mut state, pi, &concrete, rng);
+                    process_action(&mut state, pi, &choice, rng);
                 }
                 advance_phase(&mut state, rng); // -> Environment
             }
